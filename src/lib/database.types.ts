@@ -38,8 +38,50 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['pedidos']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['pedidos']['Insert']>
+        Insert: {
+          numero: string
+          magazord_id?: number | null
+          cliente: string
+          produto: string
+          material?: string | null
+          moldura?: string | null
+          acabamento?: string | null
+          canal?: string | null
+          etapa: string
+          status: 'Pendente' | 'Atrasado' | 'OK'
+          prazo_entrega?: string | null
+          valor?: number | null
+          obs?: string | null
+          endereco?: string | null
+          transportadora?: string | null
+          rastreio?: string | null
+          data_despacho?: string | null
+          data_prevista?: string | null
+          hora_prevista?: string | null
+          from_magazord?: boolean
+        }
+        Update: {
+          numero?: string
+          magazord_id?: number | null
+          cliente?: string
+          produto?: string
+          material?: string | null
+          moldura?: string | null
+          acabamento?: string | null
+          canal?: string | null
+          etapa?: string
+          status?: 'Pendente' | 'Atrasado' | 'OK'
+          prazo_entrega?: string | null
+          valor?: number | null
+          obs?: string | null
+          endereco?: string | null
+          transportadora?: string | null
+          rastreio?: string | null
+          data_despacho?: string | null
+          data_prevista?: string | null
+          hora_prevista?: string | null
+          from_magazord?: boolean
+        }
       }
       financeiro_lancamentos: {
         Row: {
@@ -55,8 +97,26 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['financeiro_lancamentos']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['financeiro_lancamentos']['Insert']>
+        Insert: {
+          tipo: 'receita' | 'despesa'
+          categoria?: string | null
+          descricao: string
+          valor: number
+          data: string
+          forma_pagamento?: string | null
+          status?: 'pendente' | 'pago' | 'cancelado'
+          pedido_id?: string | null
+        }
+        Update: {
+          tipo?: 'receita' | 'despesa'
+          categoria?: string | null
+          descricao?: string
+          valor?: number
+          data?: string
+          forma_pagamento?: string | null
+          status?: 'pendente' | 'pago' | 'cancelado'
+          pedido_id?: string | null
+        }
       }
       estoque_itens: {
         Row: {
@@ -73,8 +133,28 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['estoque_itens']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['estoque_itens']['Insert']>
+        Insert: {
+          codigo?: string | null
+          nome: string
+          categoria?: string | null
+          unidade: string
+          quantidade: number
+          quantidade_minima: number
+          localizacao?: string | null
+          preco_unitario?: number | null
+          fornecedor?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          nome?: string
+          categoria?: string | null
+          unidade?: string
+          quantidade?: number
+          quantidade_minima?: number
+          localizacao?: string | null
+          preco_unitario?: number | null
+          fornecedor?: string | null
+        }
       }
       estoque_movimentacoes: {
         Row: {
@@ -87,7 +167,14 @@ export interface Database {
           usuario: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['estoque_movimentacoes']['Row'], 'id' | 'created_at'>
+        Insert: {
+          item_id: string
+          tipo: 'entrada' | 'saida' | 'ajuste'
+          quantidade: number
+          motivo?: string | null
+          pedido_id?: string | null
+          usuario?: string | null
+        }
         Update: never
       }
       patrimonio: {
@@ -107,8 +194,32 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['patrimonio']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['patrimonio']['Insert']>
+        Insert: {
+          nome: string
+          categoria?: string | null
+          marca?: string | null
+          modelo?: string | null
+          numero_serie?: string | null
+          data_aquisicao?: string | null
+          valor_aquisicao?: number | null
+          valor_atual?: number | null
+          localizacao?: string | null
+          status?: 'ativo' | 'manutenção' | 'inativo' | 'alienado'
+          obs?: string | null
+        }
+        Update: {
+          nome?: string
+          categoria?: string | null
+          marca?: string | null
+          modelo?: string | null
+          numero_serie?: string | null
+          data_aquisicao?: string | null
+          valor_aquisicao?: number | null
+          valor_atual?: number | null
+          localizacao?: string | null
+          status?: 'ativo' | 'manutenção' | 'inativo' | 'alienado'
+          obs?: string | null
+        }
       }
       parceiros: {
         Row: {
@@ -127,8 +238,32 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['parceiros']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['parceiros']['Insert']>
+        Insert: {
+          tipo: 'cliente' | 'fornecedor' | 'ambos'
+          nome: string
+          cnpj_cpf?: string | null
+          email?: string | null
+          telefone?: string | null
+          endereco?: string | null
+          cidade?: string | null
+          uf?: string | null
+          cep?: string | null
+          status?: 'ativo' | 'inativo'
+          obs?: string | null
+        }
+        Update: {
+          tipo?: 'cliente' | 'fornecedor' | 'ambos'
+          nome?: string
+          cnpj_cpf?: string | null
+          email?: string | null
+          telefone?: string | null
+          endereco?: string | null
+          cidade?: string | null
+          uf?: string | null
+          cep?: string | null
+          status?: 'ativo' | 'inativo'
+          obs?: string | null
+        }
       }
       configuracoes: {
         Row: {
@@ -138,8 +273,16 @@ export interface Database {
           descricao: string | null
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['configuracoes']['Row'], 'id' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['configuracoes']['Insert']>
+        Insert: {
+          chave: string
+          valor: Json
+          descricao?: string | null
+        }
+        Update: {
+          chave?: string
+          valor?: Json
+          descricao?: string | null
+        }
       }
     }
     Views: Record<string, never>
