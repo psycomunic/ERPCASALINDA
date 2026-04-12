@@ -44,7 +44,7 @@ export default function Inventory() {
   const [toast, setToast]         = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
   const [showFilter, setShowFilter]     = useState(false)
-  const [form, setForm] = useState({ material: INITIAL_ITEMS[0].nome, quantidade: '', nf: '', fornecedor: '', obs: '' })
+  const [form, setForm] = useState({ material: INITIAL_ITEMS[0]?.nome || '', quantidade: '', nf: '', fornecedor: '', obs: '' })
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const criticos = items.filter(i => i.status === 'CRÍTICO').length
@@ -85,7 +85,7 @@ export default function Inventory() {
       setMovements(prev => [newMov, ...prev])
     }
     setModal(false)
-    setForm({ material: INITIAL_ITEMS[0].nome, quantidade: '', nf: '', fornecedor: '', obs: '' })
+    setForm({ material: INITIAL_ITEMS[0]?.nome || '', quantidade: '', nf: '', fornecedor: '', obs: '' })
     showToast('Entrada de insumo registrada com sucesso!')
   }
 

@@ -65,7 +65,7 @@ export default function Patrimonio() {
   const [openMenu, setOpenMenu]         = useState<number | null>(null)
   const [toast, setToast]               = useState<string | null>(null)
   const [form, setForm]                 = useState({ nome: '', categoria: 'Maquinário', localizacao: 'Produção A', valor: '', data: '', serie: '' })
-  const [maintForm, setMaintForm]       = useState({ ativo: INITIAL_ASSETS[0].nome, tipo: 'Preventiva', empresa: '', obs: '' })
+  const [maintForm, setMaintForm]       = useState({ ativo: INITIAL_ASSETS[0]?.nome || '', tipo: 'Preventiva', empresa: '', obs: '' })
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
@@ -104,7 +104,7 @@ export default function Patrimonio() {
     // Update asset status
     setAssets(prev => prev.map(a => a.nome === maintForm.ativo ? { ...a, status: 'MANUTENÇÃO' } : a))
     setMaintModal(false)
-    setMaintForm({ ativo: INITIAL_ASSETS[0].nome, tipo: 'Preventiva', empresa: '', obs: '' })
+    setMaintForm({ ativo: INITIAL_ASSETS[0]?.nome || '', tipo: 'Preventiva', empresa: '', obs: '' })
     showToast('Manutenção registrada!')
   }
 
