@@ -340,38 +340,17 @@ interface ERPOrder {
  * Converte um pedido Magazord para o shape interno do ERP Kanban.
  */
 export function magazordToOrder(order: MagazordOrder): ERPOrder {
-  const item = order.itens[0]
-  const prazo = order.entrega.prazo_entrega
-    ? new Date(order.entrega.prazo_entrega).toLocaleDateString('pt-BR')
-    : undefined
-
-  // Calcula atraso: se o prazo já passou, marca como Atrasado
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-  const dtPrazo = order.entrega.prazo_entrega ? new Date(order.entrega.prazo_entrega) : null
-  const isAtrasado = dtPrazo ? dtPrazo < hoje : false
-
+  // O endpoint /v2/site/pedido retorna pedidos na listagem sem os subobjetos completos.
+  // Utilizar dados de forma segura sem desestruturar chaves não retornadas na lista
   return {
-    id: order.numero,
+    id: String(order.codigo || order.id),
     magazordId: order.id,
-    cliente: order.cliente.nome,
-    produto: item?.nome ?? '—',
-    material: item?.personalizado?.tamanho
-      ? `${item.personalizado.formato ?? ''} · ${item.personalizado.tamanho}`.trim()
-      : undefined,
-    moldura: item?.personalizado?.moldura,
-    acabamento: item?.personalizado?.acabamento,
-    canal: order.canal,
-    data: new Date(order.data_pedido).toLocaleDateString('pt-BR'),
-    hora: new Date(order.data_pedido).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    status: isAtrasado ? 'Atrasado' : 'Pendente',
-    prazoEntrega: prazo,
-    valor: order.valor_total,
-    obs: order.observacao,
-    endereco: [
-      order.entrega.logradouro, order.entrega.numero,
-      order.entrega.bairro, order.entrega.cidade, order.entrega.uf,
-    ].filter(Boolean).join(', '),
-    transportadora: order.entrega.transportadora,
+    cliente: order.pessoaNome || 'Cliente não informado',
+    produto: 'Consulte o Painel Mz.', // Sem detalhes de itens via lista
+    data: order.dataHora ? new Date(order.dataHora.replace(' ', 'T')).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
+    hora: order.dataHora ? new Date(order.dataHora.replace(' ', 'T')).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+    status: 'Pendente',
+    valor: order.valorTotal ? parseFloat(order.valorTotal) : undefined,
     fromMagazord: true,
   }
 }
