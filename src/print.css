@@ -1,0 +1,114 @@
+/* ─── Print / PDF styles ──────────────────────────────────────────────────── */
+@media print {
+  /* Hide everything except the report */
+  body > * { display: none !important; }
+  #report-print-area { display: block !important; }
+
+  #report-print-area {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    padding: 24mm 20mm;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 10pt;
+    color: #111;
+    z-index: 9999;
+  }
+
+  .rpt-logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6mm;
+    padding-bottom: 4mm;
+    border-bottom: 2px solid #1e3a8a;
+  }
+  .rpt-logo-row h1 { font-size: 18pt; font-weight: 800; color: #1e3a8a; margin: 0; }
+  .rpt-logo-row p  { font-size: 9pt; color: #555; margin: 0; }
+  .rpt-logo-sub    { font-size: 8pt; color: #888; text-align: right; }
+
+  .rpt-title { font-size: 14pt; font-weight: 700; color: #1e3a8a; margin: 0 0 1mm; }
+  .rpt-period { font-size: 9pt; color: #666; margin: 0 0 5mm; }
+
+  .rpt-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4mm;
+    margin-bottom: 6mm;
+  }
+  .rpt-kpi {
+    border: 1px solid #e5e7eb;
+    border-radius: 4pt;
+    padding: 3mm 4mm;
+    background: #f9fafb;
+  }
+  .rpt-kpi-label { font-size: 7pt; text-transform: uppercase; letter-spacing: .05em; color: #888; margin: 0 0 1mm; }
+  .rpt-kpi-value { font-size: 15pt; font-weight: 700; color: #1e3a8a; margin: 0; }
+  .rpt-kpi-sub   { font-size: 7.5pt; color: #666; margin: 2px 0 0; }
+
+  .rpt-section-title {
+    font-size: 10pt; font-weight: 700; color: #1e3a8a;
+    text-transform: uppercase; letter-spacing: .08em;
+    border-bottom: 1px solid #e5e7eb; padding-bottom: 1.5mm;
+    margin: 5mm 0 3mm;
+  }
+
+  table.rpt-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  table.rpt-table th {
+    background: #1e3a8a; color: #fff;
+    padding: 2mm 3mm; text-align: left; font-size: 7.5pt; font-weight: 600;
+  }
+  table.rpt-table td {
+    padding: 1.8mm 3mm; border-bottom: 1px solid #f3f4f6; vertical-align: top;
+  }
+  table.rpt-table tr:nth-child(even) td { background: #f8faff; }
+
+  .badge-print {
+    display: inline-block;
+    padding: 0.5mm 2mm;
+    border-radius: 20pt;
+    font-size: 7pt; font-weight: 600;
+    border: 1px solid currentColor;
+  }
+  .badge-ok       { color: #16a34a; }
+  .badge-atrasado { color: #dc2626; }
+  .badge-pendente { color: #d97706; }
+  .badge-critico  { color: #dc2626; }
+  .badge-atencao  { color: #d97706; }
+  .badge-normal   { color: #2563eb; }
+
+  .rpt-footer {
+    position: fixed;
+    bottom: 10mm;
+    left: 20mm; right: 20mm;
+    display: flex; justify-content: space-between;
+    font-size: 7.5pt; color: #aaa;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 2mm;
+  }
+
+  .rpt-two-col {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-bottom: 4mm;
+  }
+  .rpt-box {
+    border: 1px solid #e5e7eb; border-radius: 4pt; padding: 3mm;
+    background: #f9fafb;
+  }
+  .rpt-box-title { font-size: 8pt; font-weight: 700; color: #374151; margin: 0 0 2mm; }
+
+  .rpt-alert {
+    background: #fef2f2; border: 1px solid #fecaca;
+    padding: 3mm; border-radius: 4pt; margin-bottom: 4mm;
+    font-size: 8.5pt; color: #b91c1c;
+  }
+  .rpt-highlight {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    padding: 2mm 3mm; border-radius: 4pt;
+    font-size: 8.5pt; color: #0369a1;
+  }
+
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}
