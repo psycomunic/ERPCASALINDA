@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  as string | undefined
-const SUPABASE_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+const SUPABASE_URL  = 'https://tyjdetvuzqpjzhdmdzxo.supabase.co'
+const SUPABASE_KEY  = 'sb_publishable_S3BR6xih1XutmQEKDoa02A_9kQQ816t'
 
 const configured = !!(
   SUPABASE_URL &&
