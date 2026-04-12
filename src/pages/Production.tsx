@@ -6,7 +6,7 @@ import {
   RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
-import { fetchPendingOrders, updateOrderStatus, magazordToOrder } from '../magazord'
+import { fetchPendingOrders, updateOrderSituacao, magazordToOrder } from '../magazord'
 import {
   fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa
 } from '../services/pedidos'
@@ -975,7 +975,7 @@ export default function Production() {
 
   // ── Confirm Magazord order → Impressão ──
   const confirmToProducao = async (order: Order) => {
-    if (order.magazordId) await updateOrderStatus(order.magazordId, 'em_producao')
+    if (order.magazordId) await updateOrderSituacao(order.magazordId, 5) // 5 = Aprovado e Integrado (Produção)
     setBoard(prev => ({
       ...prev,
       'Novos Pedidos': prev['Novos Pedidos'].filter(o => o.id !== order.id),
@@ -1031,7 +1031,7 @@ export default function Production() {
       'Despachados': [{ ...order, transportadora, rastreio, dataDespacho: now, status: 'OK' }, ...prev['Despachados']],
     }))
     setDispatchModal(null)
-    if (order.magazordId) updateOrderStatus(order.magazordId, 'enviado', { codigo_rastreio: rastreio, transportadora })
+    if (order.magazordId) updateOrderSituacao(order.magazordId, 7, { codigoRastreio: rastreio, transportadora })
     // Supabase sync
     const dbId = getDbId(order.id)
     if (dbId) despacharPedido(dbId, transportadora, rastreio)
