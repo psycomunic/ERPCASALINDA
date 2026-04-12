@@ -6,7 +6,11 @@
   "rewrites": [
     {
       "source": "/magazord-api/:path*",
-      "destination": "/api/magazord/:path*"
+      "destination": "/api/magazord?origPath=:path*"
+    },
+    {
+      "source": "/api/magazord/v2/:path*",
+      "destination": "/api/magazord?origPath=v2/:path*"
     },
     {
       "source": "/((?!api/).*)",
