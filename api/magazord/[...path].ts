@@ -23,10 +23,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  // ── Credentials (server-side only ou fixados para MVP) ──────────────────────
-  const user    = process.env.MAGAZORD_USER    || 'MZDK243d956a56ce6ac8ee27b0ea82734801a79db2e823c65868a79c4fe5329f'
-  const pass    = process.env.MAGAZORD_PASS    || "'eD}E!Z139Lk"
-  const baseUrl = (process.env.MAGAZORD_BASE_URL || 'https://casalinda.painel.magazord.com.br').replace(/\/$/, '')
+  // ── Credentials fixadas (sobrescrevendo qualquer config antiga da Vercel) ───
+  const user    = 'MZDK243d956a56ce6ac8ee27b0ea82734801a79db2e823c65868a79c4fe5329f'
+  const pass    = "'eD}E!Z139Lk"
+  const baseUrl = 'https://casalinda.painel.magazord.com.br'
 
   if (!user || !pass) {
     res.status(503).json({
