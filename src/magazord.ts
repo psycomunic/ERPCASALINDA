@@ -224,20 +224,22 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
     d.setDate(d.getDate() - 3)
     const dataInicial = d.toISOString().split('T')[0]
 
-    // Situações que indicam "pronto para produção": 4=Aprovado, 5=Aprovado Integrado, 23=Faturamento Iniciado
-    const results: MagazordOrder[] = []
-    for (const situacao of [4, 5, 23]) {
-      const json = await mzFetch<MagazordOrdersResponse>(
-        `/site/pedido?situacao=${situacao}&dataPedidoInicial=${dataInicial}&limit=100&order=id&orderDirection=desc`
-      )
-      const items = json?.data?.items ?? []
-      results.push(
-        ...items.map(o => ({
-          ...o,
-          status: situacaoLabel(o.situacao ?? situacao),
-        }))
-      )
-    }
+    // Fazer apenas uma chamada e filtrar os status do lado do cliente
+    // (a API ignora o parâmetro ?situacao se mal formatado, causando requisições idênticas)
+    const json = await mzFetch<MagazordOrdersResponse>(
+      `/site/pedido?dataPedidoInicial=${dataInicial}&limit=100&order=id&orderDirection=desc`
+    )
+    
+    // 4=Aprovado (Pago), 5=Aprovado Integrado, 23=Faturamento Iniciado
+    const allowedSituations = [4, 5, 23]
+    const items = json?.data?.items ?? []
+    
+    const results: MagazordOrder[] = items
+      .filter(o => allowedSituations.includes(o.pedidoSituacao ?? 0))
+      .map(o => ({
+        ...o,
+        status: situacaoLabel(o.pedidoSituacao ?? 0),
+      }))
     return results
   } catch (err) {
     console.error('[Magazord] fetchPendingOrders falhou:', err)
