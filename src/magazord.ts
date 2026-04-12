@@ -219,11 +219,16 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
   }
 
   try {
+    // Filtrar os últimos 3 dias para garantir performance e evitar timeouts
+    const d = new Date()
+    d.setDate(d.getDate() - 3)
+    const dataInicial = d.toISOString().split('T')[0]
+
     // Situações que indicam "pronto para produção": 4=Aprovado, 5=Aprovado Integrado, 23=Faturamento Iniciado
     const results: MagazordOrder[] = []
     for (const situacao of [4, 5, 23]) {
       const json = await mzFetch<MagazordOrdersResponse>(
-        `/pedido?situacao=${situacao}&limit=100&order=id&orderDirection=desc`
+        `/site/pedido?situacao=${situacao}&dataPedidoInicial=${dataInicial}&limit=100&order=id&orderDirection=desc`
       )
       const items = json?.data?.items ?? []
       results.push(
