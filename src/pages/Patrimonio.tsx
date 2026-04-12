@@ -15,20 +15,9 @@ interface Asset {
 
 type Manutencao = { ativo: string; tipo: string; status: 'CONCLUÍDO' | 'PENDENTE'; time: string }
 
-const INITIAL_ASSETS: Asset[] = [
-  { id: 1, tag: 'PAT-001', nome: 'Impressora Industrial HP Latex',  categoria: 'Maquinário', localizacao: 'Produção A', valor: 85000,  dataAquisicao: '12/01/2024', status: 'ATIVO' },
-  { id: 2, tag: 'PAT-045', nome: 'Estação de Trabalho Dell XPS',    categoria: 'TI',          localizacao: 'Escritório', valor: 12500,  dataAquisicao: '05/03/2025', status: 'ATIVO' },
-  { id: 3, tag: 'PAT-040', nome: 'Mesa de Corte Automatizada',       categoria: 'Maquinário', localizacao: 'Produção B', valor: 42000,  dataAquisicao: '20/11/2023', status: 'MANUTENÇÃO' },
-  { id: 4, tag: 'PAT-012', nome: 'Caminhão de Entrega Iveco',        categoria: 'Veículos',   localizacao: 'Externo',    valor: 110000, dataAquisicao: '08/06/2022', status: 'ATIVO' },
-  { id: 5, tag: 'PAT-033', nome: 'Servidor de Armazenamento NAS',    categoria: 'TI',          localizacao: 'Escritório', valor: 8900,   dataAquisicao: '14/09/2024', status: 'ATIVO' },
-  { id: 6, tag: 'PAT-027', nome: 'Ar-Condicionado Central 60.000',   categoria: 'Estrutura',  localizacao: 'Produção A', valor: 15800,  dataAquisicao: '03/02/2023', status: 'ATIVO' },
-]
+const INITIAL_ASSETS: Asset[] = []
 
-const INITIAL_MANUTENCOES: Manutencao[] = [
-  { ativo: 'Impressora HP Latex',    tipo: 'Preventiva · Techinsumos Ltda',  status: 'CONCLUÍDO', time: 'HÁ 3 DIAS' },
-  { ativo: 'Mesa de Corte',          tipo: 'Corretiva · Mecânica Industrial', status: 'PENDENTE',  time: 'EM ANDAMENTO' },
-  { ativo: 'Ar-Condicionado Central',tipo: 'Limpeza · Climatizar',            status: 'CONCLUÍDO', time: 'HÁ 1 SEMANA' },
-]
+const INITIAL_MANUTENCOES: Manutencao[] = []
 
 const STATUS_BADGE: Record<string, string> = { ATIVO: 'badge-ativo', MANUTENÇÃO: 'badge-manutencao', INATIVO: 'badge-inativo' }
 const MAINT_BADGE: Record<string, string>  = { CONCLUÍDO: 'badge-concluido', PENDENTE: 'badge-pendente' }

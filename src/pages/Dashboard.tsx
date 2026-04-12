@@ -12,12 +12,7 @@ import {
   ResponsiveContainer
 } from 'recharts'
 
-const cashflow = [
-  { semana: 'Semana 01', entradas: 12000, saidas: 4000 },
-  { semana: 'Semana 02', entradas: 18000, saidas: 7000 },
-  { semana: 'Semana 03', entradas: 8000,  saidas: 5000 },
-  { semana: 'Semana 04', entradas: 22000, saidas: 9200 },
-]
+const cashflow: any[] = []
 
 const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR')}`
 
@@ -122,10 +117,10 @@ export default function Dashboard() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: 'FATURAMENTO MENSAL',     value: 'R$ 45.200', tag: '+12,4%',  tagColor: 'text-blue-600 bg-blue-50',   icon: TrendingUp,    iconColor: 'text-blue-600',   onClick: () => navigate('/financial') },
-          { label: 'QUADROS PRODUZIDOS HOJE',value: '18',        tag: 'Meta: 20',tagColor: 'text-blue-600 bg-blue-50',   icon: ShoppingCart,  iconColor: 'text-blue-600',   onClick: () => navigate('/production') },
-          { label: 'PEDIDOS ATRASADOS',      value: '2',         tag: 'Atenção', tagColor: 'text-orange-600 bg-orange-50',icon: AlertTriangle, iconColor: 'text-orange-500', onClick: () => navigate('/production') },
-          { label: 'TICKET MÉDIO',           value: 'R$ 250',    tag: 'Estável', tagColor: 'text-green-700 bg-green-50', icon: TrendingDown,  iconColor: 'text-green-600',  onClick: () => navigate('/financial') },
+          { label: 'FATURAMENTO MENSAL',     value: 'R$ 0',      tag: '-',       tagColor: 'text-gray-500 bg-gray-100',  icon: TrendingUp,    iconColor: 'text-gray-400',   onClick: () => navigate('/financial') },
+          { label: 'QUADROS PRODUZIDOS HOJE',value: '0',         tag: 'Meta: 20',tagColor: 'text-gray-500 bg-gray-100',  icon: ShoppingCart,  iconColor: 'text-gray-400',   onClick: () => navigate('/production') },
+          { label: 'PEDIDOS ATRASADOS',      value: '0',         tag: 'Atenção', tagColor: 'text-gray-500 bg-gray-100',  icon: AlertTriangle, iconColor: 'text-gray-400',   onClick: () => navigate('/production') },
+          { label: 'TICKET MÉDIO',           value: 'R$ 0',      tag: '-',       tagColor: 'text-gray-500 bg-gray-100',  icon: TrendingDown,  iconColor: 'text-gray-400',   onClick: () => navigate('/financial') },
         ].map((k, i) => (
           <motion.div
             key={k.label}

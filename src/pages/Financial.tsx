@@ -30,15 +30,7 @@ const CAT_COLORS: Record<string, string> = {
 const STATUS_DOT: Record<string, string>   = { pago: 'bg-green-500', pendente: 'bg-blue-500', atrasado: 'bg-red-500' }
 const STATUS_LABEL: Record<string, string> = { pago: 'PAGO', pendente: 'PENDENTE', atrasado: 'ATRASADO' }
 
-const INITIAL: Tx[] = [
-  { id: 1, data: '15 Out, 2023', hora: '14:30', descricao: 'Venda Pedido #8821 – Tecidos Linho',     categoria: 'VENDAS',        catColor: CAT_COLORS['VENDAS'],          valor: 4500,  tipo: 'entrada', status: 'pago',     anexos: 2 },
-  { id: 2, data: '14 Out, 2023', hora: '10:15', descricao: 'Fornecedor Madeira Carvalho – Lote 12', categoria: 'MATÉRIA PRIMA', catColor: CAT_COLORS['MATÉRIA PRIMA'],   valor: 12800, tipo: 'saida',   status: 'pendente', anexos: 1 },
-  { id: 3, data: '12 Out, 2023', hora: '18:45', descricao: 'Manutenção Showroom – Pintura',         categoria: 'MANUTENÇÃO',    catColor: CAT_COLORS['MANUTENÇÃO'],      valor: 1250,  tipo: 'saida',   status: 'pago',     anexos: 1 },
-  { id: 4, data: '11 Out, 2023', hora: '09:00', descricao: 'Comissão Arquiteta Carla – Parceria',   categoria: 'VENDAS',        catColor: CAT_COLORS['VENDAS'],          valor: 2100,  tipo: 'entrada', status: 'atrasado', anexos: 0 },
-  { id: 5, data: '10 Out, 2023', hora: '11:00', descricao: 'Energia Elétrica Fábrica',              categoria: 'OPERACIONAL',   catColor: CAT_COLORS['OPERACIONAL'],     valor: 980,   tipo: 'saida',   status: 'pago',     anexos: 1 },
-  { id: 6, data: '09 Out, 2023', hora: '15:20', descricao: 'Frete Entrega Zona Leste',              categoria: 'LOGÍSTICA',     catColor: CAT_COLORS['LOGÍSTICA'],       valor: 420,   tipo: 'saida',   status: 'pago',     anexos: 0 },
-  { id: 7, data: '01 Out, 2023', hora: '09:00', descricao: 'Salários Equipe Produção',              categoria: 'RH',            catColor: CAT_COLORS['RH'],              valor: 8400,  tipo: 'saida',   status: 'pago',     anexos: 0 },
-]
+const INITIAL: Tx[] = []
 
 const PERIODOS = ['ESTE MÊS (OUTUBRO)', 'SETEMBRO', 'AGOSTO', 'ÚLTIMO TRIMESTRE', 'ESTE ANO']
 const CATEGORIAS = ['TODAS CATEGORIAS', ...Object.keys(CAT_COLORS)]

@@ -17,20 +17,9 @@ interface Item {
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
 
-const INITIAL_ITEMS: Item[] = [
-  { id: 1, ref: 'REF: ALU-022', nome: 'Perfil Alumínio Prata',   unidade: 'metros (m)', atual: 420.5, minimo: 100,  status: 'NORMAL'  },
-  { id: 2, ref: 'REF: VDR-3WC', nome: 'Vidro Float 3mm Clear',   unidade: 'm²',         atual: 14.2,  minimo: 25,   status: 'CRÍTICO' },
-  { id: 3, ref: 'REF: TEL-POL', nome: 'Tela Poliéster Branca',   unidade: 'rolos (un)', atual: 8.0,   minimo: 5,    status: 'ATENÇÃO' },
-  { id: 4, ref: 'REF: CNR-CPQ', nome: 'Cantoneira Plástica L',   unidade: 'unidades',   atual: 1250,  minimo: 500,  status: 'NORMAL'  },
-  { id: 5, ref: 'REF: PAP-MT1', nome: 'Papel Matte Premium A3',  unidade: 'resmas',     atual: 4,     minimo: 10,   status: 'CRÍTICO' },
-  { id: 6, ref: 'REF: TIN-CYN', nome: 'Tinta Pigmentada Ciano',  unidade: 'cartuchos',  atual: 2,     minimo: 8,    status: 'CRÍTICO' },
-]
+const INITIAL_ITEMS: Item[] = []
 
-const INITIAL_MOVEMENTS: Movement[] = [
-  { tipo: 'saida',   desc: 'Saída de 2.5m de moldura',   sub: 'Por Pedido #782 · Produção',           time: 'HÁ 12 MINUTOS' },
-  { tipo: 'entrada', desc: 'Entrada de 100m² de vidro',  sub: 'Nota Fiscal #8529 · Fornecedor Alpha',  time: 'HÁ 2 HORAS' },
-  { tipo: 'ajuste',  desc: 'Ajuste manual de estoque',   sub: 'Cantoneira Plástica L 20 Un · Quebra',  time: 'ONTEM ÀS 16:40' },
-]
+const INITIAL_MOVEMENTS: Movement[] = []
 
 const STATUS_BADGE: Record<string, string> = { NORMAL: 'badge-normal', CRÍTICO: 'badge-critico', ATENÇÃO: 'badge-atencao' }
 

@@ -14,16 +14,7 @@ interface Partner {
   ativo: boolean
 }
 
-const INITIAL_PARTNERS: Partner[] = [
-  { id: 1, nome: 'Decora Mais',         tipo: 'Fornecedor', subtipo: 'Tecidos',    contato: 'Sandro Lima',   email: 'contato@decoramais.com',   telefone: '(11) 98765-4321', cidade: 'São Paulo, SP',    ativo: true  },
-  { id: 2, nome: 'Arte em Vidro',        tipo: 'Fornecedor', subtipo: 'Vidros',     contato: 'Renata Souza',  email: 'vendas@arteemvidro.com',   telefone: '(11) 91234-5678', cidade: 'São Paulo, SP',    ativo: true  },
-  { id: 3, nome: 'Transportes Rápidos',  tipo: 'Serviço',    subtipo: 'Logística',  contato: 'Marcos Costa',  email: 'logistica@tr.com',         telefone: '(11) 99887-7665', cidade: 'São Paulo, SP',    ativo: false },
-  { id: 4, nome: 'Madeiras Nobres',      tipo: 'Fornecedor', subtipo: 'Madeira',    contato: 'Paulo Andrade', email: 'vendas@madeirasnobres.com', telefone: '(11) 97654-3210', cidade: 'Guarulhos, SP',    ativo: true  },
-  { id: 5, nome: 'Papel & Cia',          tipo: 'Fornecedor', subtipo: 'Papelaria',  contato: 'Ricardo Silva', email: 'ri@papelecia.com.br',       telefone: '(11) 3344-5566',  cidade: 'São Paulo, SP',    ativo: true  },
-  { id: 6, nome: 'MDF Total',            tipo: 'Fornecedor', subtipo: 'Molduras',   contato: 'Fernanda Lima', email: 'fe@mdftotal.com.br',        telefone: '(11) 9988-7722',  cidade: 'Guarulhos, SP',    ativo: true  },
-  { id: 7, nome: 'Técnico Gomes',        tipo: 'Serviço',    subtipo: 'Manutenção', contato: 'João Gomes',    email: 'jg@manutencao.com',         telefone: '(11) 9911-2233',  cidade: 'Mogi das Cruzes',  ativo: true  },
-  { id: 8, nome: 'Print Store',          tipo: 'Fornecedor', subtipo: 'Impressão',  contato: 'Carlos Souza',  email: 'cs@printstore.com.br',      telefone: '(11) 3322-1100',  cidade: 'São Paulo, SP',    ativo: true  },
-]
+const INITIAL_PARTNERS: Partner[] = []
 
 const TIPOS = ['TODOS', 'Fornecedor', 'Serviço', 'Transportadora']
 
