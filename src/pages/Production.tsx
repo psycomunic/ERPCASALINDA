@@ -71,28 +71,14 @@ const CANAL_ICON: Record<string, string> = {
 // ─── Sample data (non-Magazord orders already in production) ──────────────────
 
 const INITIAL: Record<Stage, Order[]> = {
-  'Novos Pedidos': [], // ← filled by Magazord sync
-  'Impressão': [
-    { id: '0821', cliente: 'Mariana S. Oliveira', produto: 'Trip Natureza Aquarela 100×90', material: 'PAPEL MATTE PREMIUM', data: 'Hoje', hora: '14:00', status: 'Pendente', prazoEntrega: '18/04/2026' },
-    { id: '0819', cliente: 'Ricardo Augusto',     produto: 'Canvas Skyline NY 120×80',      data: 'Amanhã', hora: '', status: 'OK', prazoEntrega: '20/04/2026' },
-  ],
-  'Corte Moldura': [
-    { id: '0815', cliente: 'Fernanda Lima',       produto: 'Moldura Filete Carvalho 60×70', data: 'Hoje', hora: '16:00', status: 'Atrasado', prazoEntrega: '13/04/2026' },
-  ],
-  'Entelamento + Vidro': [
-    { id: '0810', cliente: 'João Pedro Santos',   produto: 'Quadro Espelhado Lux 100×100',  data: 'Hoje', hora: '17:00', status: 'OK', prazoEntrega: '15/04/2026' },
-    { id: '0808', cliente: 'Carla Mendes',        produto: 'Painel Moderno 80×60',          data: 'Amanhã', hora: '', status: 'OK', prazoEntrega: '16/04/2026' },
-  ],
+  'Novos Pedidos': [],
+  'Impressão': [],
+  'Corte Moldura': [],
+  'Entelamento + Vidro': [],
   'Acabamento': [],
-  'Embalagem':  [],
-  'Prontos para Envio': [
-    { id: '0803', cliente: 'Ana Paula Ramos', produto: 'Canvas Abstrato 90×70', data: '12/04', hora: '', status: 'OK', prazoEntrega: '14/04/2026', endereco: 'Rua das Flores, 452 — Moema, SP', transportadora: 'Motoboy próprio' },
-    { id: '0800', cliente: 'Roberto Faria',   produto: 'Tríptico Floresta 3×60×80', data: '12/04', hora: '', status: 'OK', prazoEntrega: '15/04/2026', endereco: 'Av. Paulista, 1000 — Bela Vista, SP', transportadora: 'Bauer Express' },
-  ],
-  'Despachados': [
-    { id: '0795', cliente: 'Cláudia Souza',   produto: 'Quadro Portofino 80×100',  data: '10/04', hora: '', status: 'OK', prazoEntrega: '13/04/2026', dataDespacho: '10/04/2026 às 09:30', transportadora: 'JadLog', rastreio: 'BR123456789BR', endereco: 'Rua Augusta, 200 — Cerqueira César, SP' },
-    { id: '0792', cliente: 'Marcos Vinícius', produto: 'Canvas New York 120×80',   data: '09/04', hora: '', status: 'OK', prazoEntrega: '12/04/2026', dataDespacho: '09/04/2026 às 14:00', transportadora: 'Loggi', rastreio: 'LG09876543210', endereco: 'Rua Oscar Freire, 50 — Jardins, SP' },
-  ],
+  'Embalagem': [],
+  'Prontos para Envio': [],
+  'Despachados': [],
 }
 
 const MATERIAIS = ['PAPEL MATTE PREMIUM', 'CANVAS LONA', 'PVC VINÍLICO', 'PAPEL BRILHO', 'TECIDO LINHO']

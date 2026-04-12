@@ -23,6 +23,10 @@ const MAGAZORD_PASS = import.meta.env.VITE_MAGAZORD_PASS as string | undefined
 const PROXY_BASE = '/magazord-api/v2'
 
 export function isMagazordConfigured(): boolean {
+  // Em produção na Vercel, as credenciais estão seguras na Edge Function, não no frontend.
+  // Assumimos que está configurado e deixamos a request falhar se não estiver.
+  if (import.meta.env.PROD) return true
+  
   return !!(
     MAGAZORD_USER &&
     MAGAZORD_PASS &&
