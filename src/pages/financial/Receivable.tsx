@@ -15,8 +15,13 @@ export default function Receivable() {
     setEntries(getEntries().filter(e => e.tipo === 'recebimento'))
   }, [])
 
-  const markPaid = (entry: FinEntry) => {
-    const edit = { ...entry, status: 'pago' as const, dataPagamento: new Date().toISOString().split('T')[0] }
+  const toggleStatus = (entry: FinEntry) => {
+    const isPago = entry.status === 'pago'
+    const edit = { 
+       ...entry, 
+       status: isPago ? 'pendente' as const : 'pago' as const, 
+       dataPagamento: !isPago ? new Date().toISOString().split('T')[0] : undefined 
+    }
     saveEntry(edit)
     setEntries(prev => prev.map(e => e.id === entry.id ? edit : e))
   }
@@ -107,9 +112,12 @@ export default function Receivable() {
                   </td>
                   <td className="py-3 px-4 text-center">
                     {e.status === 'pago' ? (
-                       <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1"><CheckCircle size={10} /> RECEBIDO</span>
+                       <button onClick={() => toggleStatus(e)} className="text-[10px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 hover:bg-red-50 hover:text-red-600 hover:border-red-200 group" title="Clique para reverter para pendente">
+                         <span className="group-hover:hidden flex items-center gap-1"><CheckCircle size={10} /> RECBD</span>
+                         <span className="hidden group-hover:block mx-1">X REVERTER</span>
+                       </button>
                     ) : (
-                       <button onClick={() => markPaid(e)} className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 hover:bg-amber-100"> PENDENTE</button>
+                       <button onClick={() => toggleStatus(e)} className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 hover:bg-amber-100" title="Clique para marcar como recebido"> PENDENTE</button>
                     )}
                   </td>
                   <td className="py-3 px-4 text-right">
