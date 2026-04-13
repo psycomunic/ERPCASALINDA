@@ -249,19 +249,19 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
 }
 
 /**
- * Busca um pedido pelo ID.
+ * Busca um pedido pelo Código Ex.: '0012604724740'
  */
-export async function fetchOrderById(id: number): Promise<MagazordOrder | null> {
+export async function fetchOrderByCodigo(codigo: string): Promise<any | null> {
   if (!isMagazordConfigured()) {
-    return MOCK_MAGAZORD_ORDERS.find(o => o.id === id) ?? null
+    return MOCK_MAGAZORD_ORDERS.find(o => o.numero === codigo || String(o.id) === codigo) ?? null
   }
   try {
-    const json = await mzFetch<{ status: string; data: MagazordOrder }>(`/pedido/${id}`)
+    const json = await mzFetch<{ status: string; data: any }>(`/site/pedido/${codigo}`)
     const o = json?.data
     if (!o) return null
-    return { ...o, status: situacaoLabel(o.situacao) }
+    return o
   } catch (err) {
-    console.error('[Magazord] fetchOrderById falhou:', err)
+    console.error('[Magazord] fetchOrderByCodigo falhou:', err)
     return null
   }
 }
@@ -403,5 +403,51 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
       : order.valor_total || undefined,
     frete: e?.frete,
     fromMagazord: true,
+  }
+}
+
+/**
+ * Converte a resposta do endpoint individual (v2/site/pedido/{codigo}) para os detalhes ricos
+ */
+export function magazordDetailedToOrder(data: any): Partial<ERPOrder> {
+  if (!data) return {}
+
+  const rastreio = data.arrayPedidoRastreio?.[0] || {}
+  const item = rastreio.pedidoItem?.[0] || {}
+
+  const enderecoList = [
+    data.logradouro, data.numero, data.complemento,
+    data.bairro, data.cidadeNome && data.estadoSigla ? `${data.cidadeNome}/${data.estadoSigla}` : undefined,
+    data.cep
+  ].filter(Boolean)
+
+  const freteValue = parseFloat(rastreio.valorFrete || "0")
+
+  // Safe date parser
+  const safeDateStr = (raw?: string | null, suffix = '') => {
+    if (!raw) return undefined
+    const d = new Date((raw + suffix).replace(' ', 'T'))
+    return isNaN(d.getTime()) ? undefined : d.toLocaleDateString('pt-BR')
+  }
+
+  // Fallbacks: Try to parse moldura/acabamento from derivacao or leave undefined for user input
+  const derivacao = item.produtoDerivacaoNome || ''
+  const tamanho = derivacao.includes('x') ? derivacao.match(/\d+x\d+cm/i)?.[0] || derivacao : undefined
+
+  return {
+    clienteEmail: data.pessoaEmail || undefined,
+    clienteTelefone: data.pessoaContato || undefined,
+    produto: item.produtoTitulo || undefined,
+    // Em muitos casos o nome da derivação contém os detalhes do produto e tamanho
+    tamanho: tamanho,
+    formato: derivacao || undefined,
+    quantidade: item.quantidade || undefined,
+    frete: !isNaN(freteValue) && freteValue > 0 ? freteValue : undefined,
+    prazoEntrega: safeDateStr(rastreio.dataLimiteEntregaCliente, 'T12:00:00'),
+    endereco: enderecoList.length > 0 ? enderecoList.join(', ') : undefined,
+    transportadora: rastreio.transportadoraNome || undefined,
+    imagemUrl: item.lojaUrlImagem && item.midiaPath && item.midiaName 
+      ? `${item.lojaUrlImagem}/${item.midiaPath}${item.midiaName}`
+      : undefined
   }
 }

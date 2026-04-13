@@ -6,7 +6,7 @@ import {
   RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
-import { fetchPendingOrders, fetchOrderById, updateOrderSituacao, magazordToOrder } from '../magazord'
+import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder } from '../magazord'
 import {
   fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa
 } from '../services/pedidos'
@@ -402,15 +402,16 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
 
   // Fetch full Magazord order details when modal opens for a Magazord order
   useEffect(() => {
-    if (!initialOrder.magazordId) return
+    if (!initialOrder.fromMagazord || !initialOrder.id) return
     setDetailLoading(true)
-    fetchOrderById(initialOrder.magazordId)
+    // initialOrder.id is the Magazord "codigo" (e.g. 0012604724740) which the API v2 uses
+    fetchOrderByCodigo(initialOrder.id)
       .then(full => {
         if (!full) return
-        const enriched = magazordToOrder(full as any)
+        const enriched = magazordDetailedToOrder(full)
         setOrder(prev => ({
           ...prev,
-          produto:        enriched.produto !== 'Consulte o Painel Mz.' ? enriched.produto : prev.produto,
+          produto:        enriched.produto        ?? prev.produto,
           moldura:        enriched.moldura        ?? prev.moldura,
           acabamento:     enriched.acabamento     ?? prev.acabamento,
           tamanho:        enriched.tamanho        ?? prev.tamanho,
@@ -423,12 +424,12 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
           prazoEntrega:   enriched.prazoEntrega   ?? prev.prazoEntrega,
           endereco:       enriched.endereco       ?? prev.endereco,
           transportadora: enriched.transportadora ?? prev.transportadora,
-          obs:            enriched.obs            ?? prev.obs,
+          imagemUrl:      enriched.imagemUrl      ?? prev.imagemUrl,
         }))
       })
       .catch(() => {})
       .finally(() => setDetailLoading(false))
-  }, [initialOrder.magazordId])
+  }, [initialOrder.fromMagazord, initialOrder.id])
 
   const isDelivery = stage === 'Prontos para Envio' || stage === 'Despachados'
   const isMagazord = stage === 'Novos Pedidos'
