@@ -8,10 +8,12 @@ import {
   Check, ChevronDown, Truck
 } from 'lucide-react'
 import {
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
 } from 'recharts'
 import { fetchPedidos } from '../services/pedidos'
+import { isSupabaseConfigured } from '../lib/supabase'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 const cashflow: any[] = []
@@ -235,9 +237,58 @@ function FreightByCarrier() {
 export default function Dashboard() {
   const { activeTab } = useLayout()
   const navigate = useNavigate()
-  const [periodo, setPeriodo] = useState('Últimos 30 Dias')
+  const [periodo, setPeriodo] = useState('Este Mês')
   const [showPeriodo, setShowPeriodo] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+
+  // KPI States
+  const [faturamentoMensal, setFaturamentoMensal] = useState(0)
+  const [quadrosProduzidos, setQuadrosProduzidos] = useState(0)
+  const [pedidosAtrasados, setPedidosAtrasados] = useState(0)
+  const [ticketMedio, setTicketMedio] = useState(0)
+  
+  // Factory Capacity State
+  const [pedidosAndamento, setPedidosAndamento] = useState(0)
+  const [capacidade, setCapacidade] = useState(0)
+
+  useEffect(() => {
+    fetchPedidos().then(pedidos => {
+      const now = new Date()
+      
+      // Filtros para "Este Mês"
+      let fat = 0
+      let qtdProd = 0
+      let totalPedMes = 0
+      let atrasados = 0
+      let andamento = 0
+
+      for (const p of pedidos) {
+        // Pedidos em andamento
+        const isFinished = p.etapa === 'Prontos para Envio' || p.etapa === 'Despachados'
+        if (!isFinished) andamento++
+        
+        if (p.status === 'Atrasado') atrasados++
+        
+        const dt = new Date(p.created_at)
+        if (dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()) {
+          fat += (p.valor || 0)
+          totalPedMes++
+          if (isFinished) {
+            qtdProd += (p.quantidade || 1)
+          }
+        }
+      }
+
+      setFaturamentoMensal(fat)
+      setPedidosAtrasados(atrasados)
+      setQuadrosProduzidos(qtdProd)
+      setTicketMedio(totalPedMes > 0 ? fat / totalPedMes : 0)
+      
+      setPedidosAndamento(andamento)
+      // Assume a max capacity of 50 orders in pipeline for 100% visualization
+      setCapacidade(Math.min(Math.round((andamento / 50) * 100), 100))
+    })
+  }, [])
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -308,10 +359,10 @@ export default function Dashboard() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: 'FATURAMENTO MENSAL',     value: 'R$ 0',      tag: '-',       tagColor: 'text-gray-500 bg-gray-100',  icon: TrendingUp,    iconColor: 'text-gray-400',   onClick: () => navigate('/financial') },
-          { label: 'QUADROS PRODUZIDOS HOJE',value: '0',         tag: 'Meta: 20',tagColor: 'text-gray-500 bg-gray-100',  icon: ShoppingCart,  iconColor: 'text-gray-400',   onClick: () => navigate('/production') },
-          { label: 'PEDIDOS ATRASADOS',      value: '0',         tag: 'Atenção', tagColor: 'text-gray-500 bg-gray-100',  icon: AlertTriangle, iconColor: 'text-gray-400',   onClick: () => navigate('/production') },
-          { label: 'TICKET MÉDIO',           value: 'R$ 0',      tag: '-',       tagColor: 'text-gray-500 bg-gray-100',  icon: TrendingDown,  iconColor: 'text-gray-400',   onClick: () => navigate('/financial') },
+          { label: 'FATURAMENTO MENSAL',     value: fmt(faturamentoMensal),      tag: 'Este mês',       tagColor: 'text-emerald-700 bg-emerald-100',  icon: TrendingUp,    iconColor: 'text-emerald-500',   onClick: () => navigate('/financial') },
+          { label: 'QUADROS PRODUZIDOS(MÊS)',value: String(quadrosProduzidos),   tag: 'Concluídos',tagColor: 'text-blue-700 bg-blue-100',  icon: ShoppingCart,  iconColor: 'text-blue-500',   onClick: () => navigate('/production') },
+          { label: 'PEDIDOS ATRASADOS',      value: String(pedidosAtrasados),         tag: pedidosAtrasados > 0 ? 'Atenção' : 'Aprovado', tagColor: pedidosAtrasados > 0 ? 'text-red-700 bg-red-100' : 'text-emerald-700 bg-emerald-100',  icon: AlertTriangle, iconColor: pedidosAtrasados > 0 ? 'text-red-500' : 'text-emerald-500',   onClick: () => navigate('/production') },
+          { label: 'TICKET MÉDIO (MÊS)',     value: fmt(ticketMedio),      tag: 'Por pedido',       tagColor: 'text-purple-700 bg-purple-100',  icon: TrendingDown,  iconColor: 'text-purple-500',   onClick: () => navigate('/financial') },
         ].map((k, i) => (
           <motion.div
             key={k.label}
@@ -383,11 +434,11 @@ export default function Dashboard() {
 
           <div className="bg-navy-900 rounded-xl p-4 text-white">
             <p className="text-xs text-blue-200 font-medium mb-1">STATUS DA FÁBRICA</p>
-            <p className="font-bold text-base">Capacidade de Produção em 85%</p>
+            <p className="font-bold text-base">Capacidade de Produção em {capacidade}%</p>
             <div className="mt-3 bg-white/20 rounded-full h-2">
-              <div className="bg-white rounded-full h-2 w-[85%]" />
+              <div className="bg-white rounded-full h-2 transition-all duration-1000" style={{ width: `${capacidade}%` }} />
             </div>
-            <p className="text-xs text-blue-200 mt-2">22 pedidos em andamento</p>
+            <p className="text-xs text-blue-200 mt-2">{pedidosAndamento} pedidos em andamento</p>
           </div>
         </div>
       </div>

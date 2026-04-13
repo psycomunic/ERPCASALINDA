@@ -7,6 +7,7 @@ import {
   Search, Bell, ChevronDown, Menu, X, Check, FileText, Grid
 } from 'lucide-react'
 import { LayoutProvider, useLayout } from '../contexts/LayoutContext'
+import { fetchPedidos } from '../services/pedidos'
 
 const NAV = [
   { to: '/dashboard',  label: 'Dashboard',       icon: LayoutDashboard },
@@ -32,12 +33,6 @@ const SECTION_LABELS: Record<string, string> = {
 }
 
 
-
-const NOTIFICATIONS = [
-  { id: 1, title: 'Pedido Atrasado',         desc: 'Pedido #0815 – Fernanda Lima está atrasado.',       time: 'há 12 min',  read: false },
-  { id: 2, title: 'Estoque Crítico',          desc: 'Papel Matte Premium A3 abaixo do mínimo (4 resmas).', time: 'há 1h',     read: false },
-  { id: 3, title: 'Novo Lançamento',          desc: 'Entrada R$ 4.500 registrada – Venda Pedido #8821.', time: 'há 3h',     read: true  },
-]
 
 const ALL_ROUTES = [...NAV, { to: '/settings', label: 'Configurações', icon: Settings }]
 
@@ -121,11 +116,25 @@ function Topbar() {
   const section    = SECTION_LABELS[location.pathname] ?? ''
 
   const [showNotifs, setShowNotifs] = useState(false)
-  const [notifs, setNotifs]         = useState(NOTIFICATIONS)
+  const [notifs, setNotifs]         = useState<any[]>([])
   const [showSearch, setShowSearch] = useState(false)
   const [searchQ, setSearchQ]       = useState('')
   const [showUser, setShowUser]     = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetchPedidos().then(pedidos => {
+      const atrasados = pedidos.filter(p => p.status === 'Atrasado')
+      const dynamicNotifs = atrasados.map((p, i) => ({
+        id: i + 1,
+        title: 'Pedido Atrasado',
+        desc: `Pedido ${p.magazordId ? '#' + p.magazordId : ''} – ${p.cliente || 'Cliente'} está atrasado.`,
+        time: 'Agora',
+        read: false
+      }))
+      setNotifs(dynamicNotifs)
+    })
+  }, [])
 
   const unread = notifs.filter(n => !n.read).length
 
