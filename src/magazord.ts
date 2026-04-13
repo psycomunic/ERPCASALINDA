@@ -449,8 +449,8 @@ export function magazordDetailedToOrder(data: any): Partial<ERPOrder> {
     prazoEntrega: safeDateStr(rastreio.dataLimiteEntregaCliente, 'T12:00:00'),
     endereco: enderecoList.length > 0 ? enderecoList.join(', ') : undefined,
     transportadora: rastreio.transportadoraNome || undefined,
-    imagemUrl: item.lojaUrlImagem && item.midiaPath && item.midiaName 
-      ? `${item.lojaUrlImagem}/${item.midiaPath}${item.midiaName}`
+    imagemUrl: data.lojaUrlImagem && item.midiaPath && item.midiaName 
+      ? `${data.lojaUrlImagem}/${item.midiaPath}${item.midiaName}`
       : undefined
   }
 }
