@@ -59,7 +59,12 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Top CTA */}
       <div className="px-3 py-3">
         <button
-          onClick={() => { navigate('/production'); onClose?.() }}
+          onClick={() => {
+            const current = window.location.pathname
+            if (current.includes('/financial')) navigate('/financial/payable')
+            else navigate('/production')
+            onClose?.()
+          }}
           className="w-full btn-primary justify-center text-xs py-2"
         >
           <Plus size={14} /> Novo Registro

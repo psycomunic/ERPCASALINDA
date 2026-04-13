@@ -5,19 +5,22 @@ export default function AuxMenuEditor({ title, description }: { title: string, d
   const STORAGE_KEY = `erp_aux_${title.replace(/ /g, '_').toLowerCase()}`
   const [items, setItems] = useState<any[]>([])
   const [term, setTerm] = useState('')
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [promptVal, setPromptVal] = useState('')
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) setItems(JSON.parse(saved))
     else setItems([{ id: 1, nome: `Pré-Definição ${title}` }])
-  }, [STORAGE_KEY])
+  }, [STORAGE_KEY, title])
 
   const handleAdd = () => {
-    const name = window.prompt(`Novo item para ${title}:`)
-    if (!name) return
-    const novo = [...items, { id: Date.now(), nome: name }]
+    if (!promptVal) return
+    const novo = [...items, { id: Date.now(), nome: promptVal }]
     setItems(novo)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(novo))
+    setPromptOpen(false)
+    setPromptVal('')
   }
 
   const handleDelete = (id: number) => {
@@ -38,7 +41,7 @@ export default function AuxMenuEditor({ title, description }: { title: string, d
             {description || 'Gestão de Cadastros Auxiliares'}
           </p>
         </div>
-        <button onClick={handleAdd} className="btn-primary"><Plus size={14} /> Novo Registro</button>
+        <button onClick={() => setPromptOpen(true)} className="btn-primary"><Plus size={14} /> Novo Registro</button>
       </div>
 
       <div className="flex-1 p-6 overflow-y-auto w-full max-w-4xl mx-auto space-y-4">
@@ -86,6 +89,32 @@ export default function AuxMenuEditor({ title, description }: { title: string, d
           </table>
         </div>
       </div>
+
+      {promptOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Novo Registro</h2>
+              <button onClick={() => setPromptOpen(false)} className="text-gray-400 hover:text-gray-700">×</button>
+            </div>
+            <div className="p-5">
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Nome / Descrição do {title}</label>
+              <input 
+                 className="input" 
+                 autoFocus
+                 placeholder="Digite aqui..." 
+                 value={promptVal} 
+                 onChange={e => setPromptVal(e.target.value)}
+                 onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              />
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setPromptOpen(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={handleAdd} className="btn-primary">Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
