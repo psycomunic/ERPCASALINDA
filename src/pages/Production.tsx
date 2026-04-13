@@ -6,7 +6,7 @@ import {
   RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
-import { fetchPendingOrders, updateOrderSituacao, magazordToOrder } from '../magazord'
+import { fetchPendingOrders, fetchOrderById, updateOrderSituacao, magazordToOrder } from '../magazord'
 import {
   fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa
 } from '../services/pedidos'
@@ -394,9 +394,42 @@ function printOS(order: Order, stage: Stage) {
   if (w) { w.document.write(html); w.document.close() }
 }
 
-function DetailModal({ order, stage, onClose, onConclude }: {
+function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
   order: Order; stage: Stage; onClose: () => void; onConclude: () => void
 }) {
+  const [order, setOrder] = useState<Order>(initialOrder)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  // Fetch full Magazord order details when modal opens for a Magazord order
+  useEffect(() => {
+    if (!initialOrder.magazordId) return
+    setDetailLoading(true)
+    fetchOrderById(initialOrder.magazordId)
+      .then(full => {
+        if (!full) return
+        const enriched = magazordToOrder(full as any)
+        setOrder(prev => ({
+          ...prev,
+          produto:        enriched.produto !== 'Consulte o Painel Mz.' ? enriched.produto : prev.produto,
+          moldura:        enriched.moldura        ?? prev.moldura,
+          acabamento:     enriched.acabamento     ?? prev.acabamento,
+          tamanho:        enriched.tamanho        ?? prev.tamanho,
+          formato:        enriched.formato        ?? prev.formato,
+          quantidade:     enriched.quantidade     ?? prev.quantidade,
+          material:       enriched.material       ?? prev.material,
+          clienteEmail:   enriched.clienteEmail   ?? prev.clienteEmail,
+          clienteTelefone:enriched.clienteTelefone?? prev.clienteTelefone,
+          frete:          enriched.frete          ?? prev.frete,
+          prazoEntrega:   enriched.prazoEntrega   ?? prev.prazoEntrega,
+          endereco:       enriched.endereco       ?? prev.endereco,
+          transportadora: enriched.transportadora ?? prev.transportadora,
+          obs:            enriched.obs            ?? prev.obs,
+        }))
+      })
+      .catch(() => {})
+      .finally(() => setDetailLoading(false))
+  }, [initialOrder.magazordId])
+
   const isDelivery = stage === 'Prontos para Envio' || stage === 'Despachados'
   const isMagazord = stage === 'Novos Pedidos'
   const days = daysUntil(order.prazoEntrega)
@@ -437,6 +470,11 @@ function DetailModal({ order, stage, onClose, onConclude }: {
               {order.canal && (
                 <span className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full flex items-center gap-1">
                   {CANAL_ICON[order.canal] ?? '🛒'} {order.canal}
+                </span>
+              )}
+              {detailLoading && (
+                <span className="flex items-center gap-1 text-[10px] text-violet-500 font-semibold animate-pulse">
+                  <RefreshCw size={10} className="animate-spin" /> carregando detalhes…
                 </span>
               )}
             </h3>
