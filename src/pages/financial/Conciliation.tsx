@@ -6,15 +6,10 @@ export default function Conciliation() {
   const [extratoAberto, setExtratoAberto] = useState(false)
   const pendentesERP = getEntries().filter(e => e.status !== 'pago')
 
-  // Falso extrato de banco OFX parseado
-  const mockExtrato = [
-    { id: 1, data: '05/10/2026', desc: 'PIX RECEBIDO SHOPEE', val: 8900.0, conciliado: false },
-    { id: 2, data: '05/10/2026', desc: 'PAG DEBITO: FOLHA', val: -18000.0, conciliado: true },
-    { id: 3, data: '06/10/2026', desc: 'TED RECEBIDO TRAY', val: 15400.0, conciliado: false },
-    { id: 4, data: '08/10/2026', desc: 'PAG BOLETO MADEIRA', val: -12500.5, conciliado: false },
-  ]
+  // Extrato importado
+  const mockExtrato: Array<{id: number, data: string, desc: string, val: number, conciliado: boolean}> = []
 
-  const [matches, setMatches] = useState<number[]>([2])
+  const [matches, setMatches] = useState<number[]>([])
 
   const toggleMatch = (id: number) => {
     setMatches(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
