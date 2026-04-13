@@ -17,7 +17,7 @@ export interface FinEntry {
   anexoUrl?: string
 }
 
-const STORAGE_KEY = 'erp_financeiro_db'
+const STORAGE_KEY = 'erp_financeiro_db_v2'
 
 function getInitial(): FinEntry[] {
   return []
