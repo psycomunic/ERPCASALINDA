@@ -10,8 +10,12 @@ export default function Payable() {
   const [modalType, setModalType] = useState<false | 'new'>(false)
   
   // Modal State
+  const [tab, setTab] = useState(0) // 0: Lançamento, 1: Outras, 2: Anexos
   const [form, setForm] = useState({
-    fornecedor: '', descricao: '', valor: '', vencimento: '', categoria: 'Fornecedores'
+    descricao: '', vencimento: '', planoContas: 'Fornecedores', centroCusto: '',
+    formaPagamento: '', quitado: 'Não', dataCompensacao: '',
+    valorBruto: '', juros: '', desconto: '',
+    fornecedor: '', dataCompetencia: '', obs: ''
   })
 
   useEffect(() => {
@@ -76,22 +80,34 @@ export default function Payable() {
   const totalPendente = pendentes.reduce((acc, e) => acc + e.valor, 0)
 
   const handleSaveNovo = () => {
-    if (!form.fornecedor || !form.valor || !form.vencimento) return alert('Preencha os campos obrigatórios')
+    if (!form.descricao || !form.valorBruto || !form.vencimento) return alert('Preencha os campos obrigatórios: Descrição, Valor Bruto e Vencimento')
     
+    const vb = parseFloat(form.valorBruto) || 0
+    const vj = parseFloat(form.juros) || 0
+    const vd = parseFloat(form.desconto) || 0
+    const finalValor = vb + vj - vd
+
     const novo: FinEntry = {
       id: Date.now().toString(),
       tipo: 'pagamento',
-      categoria: form.categoria,
+      categoria: form.planoContas || 'Geral',
       descricao: form.descricao,
-      valor: parseFloat(form.valor),
+      valor: finalValor,
       dataVencimento: form.vencimento,
-      status: 'pendente',
-      fornecedor_cliente: form.fornecedor
+      dataPagamento: form.quitado === 'Sim' && form.dataCompensacao ? form.dataCompensacao : undefined,
+      status: form.quitado === 'Sim' ? 'pago' : 'pendente',
+      fornecedor_cliente: form.fornecedor || 'Fornecedor Genérico'
     }
     saveEntry(novo)
     setEntries(prev => [novo, ...prev])
     setModalType(false)
-    setForm({ fornecedor: '', descricao: '', valor: '', vencimento: '', categoria: 'Fornecedores' })
+    setTab(0)
+    setForm({ 
+      descricao: '', vencimento: '', planoContas: 'Fornecedores', centroCusto: '',
+      formaPagamento: '', quitado: 'Não', dataCompensacao: '',
+      valorBruto: '', juros: '', desconto: '',
+      fornecedor: '', dataCompetencia: '', obs: ''
+    })
   }
 
   return (
@@ -206,48 +222,147 @@ export default function Payable() {
         </div>
       </div>
 
-      {/* Modal Nova Despesa */}
+      {/* Modal Nova Despesa (Gestão Click Style) */}
       {modalType && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">Registrar Contas a Pagar</h2>
-              <button onClick={() => setModalType(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+          <div className="bg-gray-50 rounded shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            <div className="bg-white p-4 flex justify-between items-center border-b border-gray-200">
+              <h2 className="text-xl text-gray-700">Adicionar pagamento</h2>
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <p>Início {'>'} Contas a pagar {'>'} Adicionar</p>
+                <button onClick={() => setModalType(false)}><X size={18}/></button>
+              </div>
             </div>
-            <div className="p-5 space-y-4 text-sm">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Fornecedor *</label>
-                <input className="input" placeholder="Ex: Silva Madeiras" value={form.fornecedor} onChange={e => setForm({...form, fornecedor: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Descrição</label>
-                <input className="input" placeholder="Ex: Compra de matéria prima..." value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Valor (R$) *</label>
-                  <input className="input" type="number" placeholder="0,00" value={form.valor} onChange={e => setForm({...form, valor: e.target.value})} />
+
+            <div className="bg-white border-b border-gray-200 px-4 flex gap-6 text-sm text-gray-600">
+              <button onClick={() => setTab(0)} className={`py-4 px-2 border-b-2 font-medium ${tab === 0 ? 'border-navy-600 text-gray-900 font-bold' : 'border-transparent hover:text-gray-900'}`}>Lançamento financeiro</button>
+              <button onClick={() => setTab(1)} className={`py-4 px-2 border-b-2 font-medium ${tab === 1 ? 'border-navy-600 text-gray-900 font-bold' : 'border-transparent hover:text-gray-900'}`}>Outras informações</button>
+              <button onClick={() => setTab(2)} className={`py-4 px-2 border-b-2 font-medium ${tab === 2 ? 'border-navy-600 text-gray-900 font-bold' : 'border-transparent hover:text-gray-900'}`}>Anexos</button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              {tab === 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2 bg-white rounded border border-gray-200 p-5">
+                    <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 mb-4"><span className="text-gray-400">📝</span> Dados gerais</h3>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Descrição do pagamento *</label>
+                        <input className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} />
+                      </div>
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Vencimento *</label>
+                        <input type="date" className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.vencimento} onChange={e => setForm({...form, vencimento: e.target.value})} />
+                      </div>
+                      
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Plano de contas *</label>
+                        <select className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.planoContas} onChange={e => setForm({...form, planoContas: e.target.value})}>
+                          <option>Fornecedores Gerais</option>
+                          <option>Folha de Pagamento</option>
+                          <option>Manutenção</option>
+                          <option>Impostos</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Centro de custo</label>
+                        <input placeholder="Digite para buscar" className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.centroCusto} onChange={e => setForm({...form, centroCusto: e.target.value})} />
+                      </div>
+
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Forma de pagamento *</label>
+                        <select className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.formaPagamento} onChange={e => setForm({...form, formaPagamento: e.target.value})}>
+                          <option>Boleto</option>
+                          <option>Pix</option>
+                          <option>Transferência</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2 lg:col-span-1" />
+
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Pagamento quitado *</label>
+                        <select className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.quitado} onChange={e => setForm({...form, quitado: e.target.value})}>
+                          <option>Não</option>
+                          <option>Sim</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2 lg:col-span-1">
+                        <label className="block text-xs text-gray-600 mb-1">Data de compensação</label>
+                        <input type="date" disabled={form.quitado === 'Não'} className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none disabled:bg-gray-100" value={form.dataCompensacao} onChange={e => setForm({...form, dataCompensacao: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded border border-gray-200 flex flex-col">
+                    <div className="p-5 flex-1">
+                      <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 mb-4"><span className="text-gray-400">💵</span> Valores</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Valor bruto *</label>
+                          <input type="number" className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.valorBruto} onChange={e => setForm({...form, valorBruto: e.target.value})} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Juros / Multas</label>
+                          <input type="number" className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.juros} onChange={e => setForm({...form, juros: e.target.value})} />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Desconto</label>
+                          <input type="number" className="w-full border border-gray-300 rounded p-2 focus:border-navy-500 focus:outline-none" value={form.desconto} onChange={e => setForm({...form, desconto: e.target.value})} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 border-t border-gray-200 p-4 text-center">
+                      <span className="text-gray-700 font-bold text-lg">Total: {((parseFloat(form.valorBruto)||0) + (parseFloat(form.juros)||0) - (parseFloat(form.desconto)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Vencimento *</label>
-                  <input className="input" type="date" value={form.vencimento} onChange={e => setForm({...form, vencimento: e.target.value})} />
+              )}
+
+              {tab === 1 && (
+                <div className="bg-white rounded border border-gray-200 p-5 min-h-[300px]">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
+                    <div className="col-span-2 lg:col-span-1">
+                      <label className="block text-xs text-gray-600 mb-1">Entidade</label>
+                      <select className="w-full border border-gray-300 rounded p-2"><option>Fornecedor</option><option>Funcionário</option></select>
+                    </div>
+                    <div className="col-span-2 lg:col-span-2">
+                       <label className="block text-xs text-gray-600 mb-1">Fornecedor</label>
+                       <input placeholder="Digite para buscar" className="w-full border border-gray-300 rounded p-2" value={form.fornecedor} onChange={e => setForm({...form, fornecedor: e.target.value})} />
+                    </div>
+                    <div className="col-span-2 lg:col-span-1">
+                       <label className="block text-xs text-gray-600 mb-1">Data de competência *</label>
+                       <input type="date" className="w-full border border-gray-300 rounded p-2" value={form.dataCompetencia} onChange={e => setForm({...form, dataCompetencia: e.target.value})} />
+                    </div>
+                    <div className="col-span-4">
+                       <label className="block text-xs text-gray-600 mb-1">Informações complementares</label>
+                       <textarea className="w-full border border-gray-300 rounded p-2 h-32 resize-none" value={form.obs} onChange={e => setForm({...form, obs: e.target.value})}></textarea>
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {tab === 2 && (
+                <div className="bg-white rounded border border-gray-200 p-5 min-h-[300px] flex flex-col items-center justify-center border-dashed border-2 m-4 bg-gray-50/50">
+                  <UploadCloud size={32} className="text-gray-400 mb-4" />
+                  <p className="text-gray-600 text-sm mb-2">Solte o arquivo aqui para fazer upload...</p>
+                  <p className="text-gray-400 text-xs mb-4">Utilize este espaço para anexar comprovantes e documentos. Tamanho máximo 5Mb.</p>
+                  <button className="bg-[#111827] text-white px-4 py-2 rounded text-sm flex items-center gap-2"><UploadCloud size={16}/> Selecionar arquivo</button>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white border-t border-gray-200 p-4 flex justify-between items-center">
+              <div className="flex gap-2">
+                 <button onClick={handleSaveNovo} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2 rounded text-sm flex items-center gap-2">✓ Cadastrar</button>
+                 <button onClick={() => setModalType(false)} className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-5 py-2 rounded text-sm flex items-center gap-2">⨯ Cancelar</button>
               </div>
-              <div>
-                 <label className="block text-xs font-semibold text-gray-500 mb-1">Categoria</label>
-                 <select className="input" value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})}>
-                   <option>Fornecedores (Madeira)</option>
-                   <option>Fornecedores (Vidros)</option>
-                   <option>Impostos (DAS)</option>
-                   <option>Manutenção Operacional</option>
-                   <option>Folha de Pagamento</option>
-                 </select>
+              <div className="flex items-center gap-2">
+                 <button disabled={tab === 0} onClick={() => setTab(tab-1)} className="border border-gray-300 text-gray-600 px-4 py-2 rounded text-sm disabled:opacity-50">← Voltar</button>
+                 <button disabled={tab === 2} onClick={() => setTab(tab+1)} className="border border-gray-300 bg-gray-50 text-gray-600 px-4 py-2 rounded text-sm disabled:opacity-50">Continuar →</button>
               </div>
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setModalType(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={handleSaveNovo} className="btn-primary">Salvar Lançamento</button>
-            </div>
+
           </div>
         </div>
       )}
