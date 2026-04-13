@@ -96,8 +96,23 @@ const CLIENTES  = ['Mariana S. Oliveira', 'Ricardo Augusto', 'Fernanda Lima', 'J
 function daysUntil(prazo?: string): number | null {
   if (!prazo) return null
   const [d, m, y] = prazo.split('/').map(Number)
+  if (!d || !m || !y) return null
   const diff = new Date(y, m - 1, d).getTime() - new Date().setHours(0,0,0,0)
   return Math.ceil(diff / 86400000)
+}
+
+// Safe date parsers that never return "Invalid Date"
+function safeDate(raw: string | null | undefined, suffix = ''): string {
+  if (!raw) return ''
+  const d = new Date(raw + suffix)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('pt-BR')
+}
+function safeTime(raw: string | null | undefined): string {
+  if (!raw) return ''
+  const d = new Date(raw.replace(' ', 'T'))
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 function PrazoTag({ prazo }: { prazo?: string }) {
@@ -1013,14 +1028,10 @@ export default function Production() {
           moldura: r.moldura ?? undefined,
           acabamento: r.acabamento ?? undefined,
           canal: r.canal ?? undefined,
-          data: r.data_prevista
-            ? new Date(r.data_prevista).toLocaleDateString('pt-BR')
-            : 'Hoje',
-          hora: r.hora_prevista ?? '',
+          data: safeDate(r.data_prevista) || (r.from_magazord ? 'Pedido Mz.' : 'Hoje'),
+          hora: safeTime(r.hora_prevista ? r.hora_prevista : null),
           status: r.status,
-          prazoEntrega: r.prazo_entrega
-            ? new Date(r.prazo_entrega + 'T12:00:00').toLocaleDateString('pt-BR')
-            : undefined,
+          prazoEntrega: safeDate(r.prazo_entrega, 'T12:00:00') || undefined,
           valor: r.valor ?? undefined,
           frete: r.frete ?? undefined,
           obs: r.obs ?? undefined,
@@ -1028,7 +1039,7 @@ export default function Production() {
           transportadora: r.transportadora ?? undefined,
           rastreio: r.rastreio ?? undefined,
           dataDespacho: r.data_despacho
-            ? new Date(r.data_despacho).toLocaleString('pt-BR')
+            ? (safeDate(r.data_despacho) + ' ' + safeTime(r.data_despacho)).trim() || undefined
             : undefined,
           fromMagazord: r.from_magazord,
         }

@@ -362,6 +362,21 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
     ? item.nome
     : 'Consulte o Painel Mz.'
 
+  // Safe date helpers — never produce "Invalid Date" string
+  const safeDateStr = (raw?: string | null, suffix = '') => {
+    if (!raw) return ''
+    const d = new Date((raw + suffix).replace(' ', 'T'))
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR')
+  }
+  const safeTimeStr = (raw?: string | null) => {
+    if (!raw) return ''
+    const d = new Date(raw.replace(' ', 'T'))
+    return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  // Resolve which API date field is populated
+  const rawDate = order.dataHora || order.data_pedido || null
+
   return {
     id: String(order.codigo || order.id),
     magazordId: order.id,
@@ -376,23 +391,13 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
     formato: p?.formato,
     quantidade: item?.quantidade,
     canal: order.canal,
-    data: order.dataHora
-      ? new Date(order.dataHora.replace(' ', 'T')).toLocaleDateString('pt-BR')
-      : order.data_pedido
-      ? new Date(order.data_pedido).toLocaleDateString('pt-BR')
-      : new Date().toLocaleDateString('pt-BR'),
-    hora: order.dataHora
-      ? new Date(order.dataHora.replace(' ', 'T')).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      : order.data_pedido
-      ? new Date(order.data_pedido).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      : '',
+    data: safeDateStr(rawDate) || new Date().toLocaleDateString('pt-BR'),
+    hora: safeTimeStr(rawDate),
     status: 'Pendente',
     obs: order.observacao || item?.personalizado?.obs,
     endereco,
     transportadora: e?.transportadora,
-    prazoEntrega: e?.prazo_entrega
-      ? new Date(e.prazo_entrega).toLocaleDateString('pt-BR')
-      : undefined,
+    prazoEntrega: safeDateStr(e?.prazo_entrega) || undefined,
     valor: order.valorTotal
       ? parseFloat(String(order.valorTotal))
       : order.valor_total || undefined,
