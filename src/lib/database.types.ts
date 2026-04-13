@@ -27,6 +27,7 @@ export interface Database {
           status: 'Pendente' | 'Atrasado' | 'OK'
           prazo_entrega: string | null
           valor: number | null
+          frete: number | null
           obs: string | null
           endereco: string | null
           transportadora: string | null
@@ -51,6 +52,7 @@ export interface Database {
           status: 'Pendente' | 'Atrasado' | 'OK'
           prazo_entrega?: string | null
           valor?: number | null
+          frete?: number | null
           obs?: string | null
           endereco?: string | null
           transportadora?: string | null
@@ -73,6 +75,7 @@ export interface Database {
           status?: 'Pendente' | 'Atrasado' | 'OK'
           prazo_entrega?: string | null
           valor?: number | null
+          frete?: number | null
           obs?: string | null
           endereco?: string | null
           transportadora?: string | null

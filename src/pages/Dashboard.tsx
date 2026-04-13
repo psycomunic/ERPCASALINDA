@@ -1,22 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLayout } from '../contexts/LayoutContext'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, AlertTriangle, Clock,
   ShoppingCart, UserPlus, Receipt, ArrowRight, Download, X,
-  Check, ChevronDown
+  Check, ChevronDown, Truck
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer, Cell
 } from 'recharts'
+import { fetchPedidos } from '../services/pedidos'
+import { isSupabaseConfigured } from '../lib/supabase'
 
 const cashflow: any[] = []
 
 const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR')}`
+const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 
 const PERIODOS = ['Últimos 7 Dias', 'Últimos 30 Dias', 'Este Mês', 'Trimestre', 'Ano']
+
+// Colors for carrier bars
+const CARRIER_COLORS = [
+  '#3b82f6', '#7c3aed', '#059669', '#d97706',
+  '#dc2626', '#0891b2', '#9333ea', '#65a30d',
+]
+
+interface CarrierStats {
+  nome: string
+  totalFrete: number
+  totalPedidos: number
+  totalValorPedidos: number
+  qtdComFrete: number
+  percFreteMedio: number   // avg (frete/valor) per order
+}
 
 function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
   return (
@@ -37,6 +55,179 @@ function ComingSoon({ label }: { label?: string }) {
       <Clock size={32} className="text-gray-300" />
       <p className="font-medium">{label ?? 'Em construção'}</p>
       <p className="text-xs">Esta seção estará disponível em breve.</p>
+    </div>
+  )
+}
+
+// ── Freight analytics component ───────────────────────────────────────────────
+
+function FreightByCarrier() {
+  const [stats, setStats] = useState<CarrierStats[]>([])
+  const [loading, setLoading] = useState(true)
+  const [totalFreteGeral, setTotalFreteGeral] = useState(0)
+  const [totalPedidosValor, setTotalPedidosValor] = useState(0)
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) { setLoading(false); return }
+
+    fetchPedidos().then(pedidos => {
+      // Build map: carrier -> stats
+      const map = new Map<string, { frete: number; valor: number; count: number; comFrete: number }>()
+
+      pedidos.forEach(p => {
+        const trans = p.transportadora || 'Sem transportadora'
+        const frete = (p as any).frete ?? 0
+        const valor = p.valor ?? 0
+
+        if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0, comFrete: 0 })
+        const cur = map.get(trans)!
+        cur.count++
+        cur.valor += valor
+        if (frete > 0) { cur.frete += frete; cur.comFrete++ }
+      })
+
+      let totalF = 0, totalV = 0
+      const result: CarrierStats[] = []
+
+      map.forEach((v, nome) => {
+        totalF += v.frete
+        totalV += v.valor
+        const percFreteMedio = v.comFrete > 0 && v.valor > 0
+          ? (v.frete / v.valor) * 100
+          : 0
+        result.push({
+          nome,
+          totalFrete: v.frete,
+          totalPedidos: v.count,
+          totalValorPedidos: v.valor,
+          qtdComFrete: v.comFrete,
+          percFreteMedio,
+        })
+      })
+
+      result.sort((a, b) => b.totalFrete - a.totalFrete)
+      setStats(result)
+      setTotalFreteGeral(totalF)
+      setTotalPedidosValor(totalV)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const percFreteGeral = totalPedidosValor > 0
+    ? ((totalFreteGeral / totalPedidosValor) * 100).toFixed(1)
+    : '0.0'
+
+  const barData = stats.slice(0, 6).map(s => ({
+    nome: s.nome.length > 12 ? s.nome.slice(0, 12) + '…' : s.nome,
+    frete: s.totalFrete,
+    perc: parseFloat(s.percFreteMedio.toFixed(1)),
+  }))
+
+  return (
+    <div className="card p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+            <Truck size={16} className="text-blue-600" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-800">Análise de Frete por Transportadora</h2>
+            <p className="text-xs text-gray-400">Custo e % de frete acumulado por todos os pedidos</p>
+          </div>
+        </div>
+        {/* Summary KPIs */}
+        <div className="flex gap-3">
+          <div className="text-right">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Total Frete</p>
+            <p className="text-sm font-black text-navy-900">R$ {fmtMoeda(totalFreteGeral)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Frete / Pedidos</p>
+            <p className={`text-sm font-black ${parseFloat(percFreteGeral) >= 15 ? 'text-red-600' : parseFloat(percFreteGeral) >= 8 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {percFreteGeral}%
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Carregando dados...</div>
+      ) : stats.length === 0 ? (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+          Nenhum pedido com transportadora registrada ainda.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {/* Bar chart — frete total por transportadora */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Gasto Total por Transportadora (R$)</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={barData} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false}
+                  tickFormatter={v => `R$${(v/1000).toFixed(1)}k`} />
+                <YAxis type="category" dataKey="nome" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={72} />
+                <Tooltip
+                  formatter={(v: number) => [`R$ ${fmtMoeda(v)}`, 'Frete Total']}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                />
+                <Bar dataKey="frete" radius={[0, 4, 4, 0]}>
+                  {barData.map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Table — ranking with % */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Ranking — % Frete / Valor dos Pedidos</p>
+            <div className="space-y-2">
+              {stats.slice(0, 6).map((s, i) => {
+                const percGasto = totalFreteGeral > 0
+                  ? (s.totalFrete / totalFreteGeral) * 100
+                  : 0
+                const color = CARRIER_COLORS[i % CARRIER_COLORS.length]
+                const percRisco = s.percFreteMedio
+                return (
+                  <div key={s.nome} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                        <span className="font-medium text-gray-700 truncate">{s.nome}</span>
+                        <span className="text-gray-400 text-[10px] shrink-0">({s.totalPedidos} ped.)</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-2">
+                        <span className="text-[10px] text-gray-500 font-mono">R$ {fmtMoeda(s.totalFrete)}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                          percRisco >= 20 ? 'bg-red-100 text-red-700'
+                          : percRisco >= 10 ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {s.percFreteMedio.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    {/* Progress bar showing share of total freight spend */}
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: color }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percGasto}%` }}
+                        transition={{ duration: 0.8, delay: i * 0.08 }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {stats.length > 6 && (
+              <p className="text-[10px] text-gray-400 mt-2">+{stats.length - 6} outras transportadoras</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -200,6 +391,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Freight analytics by carrier */}
+      <FreightByCarrier />
 
       <AnimatePresence>
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}

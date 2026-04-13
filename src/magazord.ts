@@ -320,10 +320,15 @@ interface ERPOrder {
   id: string
   magazordId?: number
   cliente: string
+  clienteEmail?: string
+  clienteTelefone?: string
   produto: string
   material?: string
   moldura?: string
   acabamento?: string
+  tamanho?: string
+  formato?: string
+  quantidade?: number
   canal?: string
   data: string
   hora: string
@@ -333,6 +338,7 @@ interface ERPOrder {
   transportadora?: string
   prazoEntrega?: string
   valor?: number
+  frete?: number
   fromMagazord?: boolean
 }
 
@@ -340,17 +346,57 @@ interface ERPOrder {
  * Converte um pedido Magazord para o shape interno do ERP Kanban.
  */
 export function magazordToOrder(order: MagazordOrder): ERPOrder {
-  // O endpoint /v2/site/pedido retorna pedidos na listagem sem os subobjetos completos.
-  // Utilizar dados de forma segura sem desestruturar chaves não retornadas na lista
+  // Safely extract item details (may not be present in list endpoint)
+  const item = order.itens?.[0]
+  const p = item?.personalizado
+
+  // Build full delivery address string
+  const e = order.entrega
+  const endereco = e
+    ? [e.logradouro, e.numero, e.complemento, e.bairro, `${e.cidade}/${e.uf}`, e.cep]
+        .filter(Boolean).join(', ')
+    : undefined
+
+  // Product description: use item name if available
+  const produto = item?.nome && item.nome !== ''
+    ? item.nome
+    : 'Consulte o Painel Mz.'
+
   return {
     id: String(order.codigo || order.id),
     magazordId: order.id,
-    cliente: order.pessoaNome || 'Cliente não informado',
-    produto: 'Consulte o Painel Mz.', // Sem detalhes de itens via lista
-    data: order.dataHora ? new Date(order.dataHora.replace(' ', 'T')).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'),
-    hora: order.dataHora ? new Date(order.dataHora.replace(' ', 'T')).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+    cliente: order.pessoaNome || order.cliente?.nome || 'Cliente não informado',
+    clienteEmail: order.cliente?.email,
+    clienteTelefone: order.cliente?.telefone,
+    produto,
+    material: undefined,                      // não disponível na listagem
+    moldura: p?.moldura,
+    acabamento: p?.acabamento,
+    tamanho: p?.tamanho,
+    formato: p?.formato,
+    quantidade: item?.quantidade,
+    canal: order.canal,
+    data: order.dataHora
+      ? new Date(order.dataHora.replace(' ', 'T')).toLocaleDateString('pt-BR')
+      : order.data_pedido
+      ? new Date(order.data_pedido).toLocaleDateString('pt-BR')
+      : new Date().toLocaleDateString('pt-BR'),
+    hora: order.dataHora
+      ? new Date(order.dataHora.replace(' ', 'T')).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : order.data_pedido
+      ? new Date(order.data_pedido).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : '',
     status: 'Pendente',
-    valor: order.valorTotal ? parseFloat(order.valorTotal) : undefined,
+    obs: order.observacao || item?.personalizado?.obs,
+    endereco,
+    transportadora: e?.transportadora,
+    prazoEntrega: e?.prazo_entrega
+      ? new Date(e.prazo_entrega).toLocaleDateString('pt-BR')
+      : undefined,
+    valor: order.valorTotal
+      ? parseFloat(String(order.valorTotal))
+      : order.valor_total || undefined,
+    frete: e?.frete,
     fromMagazord: true,
   }
 }

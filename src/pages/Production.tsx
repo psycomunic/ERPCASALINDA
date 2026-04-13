@@ -19,10 +19,15 @@ export interface ProductionOrder {
   id: string
   magazordId?: number
   cliente: string
+  clienteEmail?: string
+  clienteTelefone?: string
   produto: string
   material?: string
   moldura?: string
   acabamento?: string
+  tamanho?: string
+  formato?: string
+  quantidade?: number
   canal?: string
   data: string
   hora: string
@@ -34,6 +39,8 @@ export interface ProductionOrder {
   dataDespacho?: string
   prazoEntrega?: string
   valor?: number
+  frete?: number
+  imagemUrl?: string
   fromMagazord?: boolean
 }
 
@@ -377,124 +384,242 @@ function DetailModal({ order, stage, onClose, onConclude }: {
 }) {
   const isDelivery = stage === 'Prontos para Envio' || stage === 'Despachados'
   const isMagazord = stage === 'Novos Pedidos'
+  const days = daysUntil(order.prazoEntrega)
+
+  // Freight % calculation
+  const fretePerc = (order.frete && order.valor && order.valor > 0)
+    ? ((order.frete / order.valor) * 100).toFixed(1)
+    : null
+
+  // Freight risk color
+  const fretePercNum = fretePerc ? parseFloat(fretePerc) : 0
+  const freteColor = fretePercNum >= 20
+    ? 'text-red-600 bg-red-50 border-red-200'
+    : fretePercNum >= 10
+    ? 'text-amber-600 bg-amber-50 border-amber-200'
+    : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+
+  // Deadline color
+  const prazoColor = days === null ? '' : days < 0 ? 'text-red-600' : days === 0 ? 'text-orange-500' : days <= 2 ? 'text-yellow-600' : 'text-emerald-600'
 
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
       <motion.div
         className="modal"
-        style={{ maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}
+        style={{ maxWidth: 640, maxHeight: '92vh', overflowY: 'auto' }}
         initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className={`flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-white z-10 ${isMagazord ? 'border-l-4 border-l-violet-500' : ''}`}>
+        {/* ── HEADER ── */}
+        <div className={`flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10 ${
+          isMagazord ? 'border-l-4 border-l-violet-500' : ''
+        }`}>
           <div>
             <h3 className="font-bold text-gray-900 flex items-center gap-2 text-base">
               {isMagazord && <Store size={16} className="text-violet-600" />}
               Pedido #{order.id}
-              {order.fromMagazord && <span className="badge bg-violet-100 text-violet-700 text-[10px]">MAGAZORD</span>}
-              {order.canal && <span className="badge bg-gray-100 text-gray-600 text-[10px]">{CANAL_ICON[order.canal] ?? '🛒'} {order.canal}</span>}
+              {order.fromMagazord && <span className="text-[10px] font-bold bg-violet-600 text-white px-2 py-0.5 rounded-full">MAGAZORD</span>}
+              {order.canal && (
+                <span className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  {CANAL_ICON[order.canal] ?? '🛒'} {order.canal}
+                </span>
+              )}
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Etapa atual: <strong className="text-gray-600">{stage}</strong></p>
+            <p className="text-xs text-gray-400 mt-0.5">Etapa atual: <strong className="text-gray-700">{stage}</strong></p>
           </div>
           <div className="flex items-center gap-2">
-            <PrazoTag prazo={order.prazoEntrega} />
             <button
               onClick={() => printOS(order, stage)}
-              title="Imprimir Ordem de Serviço"
-              className="p-1.5 border border-gray-200 rounded-lg text-gray-500 hover:text-navy-900 hover:border-navy-900/30 hover:bg-blue-50 transition-all"
+              title="Imprimir O.S."
+              className="p-1.5 border border-gray-200 rounded-lg text-gray-500 hover:text-navy-900 hover:bg-blue-50 transition-all"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
                 <rect x="6" y="14" width="12" height="8"/>
               </svg>
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 ml-1"><X size={18} /></button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
           </div>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Order info */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dados do Pedido</p>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 col-span-2">
-                <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><User size={9} /> Cliente</p>
-                <p className="text-sm font-bold text-gray-900">{order.cliente}</p>
+        <div className="p-5 space-y-5">
+
+          {/* ── PRODUCT IMAGE + CLIENT BLOCK ── */}
+          <div className="flex gap-3">
+            {/* Product image / visual placeholder */}
+            <div className="flex-shrink-0 w-28 h-28 rounded-xl overflow-hidden border border-gray-200 bg-gradient-to-br from-violet-50 to-blue-50 flex items-center justify-center">
+              {order.imagemUrl ? (
+                <img src={order.imagemUrl} alt="Produto" className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-2">
+                  <div className="w-10 h-10 rounded-lg bg-white/70 border border-violet-100 flex items-center justify-center mb-1">
+                    <Package size={20} className="text-violet-400" />
+                  </div>
+                  <span className="text-[9px] text-violet-400 font-semibold uppercase tracking-wide leading-tight">Sem imagem</span>
+                </div>
+              )}
+            </div>
+
+            {/* Client + quick stats */}
+            <div className="flex-1 min-w-0">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-2">
+                <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wide mb-0.5 flex items-center gap-1"><User size={9} /> Cliente</p>
+                <p className="text-sm font-bold text-gray-900 truncate">{order.cliente}</p>
+                {order.clienteEmail && <p className="text-[11px] text-gray-500 mt-0.5 truncate">✉ {order.clienteEmail}</p>}
+                {order.clienteTelefone && <p className="text-[11px] text-gray-500">📞 {order.clienteTelefone}</p>}
               </div>
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><Calendar size={9} /> Prazo</p>
-                <p className="text-sm font-bold text-gray-900">{order.prazoEntrega ?? '—'}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50 rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide mb-0.5">Pedido em</p>
+                  <p className="text-xs font-semibold text-gray-800">{order.data}{order.hora ? ` · ${order.hora}` : ''}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide mb-0.5">Status</p>
+                  <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                    order.status === 'Atrasado' ? 'bg-red-100 text-red-700' :
+                    order.status === 'OK' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {order.status === 'Atrasado' ? 'ATRASADO' : order.status === 'OK' ? 'EM DIA' : 'PENDENTE'}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1">Prev. Produção</p>
-                <p className="text-sm font-semibold text-gray-800">{order.data}{order.hora ? ` · ${order.hora}` : ''}</p>
+          </div>
+
+          {/* ── FINANCIAL KPIs ── */}
+          {(order.valor || order.frete) && (
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">💰 Financeiro do Pedido</p>
+              <div className="grid grid-cols-3 gap-2">
+                {order.valor && (
+                  <div className="bg-navy-900 rounded-xl p-3 text-center">
+                    <p className="text-[9px] text-blue-200 font-bold uppercase tracking-wide mb-1">Valor Total</p>
+                    <p className="text-sm font-black text-white">R$ {order.valor.toLocaleString('pt-BR', {minimumFractionDigits:2})}</p>
+                  </div>
+                )}
+                {order.frete !== undefined && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide mb-1">Frete</p>
+                    <p className="text-sm font-bold text-gray-800">R$ {order.frete.toLocaleString('pt-BR', {minimumFractionDigits:2})}</p>
+                  </div>
+                )}
+                {fretePerc && (
+                  <div className={`border rounded-xl p-3 text-center ${freteColor}`}>
+                    <p className="text-[9px] font-bold uppercase tracking-wide mb-1 opacity-70">Frete / Pedido</p>
+                    <p className="text-sm font-black">{fretePerc}%</p>
+                    <p className="text-[9px] font-semibold mt-0.5 opacity-60">
+                      {fretePercNum >= 20 ? '⚠ Alto' : fretePercNum >= 10 ? '▲ Moderado' : '✓ Baixo'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1">Status</p>
-                <span className={`badge ${order.status === 'Atrasado' ? 'badge-critico' : order.status === 'OK' ? 'badge-ativo' : 'badge-pendente'} text-[10px]`}>
-                  {order.status === 'Atrasado' ? 'ATRASADO' : order.status === 'OK' ? 'EM DIA' : 'PENDENTE'}
-                </span>
+              {fretePerc && parseFloat(fretePerc) >= 15 && (
+                <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                  <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-700">
+                    <strong>Atenção:</strong> o frete representa {fretePerc}% do valor do pedido.
+                    Considere revisar a negociação logística com o cliente.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── PRAZO DE ENTREGA ── */}
+          {order.prazoEntrega && (
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📅 Prazo de Entrega</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <Calendar size={28} className={prazoColor || 'text-gray-300'} />
+                <div className="flex-1">
+                  <p className="text-xl font-black text-gray-900">{order.prazoEntrega}</p>
+                  <p className={`text-xs font-semibold mt-0.5 ${prazoColor}`}>
+                    {days === null ? '—'
+                      : days < 0  ? `VENCIDO há ${Math.abs(days)} dia(s)`
+                      : days === 0 ? 'VENCE HOJE'
+                      : days === 1 ? 'Vence amanhã'
+                      : `${days} dias restantes`
+                    }
+                  </p>
+                </div>
+                <PrazoTag prazo={order.prazoEntrega} />
               </div>
-              {order.valor && (
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1">Valor</p>
-                  <p className="text-sm font-bold text-navy-900">R$ {order.valor.toLocaleString('pt-BR', {minimumFractionDigits:2})}</p>
+            </div>
+          )}
+
+          {/* ── ESPECIFICAÇÃO DO QUADRO (PRODUCT DETAILS) ── */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🖼 Especificação do Quadro</p>
+            <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-2">
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><Package size={9} /> Produto / Descrição</p>
+              <p className="text-sm font-bold text-gray-900">{order.produto}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {order.material && (
+                <div className="bg-white border border-gray-200 rounded-xl p-3">
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Material / Impressão</p>
+                  <p className="text-xs font-semibold text-gray-800">{order.material}</p>
+                </div>
+              )}
+              {order.moldura && (
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+                  <p className="text-[9px] text-violet-400 font-bold uppercase tracking-wider mb-1">Moldura</p>
+                  <p className="text-xs font-semibold text-gray-800">{order.moldura}</p>
+                </div>
+              )}
+              {order.acabamento && (
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+                  <p className="text-[9px] text-violet-400 font-bold uppercase tracking-wider mb-1">Acabamento / Vidro</p>
+                  <p className="text-xs font-semibold text-gray-800">{order.acabamento}</p>
+                </div>
+              )}
+              {order.tamanho && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider mb-1">Tamanho</p>
+                  <p className="text-xs font-semibold text-gray-800">{order.tamanho}</p>
+                </div>
+              )}
+              {order.formato && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider mb-1">Formato / Nº Telas</p>
+                  <p className="text-xs font-semibold text-gray-800">{order.formato}</p>
+                </div>
+              )}
+              {order.quantidade && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Quantidade</p>
+                  <p className="text-xs font-bold text-gray-900">{order.quantidade}x</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Product specs */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Especificação do Produto</p>
-            <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><Package size={9} /> Produto</p>
-              <p className="text-sm font-bold text-gray-900">{order.produto}</p>
-              {order.material && <p className="text-xs text-gray-500 mt-1 bg-white border border-gray-200 rounded px-2 py-0.5 inline-block">{order.material}</p>}
-            </div>
-            {(order.moldura || order.acabamento) && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {order.moldura && (
-                  <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
-                    <p className="text-[10px] text-violet-400 font-bold uppercase tracking-wide mb-1">Moldura</p>
-                    <p className="text-sm font-bold text-gray-900">{order.moldura}</p>
-                  </div>
-                )}
-                {order.acabamento && (
-                  <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
-                    <p className="text-[10px] text-violet-400 font-bold uppercase tracking-wide mb-1">Acabamento</p>
-                    <p className="text-sm font-bold text-gray-900">{order.acabamento}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Delivery */}
-          {isDelivery && (order.endereco || order.transportadora || order.rastreio) && (
+          {/* ── DELIVERY / ENTREGA ── */}
+          {(order.endereco || order.transportadora || order.rastreio || isDelivery) && (
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Entrega</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🚚 Entrega</p>
               <div className="space-y-2">
                 {order.endereco && (
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><MapPin size={9} /> Endereço</p>
-                    <p className="text-sm font-semibold text-gray-800">{order.endereco}</p>
+                  <div className="bg-gray-50 rounded-xl p-3 flex items-start gap-2">
+                    <MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide mb-0.5">Endereço de Entrega</p>
+                      <p className="text-xs font-semibold text-gray-800">{order.endereco}</p>
+                    </div>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   {order.transportadora && (
                     <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><Truck size={9} /> Transportadora</p>
-                      <p className="text-sm font-semibold text-gray-800">{order.transportadora}</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><Truck size={9} /> Transportadora</p>
+                      <p className="text-xs font-semibold text-gray-800">{order.transportadora}</p>
                     </div>
                   )}
                   {order.rastreio && (
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1">Rastreio</p>
-                      <p className="text-sm font-bold font-mono text-blue-700">{order.rastreio}</p>
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wide mb-1">Código Rastreio</p>
+                      <p className="text-xs font-bold font-mono text-blue-700">{order.rastreio}</p>
                     </div>
                   )}
                 </div>
@@ -502,8 +627,8 @@ function DetailModal({ order, stage, onClose, onConclude }: {
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
                     <Check size={14} className="text-emerald-500 shrink-0" />
                     <div>
-                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wide">Despachado em</p>
-                      <p className="text-sm font-semibold text-gray-800">{order.dataDespacho}</p>
+                      <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wide">Despachado em</p>
+                      <p className="text-xs font-semibold text-gray-800">{order.dataDespacho}</p>
                     </div>
                   </div>
                 )}
@@ -511,69 +636,74 @@ function DetailModal({ order, stage, onClose, onConclude }: {
             </div>
           )}
 
-          {/* Production flow checklist */}
+          {/* ── PRODUCTION FLOW ── */}
           <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Fluxo de Produção</p>
-            <div className="space-y-1">
-              {['Novos Pedidos','Impressão','Corte Moldura','Entelamento + Vidro','Acabamento','Embalagem','Prontos para Envio','Despachados'].map((s, i, arr) => {
-                const currentIdx = arr.indexOf(stage as string)
-                const isDone    = i < currentIdx
-                const isCurrent = i === currentIdx
-                return (
-                  <div key={s} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
-                    isDone    ? 'bg-emerald-50 border border-emerald-100 text-emerald-700' :
-                    isCurrent ? 'bg-blue-50 border border-blue-200 text-blue-700 font-bold' :
-                                'bg-gray-50 border border-gray-100 text-gray-400'
-                  }`}>
-                    <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 text-[9px] font-black ${
-                      isDone    ? 'bg-emerald-500 text-white' :
-                      isCurrent ? 'bg-blue-600 text-white' :
-                                  'border-2 border-gray-300'
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">⚙ Fluxo de Produção</p>
+            <div className="relative">
+              {/* vertical line */}
+              <div className="absolute left-[17px] top-4 bottom-4 w-px bg-gray-200" />
+              <div className="space-y-1.5">
+                {['Novos Pedidos','Impressão','Corte Moldura','Entelamento + Vidro','Acabamento','Embalagem','Prontos para Envio','Despachados'].map((s, i, arr) => {
+                  const currentIdx = arr.indexOf(stage as string)
+                  const isDone    = i < currentIdx
+                  const isCurrent = i === currentIdx
+                  return (
+                    <div key={s} className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all relative ${
+                      isDone    ? 'bg-emerald-50 border border-emerald-100 text-emerald-700' :
+                      isCurrent ? 'bg-blue-50 border-2 border-blue-300 text-blue-800 font-bold shadow-sm' :
+                                  'bg-white border border-gray-100 text-gray-400'
                     }`}>
-                      {isDone ? '✓' : isCurrent ? '▶' : ''}
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black z-10 ${
+                        isDone    ? 'bg-emerald-500 text-white' :
+                        isCurrent ? 'bg-blue-600 text-white' :
+                                    'bg-gray-100 border-2 border-gray-200 text-gray-400'
+                      }`}>
+                        {isDone ? '✓' : isCurrent ? '▶' : i + 1}
+                      </div>
+                      <span className="flex-1">{s}</span>
+                      {isDone    && <span className="text-[10px] text-emerald-500 font-semibold">Concluído ✓</span>}
+                      {isCurrent && <span className="text-[10px] text-blue-600 font-bold">EM ANDAMENTO</span>}
                     </div>
-                    <span className="flex-1">{s}</span>
-                    {isDone    && <span className="text-[10px] text-emerald-500">Concluído</span>}
-                    {isCurrent && <span className="text-[10px] text-blue-500 font-semibold">EM ANDAMENTO</span>}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Observations */}
+          {/* ── OBSERVATIONS ── */}
           {order.obs && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wide mb-1">⚠ Observação do Cliente</p>
-              <p className="text-sm text-gray-800">{order.obs}</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wide mb-1.5 flex items-center gap-1"><AlertTriangle size={10} /> Observação do Cliente</p>
+              <p className="text-sm text-gray-800 leading-relaxed">{order.obs}</p>
             </div>
           )}
 
-          {/* Buttons */}
-          <div className="flex gap-2 pt-1 sticky bottom-0 bg-white pb-1">
-            <button onClick={onClose} className="btn-secondary flex-1 justify-center text-sm">Fechar</button>
+        </div>
+
+        {/* ── STICKY FOOTER BUTTONS ── */}
+        <div className="flex gap-2 p-4 pt-3 border-t border-gray-100 sticky bottom-0 bg-white">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center text-sm">Fechar</button>
+          <button
+            onClick={() => printOS(order, stage)}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Imprimir O.S.
+          </button>
+          {stage !== 'Despachados' && (
             <button
-              onClick={() => printOS(order, stage)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 text-gray-600 transition-colors"
+              onClick={() => { onConclude(); onClose() }}
+              className="btn-primary flex-1 justify-center text-sm"
+              style={isMagazord ? { background: '#7c3aed' } : stage === 'Prontos para Envio' ? { background: '#059669' } : {}}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-                <rect x="6" y="14" width="12" height="8"/>
-              </svg>
-              Imprimir O.S.
+              {isMagazord ? <><ArrowRight size={14} /> Confirmar → Produção</> :
+               stage === 'Prontos para Envio' ? <><Send size={14} /> Confirmar Despacho</> :
+               <><CheckCircle size={14} /> Concluir Etapa</>}
             </button>
-            {stage !== 'Despachados' && (
-              <button
-                onClick={() => { onConclude(); onClose() }}
-                className="btn-primary flex-1 justify-center text-sm"
-                style={isMagazord ? { background: '#7c3aed' } : stage === 'Prontos para Envio' ? { background: '#059669' } : {}}
-              >
-                {isMagazord ? <><ArrowRight size={14} /> Confirmar → Produção</> :
-                 stage === 'Prontos para Envio' ? <><Send size={14} /> Confirmar Despacho</> :
-                 <><CheckCircle size={14} /> Concluir Etapa</>}
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </motion.div>
     </motion.div>
@@ -892,6 +1022,7 @@ export default function Production() {
             ? new Date(r.prazo_entrega + 'T12:00:00').toLocaleDateString('pt-BR')
             : undefined,
           valor: r.valor ?? undefined,
+          frete: r.frete ?? undefined,
           obs: r.obs ?? undefined,
           endereco: r.endereco ?? undefined,
           transportadora: r.transportadora ?? undefined,
@@ -967,9 +1098,34 @@ export default function Production() {
       'Novos Pedidos': prev['Novos Pedidos'].filter(o => o.id !== order.id),
       'Impressão': [{ ...order, status: 'Pendente', fromMagazord: true }, ...prev['Impressão']],
     }))
-    // Supabase: move to Impressão
+    // Supabase: move to Impressão (or create if not persisted yet)
     const dbId = getDbId(order.id)
-    if (dbId) movePedidoEtapa(dbId, 'Impressão')
+    if (dbId) {
+      updatePedido(dbId, { etapa: 'Impressão', frete: order.frete })
+    } else if (isSupabaseConfigured()) {
+      // First time persisting this Magazord order
+      const created = await createPedido({
+        numero:         order.id,
+        magazord_id:    order.magazordId,
+        cliente:        order.cliente,
+        produto:        order.produto,
+        moldura:        order.moldura,
+        acabamento:     order.acabamento,
+        canal:          order.canal,
+        etapa:          'Impressão',
+        status:         'Pendente',
+        prazo_entrega:  order.prazoEntrega
+          ? order.prazoEntrega.split('/').reverse().join('-')
+          : undefined,
+        valor:          order.valor,
+        frete:          order.frete,
+        obs:            order.obs,
+        endereco:       order.endereco,
+        transportadora: order.transportadora,
+        from_magazord:  true,
+      })
+      if (created) dbIdMap.current.set(order.id, created.id)
+    }
     showToast(`Pedido #${order.id} confirmado e enviado para Impressão!`)
   }
 
@@ -1041,6 +1197,8 @@ export default function Production() {
         prazo_entrega: order.prazoEntrega
           ? order.prazoEntrega.split('/').reverse().join('-')
           : undefined,
+        valor:         order.valor,
+        frete:         order.frete,
         obs:           order.obs,
         from_magazord: false,
       })
