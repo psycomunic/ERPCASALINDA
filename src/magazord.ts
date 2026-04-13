@@ -421,7 +421,10 @@ export function magazordDetailedToOrder(data: any): Partial<ERPOrder> {
     data.cep
   ].filter(Boolean)
 
-  const freteValue = parseFloat(rastreio.valorFrete || "0")
+  // O custo real do frete para a empresa é o valorFreteTransportadora.
+  // Caso não exista, faz fallback para o valorFrete (o que o cliente pagou).
+  const freteStr = rastreio.valorFreteTransportadora || rastreio.valorFrete || data.valorFrete || "0"
+  const freteValue = parseFloat(freteStr)
 
   // Safe date parser
   const safeDateStr = (raw?: string | null, suffix = '') => {
@@ -442,7 +445,7 @@ export function magazordDetailedToOrder(data: any): Partial<ERPOrder> {
     tamanho: tamanho,
     formato: derivacao || undefined,
     quantidade: item.quantidade || undefined,
-    frete: !isNaN(freteValue) && freteValue > 0 ? freteValue : undefined,
+    frete: !isNaN(freteValue) ? freteValue : undefined,
     prazoEntrega: safeDateStr(rastreio.dataLimiteEntregaCliente, 'T12:00:00'),
     endereco: enderecoList.length > 0 ? enderecoList.join(', ') : undefined,
     transportadora: rastreio.transportadoraNome || undefined,
