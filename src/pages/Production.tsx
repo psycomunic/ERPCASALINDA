@@ -297,11 +297,11 @@ function printOS(order: Order, stage: Stage) {
     .os-number .num { font-size: 26px; font-weight: 900; color: #1e3a8a; }
     .os-number .dt  { font-size: 10px; color: #9ca3af; margin-top: 2px; }
     ${order.fromMagazord ? `.mg-badge { display:inline-block; background:#7c3aed; color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; margin-left:8px; letter-spacing:1px; vertical-align: middle; }` : ''}
-    .section { margin-bottom: 14px; }
+    .section { margin-bottom: 14px; page-break-inside: avoid; break-inside: avoid; }
     .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #6b7280; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid #e5e7eb; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-    .field { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; }
+    .field { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; page-break-inside: avoid; break-inside: avoid; }
     .field label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #9ca3af; display: block; margin-bottom: 3px; }
     .field span { font-size: 13px; font-weight: 600; color: #111827; }
     .field.highlight { background: #eff6ff; border-color: #bfdbfe; }
