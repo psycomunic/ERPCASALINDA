@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { UploadCloud, CheckCircle, Search, Filter, MoreVertical, Plus, X } from 'lucide-react'
-import { getEntries, saveEntry, FinEntry } from '../../services/dbLocal'
+import { UploadCloud, CheckCircle, Search, Filter, Plus, X, Trash2, Link, FileText, User } from 'lucide-react'
+import { getEntries, saveEntry, deleteEntry, FinEntry } from '../../services/dbLocal'
 
 export default function Payable() {
   const [entries, setEntries] = useState<FinEntry[]>([])
@@ -64,6 +64,12 @@ export default function Payable() {
     }
     saveEntry(edit)
     setEntries(prev => prev.map(e => e.id === entry.id ? edit : e))
+  }
+
+  const handleDelete = (id: string) => {
+    if(!window.confirm('Tem certeza que deseja excluir esta conta a pagar permanentemente?')) return
+    deleteEntry(id)
+    setEntries(prev => prev.filter(e => e.id !== id))
   }
 
   const pendentes = entries.filter(e => e.status !== 'pago')
@@ -151,32 +157,46 @@ export default function Payable() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {entries.filter(e => e.fornecedor_cliente.toLowerCase().includes(term.toLowerCase()) || e.descricao.toLowerCase().includes(term.toLowerCase())).map(e => (
-                <tr key={e.id} className="hover:bg-gray-50 group">
-                  <td className="py-3 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap">
+                <tr key={e.id} className="hover:bg-gray-50/80 group transition-colors border-l-2 border-transparent hover:border-navy-500">
+                  <td className="py-4 px-4 text-xs font-semibold text-gray-500 whitespace-nowrap">
                     {new Date(e.dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR')} 
                   </td>
-                  <td className="py-3 px-4">
-                    <p className="font-bold text-gray-900 text-xs">{e.fornecedor_cliente}</p>
-                    <p className="text-[11px] text-gray-500">{e.descricao}</p>
+                  <td className="py-4 px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 text-blue-600">
+                        <User size={14} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 text-sm tracking-tight">{e.fornecedor_cliente}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5 max-w-[200px] truncate">{e.descricao}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="py-3 px-4">
-                    <span className="bg-gray-100 border border-gray-200 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">{e.categoria}</span>
+                  <td className="py-4 px-4">
+                    <span className="bg-gray-100 border border-gray-200 text-gray-600 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">{e.categoria}</span>
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-red-600 whitespace-nowrap">
+                  <td className="py-4 px-4 text-right font-black text-red-600 whitespace-nowrap text-sm">
                     R$ {e.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="py-3 px-4 text-center">
+                  <td className="py-4 px-4 text-center">
                     {e.status === 'pago' ? (
-                       <button onClick={() => toggleStatus(e)} className="text-[10px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 hover:bg-red-50 hover:text-red-600 hover:border-red-200 group" title="Clique para reverter para pendente">
-                         <span className="group-hover:hidden flex items-center gap-1"><CheckCircle size={10} /> PAGO</span>
-                         <span className="hidden group-hover:block mx-1">X REVERTER</span>
+                       <button onClick={() => toggleStatus(e)} className="text-[10px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 hover:bg-red-50 hover:text-red-600 hover:border-red-200 group/btn" title="Clique para reverter para pendente">
+                         <span className="group-hover/btn:hidden flex items-center gap-1"><CheckCircle size={10} /> PAGO</span>
+                         <span className="hidden group-hover/btn:block mx-1">⨯ REVERTER</span>
                        </button>
                     ) : (
                        <button onClick={() => toggleStatus(e)} className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1 hover:bg-amber-100" title="Clique para marcar como pago"> PENDENTE</button>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-right">
-                    <button className="text-gray-400 hover:text-navy-900"><MoreVertical size={16} /></button>
+                  <td className="py-4 px-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Anexar">
+                        <Link size={14} />
+                      </button>
+                      <button onClick={() => handleDelete(e.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Excluir Conta">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
