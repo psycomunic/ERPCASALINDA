@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { UploadCloud, CheckCircle, Search, Filter, MoreVertical, Plus, FileText, Check } from 'lucide-react'
+import { UploadCloud, CheckCircle, Search, Filter, MoreVertical, Plus, X } from 'lucide-react'
 import { getEntries, saveEntry, FinEntry } from '../../services/dbLocal'
 
 export default function Payable() {
   const [entries, setEntries] = useState<FinEntry[]>([])
   const [drag, setDrag] = useState(false)
   const [term, setTerm] = useState('')
+  const [modalType, setModalType] = useState<false | 'new'>(false)
+  
+  // Modal State
+  const [form, setForm] = useState({
+    fornecedor: '', descricao: '', valor: '', vencimento: '', categoria: 'Fornecedores'
+  })
 
   useEffect(() => {
     setEntries(getEntries().filter(e => e.tipo === 'pagamento'))
@@ -57,6 +63,25 @@ export default function Payable() {
   const pendentes = entries.filter(e => e.status !== 'pago')
   const totalPendente = pendentes.reduce((acc, e) => acc + e.valor, 0)
 
+  const handleSaveNovo = () => {
+    if (!form.fornecedor || !form.valor || !form.vencimento) return alert('Preencha os campos obrigatórios')
+    
+    const novo: FinEntry = {
+      id: Date.now().toString(),
+      tipo: 'pagamento',
+      categoria: form.categoria,
+      descricao: form.descricao,
+      valor: parseFloat(form.valor),
+      dataVencimento: form.vencimento,
+      status: 'pendente',
+      fornecedor_cliente: form.fornecedor
+    }
+    saveEntry(novo)
+    setEntries(prev => [novo, ...prev])
+    setModalType(false)
+    setForm({ fornecedor: '', descricao: '', valor: '', vencimento: '', categoria: 'Fornecedores' })
+  }
+
   return (
     <div className="flex flex-col h-full bg-white relative">
       {/* HEADER */}
@@ -70,7 +95,7 @@ export default function Payable() {
             <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider mb-0.5">Total Aberto</p>
             <p className="text-lg font-black text-red-700 leading-none">R$ {totalPendente.toLocaleString('pt-BR', { minimumFractionDigits:2 })}</p>
           </div>
-          <button className="btn-primary"><Plus size={14} /> Nova Despesa</button>
+          <button onClick={() => setModalType('new')} className="btn-primary"><Plus size={14} /> Nova Despesa</button>
         </div>
       </div>
 
@@ -151,6 +176,52 @@ export default function Payable() {
           </table>
         </div>
       </div>
+
+      {/* Modal Nova Despesa */}
+      {modalType && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Registrar Contas a Pagar</h2>
+              <button onClick={() => setModalType(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Fornecedor *</label>
+                <input className="input" placeholder="Ex: Silva Madeiras" value={form.fornecedor} onChange={e => setForm({...form, fornecedor: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Descrição</label>
+                <input className="input" placeholder="Ex: Compra de matéria prima..." value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Valor (R$) *</label>
+                  <input className="input" type="number" placeholder="0,00" value={form.valor} onChange={e => setForm({...form, valor: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Vencimento *</label>
+                  <input className="input" type="date" value={form.vencimento} onChange={e => setForm({...form, vencimento: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                 <label className="block text-xs font-semibold text-gray-500 mb-1">Categoria</label>
+                 <select className="input" value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})}>
+                   <option>Fornecedores (Madeira)</option>
+                   <option>Fornecedores (Vidros)</option>
+                   <option>Impostos (DAS)</option>
+                   <option>Manutenção Operacional</option>
+                   <option>Folha de Pagamento</option>
+                 </select>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setModalType(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={handleSaveNovo} className="btn-primary">Salvar Lançamento</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

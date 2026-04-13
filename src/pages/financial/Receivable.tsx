@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Search, Filter, MoreVertical, Plus, CheckCircle, TrendingUp } from 'lucide-react'
+import { Search, Filter, MoreVertical, Plus, CheckCircle, TrendingUp, X } from 'lucide-react'
 import { getEntries, saveEntry, FinEntry } from '../../services/dbLocal'
 
 export default function Receivable() {
   const [entries, setEntries] = useState<FinEntry[]>([])
   const [term, setTerm] = useState('')
+  const [modalType, setModalType] = useState<false | 'new'>(false)
+  
+  const [form, setForm] = useState({
+    cliente: '', descricao: '', valor: '', vencimento: '', categoria: 'Vendas Loja Física'
+  })
 
   useEffect(() => {
     setEntries(getEntries().filter(e => e.tipo === 'recebimento'))
@@ -19,6 +24,25 @@ export default function Receivable() {
   const pendentes = entries.filter(e => e.status !== 'pago')
   const totalPendente = pendentes.reduce((acc, e) => acc + e.valor, 0)
   const totalRecebido = entries.filter(e => e.status === 'pago').reduce((acc, e) => acc + e.valor, 0)
+
+  const handleSaveNovo = () => {
+    if (!form.cliente || !form.valor || !form.vencimento) return alert('Preencha os campos obrigatórios')
+    
+    const novo: FinEntry = {
+      id: Date.now().toString(),
+      tipo: 'recebimento',
+      categoria: form.categoria,
+      descricao: form.descricao,
+      valor: parseFloat(form.valor),
+      dataVencimento: form.vencimento,
+      status: 'pendente',
+      fornecedor_cliente: form.cliente
+    }
+    saveEntry(novo)
+    setEntries(prev => [novo, ...prev])
+    setModalType(false)
+    setForm({ cliente: '', descricao: '', valor: '', vencimento: '', categoria: 'Vendas Loja Física' })
+  }
 
   return (
     <div className="flex flex-col h-full bg-white relative">
@@ -36,7 +60,7 @@ export default function Receivable() {
             <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-0.5">A Receber</p>
             <p className="text-lg font-black text-blue-700 leading-none">+ R$ {totalPendente.toLocaleString('pt-BR', { minimumFractionDigits:2 })}</p>
           </div>
-          <button className="btn-primary ml-2"><Plus size={14} /> Novo Recebimento</button>
+          <button onClick={() => setModalType('new')} className="btn-primary ml-2"><Plus size={14} /> Novo Recebimento</button>
         </div>
       </div>
 
@@ -98,6 +122,51 @@ export default function Receivable() {
           </table>
         </div>
       </div>
+
+      {/* Modal Novo Recebimento */}
+      {modalType && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Registrar Contas a Receber</h2>
+              <button onClick={() => setModalType(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Cliente / Origem *</label>
+                <input className="input" placeholder="Ex: João da Silva ou Magazord" value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Descrição</label>
+                <input className="input" placeholder="Ex: Venda Pedido #1020" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Valor (R$) *</label>
+                  <input className="input" type="number" placeholder="0,00" value={form.valor} onChange={e => setForm({...form, valor: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Vencimento *</label>
+                  <input className="input" type="date" value={form.vencimento} onChange={e => setForm({...form, vencimento: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                 <label className="block text-xs font-semibold text-gray-500 mb-1">Categoria</label>
+                 <select className="input" value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})}>
+                   <option>Vendas Loja Física</option>
+                   <option>Vendas E-commerce</option>
+                   <option>Repasse Plataforma</option>
+                   <option>Serviços Adicionais</option>
+                 </select>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setModalType(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={handleSaveNovo} className="btn-primary">Salvar Lançamento</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
