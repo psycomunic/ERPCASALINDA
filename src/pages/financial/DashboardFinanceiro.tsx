@@ -12,13 +12,17 @@ const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julh
 export default function DashboardFinanceiro() {
   const currentMonth = new Date().getMonth()
   const filterOptions = [
+    'HOJE',
+    'PRÓXIMOS 7 DIAS',
+    'PRÓXIMOS 15 DIAS',
     `ESTE MÊS (${MESES[currentMonth].toUpperCase()})`,
+    `PRÓXIMO MÊS (${MESES[currentMonth === 11 ? 0 : currentMonth + 1].toUpperCase()})`,
     `MÊS PASSADO (${MESES[currentMonth === 0 ? 11 : currentMonth - 1].toUpperCase()})`,
     'ESTE ANO',
     'TUDO'
   ]
 
-  const [filter, setFilter] = useState(filterOptions[0])
+  const [filter, setFilter] = useState(filterOptions[3]) // Default to ESTE MÊS
   const [showPeriodo, setShowPeriodo] = useState(false)
   
   const entries = useMemo(() => getEntries(), [])
@@ -28,13 +32,30 @@ export default function DashboardFinanceiro() {
     return entries.filter(e => {
       const d = new Date(e.dataVencimento + 'T12:00:00')
       const today = new Date()
+      today.setHours(12, 0, 0, 0)
+      
+      const diffTime = d.getTime() - today.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+      if (filter === 'HOJE') return diffDays === 0
+      if (filter === 'PRÓXIMOS 7 DIAS') return diffDays >= 0 && diffDays <= 7
+      if (filter === 'PRÓXIMOS 15 DIAS') return diffDays >= 0 && diffDays <= 15
       if (filter.includes('ESTE MÊS')) return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
+      
+      if (filter.includes('PRÓXIMO MÊS')) {
+         const nextM = today.getMonth() === 11 ? 0 : today.getMonth() + 1
+         const nextY = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear()
+         return d.getMonth() === nextM && d.getFullYear() === nextY
+      }
+      
       if (filter.includes('MÊS PASSADO')) {
          const pastM = today.getMonth() === 0 ? 11 : today.getMonth() - 1
          const pastY = today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear()
          return d.getMonth() === pastM && d.getFullYear() === pastY
       }
+      
       if (filter === 'ESTE ANO') return d.getFullYear() === today.getFullYear()
+      
       return true
     })
   }, [entries, filter])
