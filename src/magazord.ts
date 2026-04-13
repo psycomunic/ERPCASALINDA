@@ -451,6 +451,19 @@ export function magazordDetailedToOrder(data: any): Partial<ERPOrder> {
     transportadora: rastreio.transportadoraNome || undefined,
     imagemUrl: data.lojaUrlImagem && item.midiaPath && item.midiaName 
       ? `${data.lojaUrlImagem}/${item.midiaPath}${item.midiaName}`
-      : undefined
+      : undefined,
+    itens: (rastreio.pedidoItem || []).map((i: any) => {
+      const dev = i.produtoDerivacaoNome || ''
+      const tam = dev.includes('x') ? dev.match(/\d+x\d+cm/i)?.[0] || dev : undefined
+      return {
+        produto: i.produtoTitulo || i.descricao || 'Produto sem nome',
+        quantidade: i.quantidade || 1,
+        tamanho: tam,
+        formato: dev || undefined,
+        imagemUrl: data.lojaUrlImagem && i.midiaPath && i.midiaName
+          ? `${data.lojaUrlImagem}/${i.midiaPath}${i.midiaName}`
+          : undefined
+      }
+    })
   }
 }

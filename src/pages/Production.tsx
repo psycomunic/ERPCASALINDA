@@ -42,6 +42,15 @@ export interface ProductionOrder {
   frete?: number
   imagemUrl?: string
   fromMagazord?: boolean
+  itens?: {
+    produto: string
+    quantidade?: number
+    tamanho?: string
+    formato?: string
+    moldura?: string
+    acabamento?: string
+    imagemUrl?: string
+  }[]
 }
 
 type Order = ProductionOrder
@@ -425,6 +434,7 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
           endereco:       enriched.endereco       ?? prev.endereco,
           transportadora: enriched.transportadora ?? prev.transportadora,
           imagemUrl:      enriched.imagemUrl      ?? prev.imagemUrl,
+          itens:          enriched.itens          ?? prev.itens,
         }))
       })
       .catch(() => {})
@@ -602,50 +612,73 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
             </div>
           )}
 
-          {/* ── ESPECIFICAÇÃO DO QUADRO (PRODUCT DETAILS) ── */}
+          {/* ── ESPECIFICAÇÃO DOS ITENS (PRODUCT DETAILS) ── */}
           <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🖼 Especificação do Quadro</p>
-            <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-2">
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><Package size={9} /> Produto / Descrição</p>
-              <p className="text-sm font-bold text-gray-900">{order.produto}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {order.material && (
-                <div className="bg-white border border-gray-200 rounded-xl p-3">
-                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Material / Impressão</p>
-                  <p className="text-xs font-semibold text-gray-800">{order.material}</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">🖼 Especificação dos Itens</p>
+            
+            <div className="space-y-4">
+              {(order.itens && order.itens.length > 0 ? order.itens : [order]).map((item, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                  {/* Item header */}
+                  <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex gap-3">
+                    {/* Imagem */}
+                    <div className="w-12 h-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden">
+                      {item.imagemUrl || order.imagemUrl ? (
+                         <img src={item.imagemUrl || order.imagemUrl} alt="Produto" className="w-full h-full object-cover" />
+                      ) : (
+                         <div className="flex flex-col items-center opacity-40">
+                           <Package size={14} className="text-violet-500 mb-0.5" />
+                         </div>
+                      )}
+                    </div>
+                    {/* Descrição */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide mb-0.5">Produto / Descrição</p>
+                      <p className="text-xs font-bold text-gray-900 leading-tight">{item.produto}</p>
+                    </div>
+                  </div>
+
+                  {/* Detalhes grid */}
+                  <div className="p-3 grid grid-cols-2 gap-2">
+                    {item.tamanho && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-2.5">
+                        <p className="text-[9px] text-blue-500 font-bold uppercase tracking-wider mb-0.5">Tamanho</p>
+                        <p className="text-xs font-semibold text-gray-800 leading-tight">{item.tamanho}</p>
+                      </div>
+                    )}
+                    {item.formato && item.formato !== item.tamanho && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-2.5">
+                        <p className="text-[9px] text-blue-500 font-bold uppercase tracking-wider mb-0.5">Formato / Variação</p>
+                        <p className="text-xs font-semibold text-gray-800 leading-tight">{item.formato}</p>
+                      </div>
+                    )}
+                    {/* Fallbacks for non-Magazord data */}
+                    {(item as any).material && (
+                       <div className="bg-white border border-gray-200 rounded-xl p-2.5">
+                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Material</p>
+                         <p className="text-xs font-semibold text-gray-800">{(item as any).material}</p>
+                       </div>
+                    )}
+                    {(item as any).moldura && (
+                       <div className="bg-violet-50 border border-violet-200 rounded-xl p-2.5">
+                         <p className="text-[9px] text-violet-500 font-bold uppercase tracking-wider mb-0.5">Moldura</p>
+                         <p className="text-xs font-semibold text-gray-800">{(item as any).moldura}</p>
+                       </div>
+                    )}
+                    {(item as any).acabamento && (
+                       <div className="bg-violet-50 border border-violet-200 rounded-xl p-2.5">
+                         <p className="text-[9px] text-violet-500 font-bold uppercase tracking-wider mb-0.5">Acabamento</p>
+                         <p className="text-xs font-semibold text-gray-800">{(item as any).acabamento}</p>
+                       </div>
+                    )}
+                    {/* Quantidade */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">Quantidade</p>
+                      <p className="text-sm font-black text-gray-900">{item.quantidade || 1}x</p>
+                    </div>
+                  </div>
                 </div>
-              )}
-              {order.moldura && (
-                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
-                  <p className="text-[9px] text-violet-400 font-bold uppercase tracking-wider mb-1">Moldura</p>
-                  <p className="text-xs font-semibold text-gray-800">{order.moldura}</p>
-                </div>
-              )}
-              {order.acabamento && (
-                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
-                  <p className="text-[9px] text-violet-400 font-bold uppercase tracking-wider mb-1">Acabamento / Vidro</p>
-                  <p className="text-xs font-semibold text-gray-800">{order.acabamento}</p>
-                </div>
-              )}
-              {order.tamanho && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                  <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider mb-1">Tamanho</p>
-                  <p className="text-xs font-semibold text-gray-800">{order.tamanho}</p>
-                </div>
-              )}
-              {order.formato && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                  <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider mb-1">Formato / Nº Telas</p>
-                  <p className="text-xs font-semibold text-gray-800">{order.formato}</p>
-                </div>
-              )}
-              {order.quantidade && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Quantidade</p>
-                  <p className="text-xs font-bold text-gray-900">{order.quantidade}x</p>
-                </div>
-              )}
+              ))}
             </div>
           </div>
 
