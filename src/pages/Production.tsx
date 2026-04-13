@@ -1141,7 +1141,12 @@ export default function Production() {
       setBoard(grouped)
       setDbConnected(true)
       setDbLoading(false)
-    }).catch(() => setDbLoading(false))
+    }).catch(() => {
+      // Fallback local storage
+      const saved = localStorage.getItem('erp_board_backup')
+      if (saved) setBoard(JSON.parse(saved))
+      setDbLoading(false)
+    })
   }, [])
 
   // Helper: get UUID for a display-id order
@@ -1197,7 +1202,9 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       'Novos Pedidos': prev['Novos Pedidos'].filter(o => o.id !== order.id),
-      'Impressão': [{ ...order, status: 'Pendente', fromMagazord: true }, ...prev['Impressão']],
+      'Impressão': prev['Impressão'].some(o => o.id === order.id) 
+        ? prev['Impressão'] 
+        : [{ ...order, status: 'Pendente', fromMagazord: true }, ...prev['Impressão']],
     }))
     // Supabase: move to Impressão (or create if not persisted yet)
     const dbId = getDbId(order.id)
@@ -1247,6 +1254,11 @@ export default function Production() {
     if (dbId) movePedidoEtapa(dbId, next as string)
     showToast(`Pedido #${id} avançou para ${next}`)
   }
+
+  // Persist board to local storage on every update as a safe fallback
+  useEffect(() => {
+    localStorage.setItem('erp_board_backup', JSON.stringify(board))
+  }, [board])
 
   const markReady = (order: Order, endereco: string, transportadora: string, prazoEntrega: string) => {
     const prazoFmt = prazoEntrega
