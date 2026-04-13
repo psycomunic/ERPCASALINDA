@@ -128,7 +128,7 @@ function Topbar() {
       const dynamicNotifs = atrasados.map((p, i) => ({
         id: i + 1,
         title: 'Pedido Atrasado',
-        desc: `Pedido ${p.magazordId ? '#' + p.magazordId : ''} – ${p.cliente || 'Cliente'} está atrasado.`,
+        desc: `Pedido ${p.magazord_id ? '#' + p.magazord_id : ''} – ${p.cliente || 'Cliente'} está atrasado.`,
         time: 'Agora',
         read: false
       }))

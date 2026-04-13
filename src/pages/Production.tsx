@@ -451,9 +451,8 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
           frete:          enriched.frete          ?? prev.frete,
           prazoEntrega:   enriched.prazoEntrega   ?? prev.prazoEntrega,
           endereco:       enriched.endereco       ?? prev.endereco,
-          transportadora: enriched.transportadora ?? prev.transportadora,
-          imagemUrl:      enriched.imagemUrl      ?? prev.imagemUrl,
-          itens:          enriched.itens          ?? prev.itens,
+          imagemUrl:      (enriched as any).imagemUrl      ?? prev.imagemUrl,
+          itens:          (enriched as any).itens          ?? prev.itens,
         }))
       })
       .catch(() => {})

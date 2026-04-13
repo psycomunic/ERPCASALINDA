@@ -39,6 +39,8 @@ export interface Database {
           created_at: string
           updated_at: string
         }
+        Relationships: any[]
+
         Insert: {
           numero: string
           magazord_id?: number | null
@@ -100,6 +102,8 @@ export interface Database {
           created_at: string
           updated_at: string
         }
+        Relationships: any[]
+
         Insert: {
           tipo: 'receita' | 'despesa'
           categoria?: string | null
@@ -136,6 +140,8 @@ export interface Database {
           created_at: string
           updated_at: string
         }
+        Relationships: any[]
+
         Insert: {
           codigo?: string | null
           nome: string
@@ -170,6 +176,8 @@ export interface Database {
           usuario: string | null
           created_at: string
         }
+        Relationships: any[]
+
         Insert: {
           item_id: string
           tipo: 'entrada' | 'saida' | 'ajuste'
@@ -197,6 +205,8 @@ export interface Database {
           created_at: string
           updated_at: string
         }
+        Relationships: any[]
+
         Insert: {
           nome: string
           categoria?: string | null
@@ -241,6 +251,8 @@ export interface Database {
           created_at: string
           updated_at: string
         }
+        Relationships: any[]
+
         Insert: {
           tipo: 'cliente' | 'fornecedor' | 'ambos'
           nome: string
@@ -276,6 +288,8 @@ export interface Database {
           descricao: string | null
           updated_at: string
         }
+        Relationships: any[]
+
         Insert: {
           chave: string
           valor: Json

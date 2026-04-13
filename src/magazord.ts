@@ -91,6 +91,7 @@ export interface MagazordOrder {
   observacao?: string
   origem: 'site' | 'marketplace' | 'balcao'
   canal: string                     // "Site", "Mercado Livre", "Shopee", …
+  [key: string]: any                // Fallback para propriedades adicionais da API V2
 }
 
 export interface MagazordOrdersResponse {
@@ -379,6 +380,7 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
 
   return {
     id: String(order.codigo || order.id),
+
     magazordId: order.id,
     cliente: order.pessoaNome || order.cliente?.nome || 'Cliente não informado',
     clienteEmail: order.cliente?.email,
@@ -409,7 +411,7 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
 /**
  * Converte a resposta do endpoint individual (v2/site/pedido/{codigo}) para os detalhes ricos
  */
-export function magazordDetailedToOrder(data: any): Partial<ERPOrder> {
+export function magazordDetailedToOrder(data: any): any {
   if (!data) return {}
 
   const rastreio = data.arrayPedidoRastreio?.[0] || {}

@@ -488,7 +488,7 @@ export default function Catalogo() {
                       className={`w-7 h-7 rounded flex items-center justify-center text-sm border-2 transition-all ${
                         selectedMoldura === m.id ? 'border-navy-900 scale-110 shadow' : 'border-gray-200 hover:border-gray-400'
                       }`}
-                      style={{ background: m.cor ? m.cor + '33' : '#f3f4f6', borderColor: selectedMoldura === m.id ? '#1e3a8a' : (m.cor ?? '#e5e7eb') + '88' }}
+                      style={{ background: (m as any).cor ? (m as any).cor + '33' : '#f3f4f6', borderColor: selectedMoldura === m.id ? '#1e3a8a' : ((m as any).cor ?? '#e5e7eb') + '88' }}
                     >
                       {m.emoji}
                     </button>

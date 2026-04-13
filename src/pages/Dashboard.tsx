@@ -8,12 +8,10 @@ import {
   Check, ChevronDown, Truck
 } from 'lucide-react'
 import {
-import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
 } from 'recharts'
 import { fetchPedidos } from '../services/pedidos'
-import { isSupabaseConfigured } from '../lib/supabase'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 const cashflow: any[] = []
@@ -274,7 +272,7 @@ export default function Dashboard() {
           fat += (p.valor || 0)
           totalPedMes++
           if (isFinished) {
-            qtdProd += (p.quantidade || 1)
+            qtdProd += ((p as any).quantidade || 1)
           }
         }
       }
