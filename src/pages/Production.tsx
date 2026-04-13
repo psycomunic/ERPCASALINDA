@@ -255,6 +255,33 @@ function printOS(order: Order, stage: Stage) {
   const stagesChecklist = ['Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento', 'Embalagem', 'Prontos para Envio', 'Despachados']
   const currentIdx = stagesChecklist.indexOf(stage as string)
 
+  const itemsToRender = order.itens && order.itens.length > 0 ? order.itens : [order]
+  const itemsHtml = itemsToRender.map((item: any, idx: number) => `
+    <div class="field" style="margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; padding: 12px;">
+      ${item.imagemUrl || order.imagemUrl ? `
+        <img src="${item.imagemUrl || order.imagemUrl}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid #e5e7eb; flex-shrink: 0;" />
+      ` : `
+        <div style="width: 70px; height: 70px; border-radius: 4px; border: 1px solid #e5e7eb; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #9ca3af; flex-shrink: 0; text-align: center; padding: 4px;">SEM FOTO</div>
+      `}
+      <div style="flex: 1;">
+        <label style="font-size: 10px; padding-bottom: 2px;">Produto / Descrição</label>
+        <span style="font-size: 14px; font-weight: 800; display: block; margin-bottom: 8px;">${item.produto}</span>
+        
+        <div class="grid-2" style="gap: 8px;">
+          ${item.tamanho ? `<div><label>Tamanho</label><span>${item.tamanho}</span></div>` : ''}
+          ${item.formato ? `<div><label>Variação / Formato</label><span>${item.formato}</span></div>` : ''}
+          ${item.material ? `<div><label>Material</label><span>${item.material}</span></div>` : ''}
+          ${item.moldura ? `<div><label>Moldura</label><span>${item.moldura}</span></div>` : ''}
+          ${item.acabamento ? `<div><label>Acabamento</label><span>${item.acabamento}</span></div>` : ''}
+          <div style="background: #e0e7ff; border: 1px solid #c7d2fe; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+            <label style="color: #3730a3; margin-bottom: 0;">Qtd. a Produzir</label>
+            <span style="color: #312e81; font-weight: 900; font-size: 16px;">${item.quantidade || order.quantidade || 1}x</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('')
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -338,16 +365,8 @@ function printOS(order: Order, stage: Stage) {
   </div>
 
   <div class="section">
-    <div class="section-title">Especificação do Produto</div>
-    <div class="grid-2">
-      <div class="field">
-        <label>Produto / Descrição</label>
-        <span>${order.produto}</span>
-      </div>
-      ${order.material ? `<div class="field"><label>Material / Formato</label><span>${order.material}</span></div>` : ''}
-      ${order.moldura ? `<div class="field"><label>Moldura</label><span>${order.moldura}</span></div>` : ''}
-      ${order.acabamento ? `<div class="field"><label>Acabamento (vidro)</label><span>${order.acabamento}</span></div>` : ''}
-    </div>
+    <div class="section-title">Especificação dos Itens</div>
+    ${itemsHtml}
   </div>
 
   ${order.endereco || order.transportadora ? `
