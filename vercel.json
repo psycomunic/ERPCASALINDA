@@ -13,6 +13,14 @@
       "destination": "/api/magazord?origPath=v2/:path*"
     },
     {
+      "source": "/magazord-lv-api/:path*",
+      "destination": "/api/magazord-lv?origPath=:path*"
+    },
+    {
+      "source": "/api/magazord-lv/v2/:path*",
+      "destination": "/api/magazord-lv?origPath=v2/:path*"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

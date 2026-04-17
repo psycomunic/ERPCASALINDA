@@ -4,12 +4,14 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   LayoutDashboard, Factory, DollarSign, Package,
   Building2, Users, Settings, LogOut, Plus,
-  Search, Bell, ChevronDown, Menu, X, Check, FileText, Grid
+  Search, Bell, ChevronDown, Menu, X, Check, FileText, Grid,
+  Sofa, ChevronRight
 } from 'lucide-react'
 import { LayoutProvider, useLayout } from '../contexts/LayoutContext'
 import { fetchPedidos } from '../services/pedidos'
 
-const NAV = [
+// ── Casa Linda Navigation ────────────────────────────────────────────────────
+const NAV_CL = [
   { to: '/dashboard',  label: 'Dashboard',       icon: LayoutDashboard },
   { to: '/production', label: 'Produção (PCP)',   icon: Factory },
   { to: '/financial',  label: 'Financeiro',       icon: DollarSign },
@@ -19,6 +21,19 @@ const NAV = [
   { to: '/reports',    label: 'Relatórios',       icon: FileText },
   { to: '/catalogo',   label: 'Catálogo',          icon: Grid },
 ]
+
+// ── Lar e Vida Navigation ─────────────────────────────────────────────────────
+const NAV_LV = [
+  { to: '/lar-e-vida/dashboard',  label: 'Dashboard',     icon: LayoutDashboard },
+  { to: '/lar-e-vida/production', label: 'Produção (PCP)', icon: Factory },
+  { to: '/lar-e-vida/financial',  label: 'Financeiro',    icon: DollarSign },
+  { to: '/lar-e-vida/inventory',  label: 'Almoxarifado',  icon: Package },
+  { to: '/partners',              label: 'Parceiros',     icon: Users },
+  { to: '/reports',               label: 'Relatórios',    icon: FileText },
+]
+
+// Legacy alias used by ALL_ROUTES search (always shows all routes)
+const NAV = NAV_CL
 
 const SECTION_LABELS: Record<string, string> = {
   '/dashboard':  'Dashboard',
@@ -30,56 +45,134 @@ const SECTION_LABELS: Record<string, string> = {
   '/settings':   'Configurações',
   '/reports':    'Relatórios',
   '/catalogo':   'Catálogo de Produtos',
+  '/lar-e-vida/dashboard':  'Lar e Vida — Dashboard',
+  '/lar-e-vida/production': 'Lar e Vida — Produção PCP',
+  '/lar-e-vida/financial':  'Lar e Vida — Financeiro',
+  '/lar-e-vida/inventory':  'Lar e Vida — Almoxarifado',
 }
 
 
+const ALL_ROUTES = [...NAV_CL, ...NAV_LV, { to: '/settings', label: 'Configurações', icon: Settings }]
 
-const ALL_ROUTES = [...NAV, { to: '/settings', label: 'Configurações', icon: Settings }]
+type StoreId = 'casa-linda' | 'lar-e-vida'
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
+  const location   = useLocation()
+  const [showStorePicker, setShowStorePicker] = useState(false)
+
+  // Detect active store from URL
+  const isLV = location.pathname.startsWith('/lar-e-vida')
+  const activeStore: StoreId = isLV ? 'lar-e-vida' : 'casa-linda'
+  const activeNav = isLV ? NAV_LV : NAV_CL
+
+  const handleSwitchStore = (store: StoreId) => {
+    setShowStorePicker(false)
+    if (store === 'lar-e-vida') navigate('/lar-e-vida/dashboard')
+    else navigate('/dashboard')
+    onClose?.()
+  }
+
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200 w-44">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-100">
-        <div className="w-8 h-8 bg-navy-900 rounded-lg flex items-center justify-center shrink-0">
-          <Building2 size={16} className="text-white" />
+      {/* Store Selector */}
+      <div
+        className="relative flex items-center gap-2 px-3 py-3 border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50 transition-colors"
+        onClick={() => setShowStorePicker(v => !v)}
+      >
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={isLV
+            ? { background: 'linear-gradient(135deg, #b45309, #d97706)' }
+            : { background: '#0f172a' }
+          }
+        >
+          {isLV
+            ? <Sofa size={15} className="text-white" />
+            : <Building2 size={15} className="text-white" />}
         </div>
-        <div className="min-w-0">
-          <p className="font-bold text-gray-900 text-sm leading-tight">Casa Linda</p>
-          <p className="text-gray-400 text-[10px] uppercase tracking-widest leading-tight">Decorações</p>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-gray-900 text-xs leading-tight">{isLV ? 'Lar e Vida' : 'Casa Linda'}</p>
+          <p className="text-gray-400 text-[9px] uppercase tracking-widest leading-tight">Decorações</p>
         </div>
+        <ChevronDown size={12} className="text-gray-400 shrink-0" />
         {onClose && (
-          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700 lg:hidden">
+          <button onClick={e => { e.stopPropagation(); onClose() }} className="ml-auto text-gray-400 hover:text-gray-700 lg:hidden">
             <X size={18} />
           </button>
         )}
+
+        {/* Store picker dropdown */}
+        <AnimatePresence>
+          {showStorePicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setShowStorePicker(false) }} />
+              <motion.div
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 w-52 overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="px-3 py-2 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">Trocar de Loja</p>
+                {[
+                  { id: 'casa-linda' as StoreId, label: 'Casa Linda', sub: 'Quadros & Canvas', icon: Building2, color: '#0f172a' },
+                  { id: 'lar-e-vida' as StoreId, label: 'Lar e Vida',  sub: 'Tapetes & Decoração', icon: Sofa, color: '#b45309' },
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => handleSwitchStore(s.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${
+                      activeStore === s.id ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.color }}>
+                      <s.icon size={13} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 leading-tight">{s.label}</p>
+                      <p className="text-[9px] text-gray-400">{s.sub}</p>
+                    </div>
+                    {activeStore === s.id && <Check size={12} style={{ color: s.color }} className="shrink-0" />}
+                  </button>
+                ))}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
 
+      {/* Active store badge */}
+      {isLV && (
+        <div className="mx-3 mt-2 rounded-lg px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-center" style={{ background: '#fef3c7', color: '#b45309' }}>
+          Lar e Vida Ativo
+        </div>
+      )}
+
       {/* Top CTA */}
-      <div className="px-3 py-3">
+      <div className="px-3 pt-2 pb-1">
         <button
           onClick={() => {
             const current = window.location.pathname
-            if (current.includes('/financial')) navigate('/financial/payable')
+            if (current.includes('/lar-e-vida')) navigate('/lar-e-vida/production')
+            else if (current.includes('/financial')) navigate('/financial/payable')
             else navigate('/production')
             onClose?.()
           }}
-          className="w-full btn-primary justify-center text-xs py-2"
+          className="w-full justify-center text-xs py-2 flex items-center gap-1.5 rounded-xl font-semibold text-white transition-colors"
+          style={{ background: isLV ? 'linear-gradient(135deg, #b45309, #d97706)' : '#0f172a' }}
         >
           <Plus size={14} /> Novo Registro
         </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ to, label, icon: Icon }) => (
+      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto mt-1">
+        {activeNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 ${isActive ? 'nav-active' : 'nav-idle'}`
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 ${isActive ? (isLV ? 'bg-amber-50 text-amber-800 font-semibold' : 'nav-active') : 'nav-idle'}`
             }
           >
             <Icon size={15} />

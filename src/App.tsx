@@ -16,6 +16,10 @@ import Partners from './pages/Partners'
 import Settings from './pages/Settings'
 import Reports from './pages/Reports'
 import Catalogo from './pages/Catalogo'
+// ── Lar e Vida ────────────────────────────────────────────────────────────────
+import DashboardLV from './pages/lar-e-vida/DashboardLV'
+import ProductionLV from './pages/lar-e-vida/ProductionLV'
+import InventoryLV from './pages/lar-e-vida/InventoryLV'
 
 export default function App() {
   return (
@@ -58,6 +62,15 @@ export default function App() {
           <Route path="settings"   element={<Settings />} />
           <Route path="reports"   element={<Reports />} />
           <Route path="catalogo"  element={<Catalogo />} />
+
+          {/* ── Lar e Vida ──────────────────────────────────────────────── */}
+          <Route path="lar-e-vida">
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard"  element={<DashboardLV />} />
+            <Route path="production" element={<ProductionLV />} />
+            <Route path="inventory"  element={<InventoryLV />} />
+            <Route path="financial"  element={<ComingSoon title="Financeiro — Lar e Vida" />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
