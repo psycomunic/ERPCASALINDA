@@ -98,6 +98,29 @@ export async function despacharPedidoLV(
   })
 }
 
+// ─── Upload de imagem (Supabase Storage) ─────────────────────────────────────
+//
+// PRÉ-REQUISITO: criar o bucket "produtos" no Supabase Dashboard
+//   Storage → New Bucket → Name: produtos → Public bucket: ON → Save
+//
+export async function uploadFotoLV(file: File | Blob): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null
+  const ext   = (file.type.split('/')[1] ?? 'jpg').split('+')[0]
+  const path  = `lar-e-vida/${Date.now()}.${ext}`
+
+  const { error } = await supabase.storage
+    .from('produtos')
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (error) {
+    console.error('[pedidosLV] uploadFotoLV:', error.message)
+    return null
+  }
+
+  const { data } = supabase.storage.from('produtos').getPublicUrl(path)
+  return data.publicUrl
+}
+
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 export async function deletePedidoLV(id: string): Promise<boolean> {

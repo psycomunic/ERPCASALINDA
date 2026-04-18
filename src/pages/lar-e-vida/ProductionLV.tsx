@@ -10,6 +10,7 @@ import {
   fetchPedidosLV, createPedidoLV, updatePedidoLV,
   despacharPedidoLV, movePedidoLVEtapa,
   fetchHistoricoLV, logHistoricoLV, type HistoricoEntry,
+  uploadFotoLV,
 } from '../../services/pedidosLV'
 import { isSupabaseConfigured } from '../../lib/supabase'
 
@@ -219,8 +220,33 @@ function OrderCard({ order, onView, dragging, onDragStart, onDragEnd }: {
 // ─── Photo Paste Zone ────────────────────────────────────────────────────────
 
 function PhotoZone({ value, onChange }: { value: string; onChange: (url: string) => void }) {
-  const zoneRef = React.useRef<HTMLDivElement>(null)
-  const fileRef = React.useRef<HTMLInputElement>(null)
+  const zoneRef      = React.useRef<HTMLDivElement>(null)
+  const fileRef      = React.useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = React.useState(false)
+  const [preview,   setPreview]   = React.useState('') // base64 para feedback imediato
+
+  const handleFileUpload = React.useCallback(async (file: File | Blob) => {
+    // 1. Preview local imediato (base64)
+    const reader = new FileReader()
+    reader.onload = e => setPreview(e.target?.result as string)
+    reader.readAsDataURL(file)
+
+    // 2. Upload para Supabase Storage
+    setUploading(true)
+    const url = await uploadFotoLV(file)
+    setUploading(false)
+
+    if (url) {
+      // Sucesso: usa URL pública (pequena, salva facilmente no banco)
+      setPreview('')
+      onChange(url)
+    } else {
+      // Fallback: guarda base64 mesmo (pode falhar se imagem > 1MB)
+      const r2 = new FileReader()
+      r2.onload = e2 => { onChange(e2.target?.result as string); setPreview('') }
+      r2.readAsDataURL(file)
+    }
+  }, [onChange])
 
   const handlePaste = React.useCallback((e: ClipboardEvent) => {
     const items = e.clipboardData?.items
@@ -228,17 +254,13 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
     for (const item of Array.from(items)) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile()
-        if (!file) continue
-        const reader = new FileReader()
-        reader.onload = ev => onChange(ev.target?.result as string)
-        reader.readAsDataURL(file)
-        return
+        if (file) { handleFileUpload(file); return }
       }
     }
-    // fallback: text URL
+    // Fallback: URL colado como texto
     const text = e.clipboardData?.getData('text')
     if (text && (text.startsWith('http') || text.startsWith('data:'))) onChange(text)
-  }, [onChange])
+  }, [handleFileUpload, onChange])
 
   React.useEffect(() => {
     const el = zoneRef.current
@@ -247,30 +269,34 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
     return () => el.removeEventListener('paste', handlePaste as any)
   }, [handlePaste])
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => onChange(ev.target?.result as string)
-    reader.readAsDataURL(file)
-  }
+  const displaySrc = preview || value
 
   return (
-    <div ref={zoneRef} className="relative" tabIndex={0}
-      onFocus={() => zoneRef.current?.setAttribute('data-focus', 'true')}
-      onBlur={() => zoneRef.current?.removeAttribute('data-focus')}
-    >
-      {value ? (
-        <div className="relative rounded-xl overflow-hidden border-2 border-amber-300 group">
-          <img src={value} alt="Produto" className="w-full h-40 object-cover" />
-          <button
-            onClick={() => onChange('')}
-            className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow hover:bg-red-50 transition-colors"
-          >
-            <X size={14} className="text-red-500" />
-          </button>
+    <div ref={zoneRef} className="relative" tabIndex={0}>
+      {displaySrc ? (
+        <div className="relative rounded-xl overflow-hidden border-2 border-amber-300">
+          <img src={displaySrc} alt="Produto" className="w-full h-40 object-cover" />
+
+          {/* Spinner durante upload */}
+          {uploading && (
+            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
+              <RefreshCw size={22} className="animate-spin text-white" />
+              <p className="text-white text-xs font-semibold">Enviando foto...</p>
+            </div>
+          )}
+
+          {!uploading && (
+            <button
+              onClick={() => { onChange(''); setPreview('') }}
+              className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow hover:bg-red-50 transition-colors"
+            >
+              <X size={14} className="text-red-500" />
+            </button>
+          )}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent py-2 px-3">
-            <p className="text-white text-[10px] font-semibold">Foto adicionada ✓</p>
+            <p className="text-white text-[10px] font-semibold">
+              {uploading ? 'Enviando para o servidor...' : 'Foto salva ✓'}
+            </p>
           </div>
         </div>
       ) : (
@@ -282,11 +308,14 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
           <span className="text-2xl">📷</span>
           <div className="text-center">
             <p className="text-xs font-semibold">Cole (Ctrl+V) ou clique para selecionar</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">JPG, PNG — foto do produto</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">JPG, PNG — sobe automaticamente</p>
           </div>
         </button>
       )}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <input
+        ref={fileRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }}
+      />
     </div>
   )
 }
