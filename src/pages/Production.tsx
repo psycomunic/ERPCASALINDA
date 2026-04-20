@@ -1852,6 +1852,34 @@ export default function Production() {
                           )}
                           <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
                           <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
+
+                          {/* ── Miniaturas das imagens ── */}
+                          {(() => {
+                            // Coleta todas as imagens disponíveis: itens primeiro, fallback no pedido
+                            const imgs: string[] = []
+                            if (order.itens && order.itens.length > 0) {
+                              order.itens.forEach(it => { if (it.imagemUrl) imgs.push(it.imagemUrl) })
+                            }
+                            if (imgs.length === 0 && order.imagemUrl) imgs.push(order.imagemUrl)
+                            if (imgs.length === 0) return null
+                            const visible = imgs.slice(0, 4)
+                            const extra   = imgs.length - visible.length
+                            return (
+                              <div className="flex gap-1 mb-2">
+                                {visible.map((src, i) => (
+                                  <div key={i} className="w-11 h-11 rounded-lg overflow-hidden border border-gray-200 shrink-0 bg-gray-50">
+                                    <img src={src} alt={`item ${i + 1}`} className="w-full h-full object-cover" />
+                                  </div>
+                                ))}
+                                {extra > 0 && (
+                                  <div className="w-11 h-11 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+                                    <span className="text-[10px] font-bold text-gray-500">+{extra}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
+
                           {order.moldura && <span className="badge badge-gray text-[10px] mb-1">{order.moldura}</span>}
                           {order.material && !order.moldura && <span className="badge badge-gray text-[10px] mb-2">{order.material}</span>}
                           {/* Badge de reprovação */}
