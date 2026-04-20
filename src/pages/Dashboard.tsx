@@ -16,8 +16,8 @@ import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarr
 
 const cashflow: any[] = []
 
-const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR')}`
-const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const PERIODOS = ['Últimos 7 Dias', 'Últimos 30 Dias', 'Este Mês', 'Trimestre', 'Ano']
 
