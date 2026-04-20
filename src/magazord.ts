@@ -535,7 +535,7 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
     valor: order.valorTotal
       ? parseFloat(String(order.valorTotal))
       : order.valor_total || undefined,
-    frete: e?.frete ?? parseFloat(order.valorFrete || order.valor_frete || order.pedidoValorFrete || "0") || 0,
+    frete: (e?.frete ?? parseFloat(order.valorFrete || order.valor_frete || order.pedidoValorFrete || "0")) || 0,
     fromMagazord: true,
   }
 }
