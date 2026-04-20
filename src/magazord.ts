@@ -277,17 +277,19 @@ export interface FreightOrderData {
   data: string
 }
 
+const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
+const extractFrete = (o: any) => parseFloat(String(o.valorFreteTransportadora || o.valorFrete || o.pedidoValorFrete || o.entrega?.frete || 0)) || 0
+
 /**
- * Busca pedidos dos últimos N dias (padrão: 90) e enriquece cada um com
- * o nome da transportadora e custo real de frete (valorFreteTransportadora)
- * vindo do endpoint individual /site/pedido/{codigo}.
- * Executa em paralelo com concorrência limitada para não sobrecarregar a API.
+ * Busca pedidos dos últimos N dias e extrai transportadora + frete real.
+ * Estratégia dupla:
+ *  1. Endpoint de lista: extrai campos raiz (transportadoraNome, valorFrete etc.)
+ *  2. Para os que ainda estiverem sem transportadora, chama detalhe individual.
  */
 export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightOrderData[]> {
   if (!isMagazordConfigured()) {
-    // Retorna mock data com fretes realistas
     return MOCK_MAGAZORD_ORDERS.map(o => ({
-      codigo: String(o.codigo || o.id),
+      codigo: String((o as any).codigo || o.id),
       transportadora: o.entrega?.transportadora || 'Sem transportadora',
       frete: o.entrega?.frete || 0,
       valor: o.valor_total || 0,
@@ -296,73 +298,101 @@ export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightO
   }
 
   try {
-    // 1. Buscar lista de pedidos dos últimos N dias (todas as situações pagas)
     const d = new Date()
     d.setDate(d.getDate() - dias)
-    const dataInicial =d.toISOString().split('T')[0]
+    const dataInicial = d.toISOString().split('T')[0]
 
     const json = await mzFetch<MagazordOrdersResponse>(
       `/site/pedido?dataPedidoInicial=${dataInicial}&limit=200&order=id&orderDirection=desc`
     )
     const items = json?.data?.items ?? []
+    console.log(`[Freight] Total pedidos recebidos da lista: ${items.length}`)
 
-    // Filtrar apenas pedidos pagos/faturados
-    const allowedSituations = [4, 5, 6, 7, 8, 23]
-    const filtered = items.filter(o => allowedSituations.includes(o.pedidoSituacao ?? 0))
-
-    if (filtered.length === 0) return []
-
-    // 2. Buscar detalhes de cada pedido em paralelo (máx 10 simultâneos)
-    const results: FreightOrderData[] = []
-    const CONCURRENCY = 10
-
-    for (let i = 0; i < filtered.length; i += CONCURRENCY) {
-      const batch = filtered.slice(i, i + CONCURRENCY)
-      const batchResults = await Promise.all(
-        batch.map(async (order) => {
-          const codigo = String(order.codigo || order.id)
-          try {
-            const detail = await mzFetch<{ status: string; data: any }>(`/site/pedido/${codigo}`)
-            const data = detail?.data
-
-            if (!data) return null
-
-            const rastreio = data.arrayPedidoRastreio?.[0] || {}
-
-            // Custo real do frete para a empresa
-            const freteStr = rastreio.valorFreteTransportadora || rastreio.valorFrete || data.valorFrete || '0'
-            const frete = parseFloat(String(freteStr)) || 0
-
-            const transportadora = rastreio.transportadoraNome 
-              || data.transportadoraNome 
-              || order.transportadoraNome
-              || 'Sem transportadora'
-
-            const valor = parseFloat(String(data.valorTotal || order.valorTotal || 0)) || 0
-
-            return {
-              codigo,
-              transportadora: transportadora.trim() || 'Sem transportadora',
-              frete,
-              valor,
-              data: order.dataHora || order.data_pedido || new Date().toISOString(),
-            } as FreightOrderData
-          } catch {
-            // Se falhar o detalhe, usa o que tiver na lista
-            return {
-              codigo,
-              transportadora: (order as any).transportadoraNome || 'Sem transportadora',
-              frete: parseFloat(String((order as any).valorFrete || 0)) || 0,
-              valor: parseFloat(String((order as any).valorTotal || 0)) || 0,
-              data: order.dataHora || order.data_pedido || new Date().toISOString(),
-            } as FreightOrderData
-          }
-        })
-      )
-      batchResults.forEach(r => { if (r) results.push(r) })
+    // Log do shape do primeiro item para debug
+    if (items.length > 0) {
+      const sample = items[0] as any
+      console.log('[Freight] Exemplo de campo raiz do item:', {
+        codigo: sample.codigo,
+        id: sample.id,
+        pedidoSituacao: sample.pedidoSituacao,
+        transportadoraNome: sample.transportadoraNome,
+        valorFrete: sample.valorFrete,
+        valorFreteTransportadora: sample.valorFreteTransportadora,
+        pedidoValorFrete: sample.pedidoValorFrete,
+        valorTotal: sample.valorTotal,
+        dataHora: sample.dataHora,
+        entrega: sample.entrega,
+      })
     }
 
-    return results
+    // Aceitar todas as situações pagas/em trânsito
+    const allowedSituations = [4, 5, 6, 7, 8, 23]
+    const filtered = items.filter((o: any) =>
+      allowedSituations.includes(o.pedidoSituacao ?? o.situacao ?? 0)
+    ) as any[]
+
+    console.log(`[Freight] Pedidos após filtro de situação: ${filtered.length}`)
+
+    // Se filtro zerou, usa todos (sem filtrar situação)
+    const toProcess = filtered.length > 0 ? filtered : (items as any[]).slice(0, 100)
+
+    // Fase 1: extrair dados direto dos campos raiz da lista
+    const phase1: FreightOrderData[] = toProcess.map((o: any) => ({
+      codigo: String(o.codigo || o.id),
+      transportadora: extractTransportadora(o),
+      frete: extractFrete(o),
+      valor: parseFloat(String(o.valorTotal || 0)) || 0,
+      data: o.dataHora || o.data_pedido || new Date().toISOString(),
+    }))
+
+    const semTrans = phase1.filter(p => p.transportadora === 'Sem transportadora' || p.frete === 0)
+    console.log(`[Freight] Fase 1: ${phase1.length} itens, ${semTrans.length} ainda sem transportadora/frete`)
+
+    // Se já temos todos, retorna direto
+    if (semTrans.length === 0) return phase1
+
+    // Fase 2: buscar detalhe dos que ainda não têm transportadora
+    const CONCURRENCY = 8
+    const needsDetail = toProcess.filter((o: any) => extractTransportadora(o) === 'Sem transportadora')
+    const detailMap = new Map<string, { transportadora: string; frete: number }>()
+
+    for (let i = 0; i < needsDetail.length; i += CONCURRENCY) {
+      const batch = needsDetail.slice(i, i + CONCURRENCY)
+      await Promise.all(batch.map(async (order: any) => {
+        const codigo = String(order.codigo || order.id)
+        try {
+          const detail = await mzFetch<{ status: string; data: any }>(`/site/pedido/${codigo}`)
+          const data = detail?.data
+          if (!data) return
+
+          const rastreio = (data.arrayPedidoRastreio ?? [])[0] ?? {}
+          const trans = (rastreio.transportadoraNome || data.transportadoraNome || '').trim()
+          const frete = parseFloat(String(
+            rastreio.valorFreteTransportadora || rastreio.valorFrete || data.valorFrete || 0
+          )) || 0
+
+          console.log(`[Freight] Detalhe ${codigo}: trans="${trans}" frete=${frete}`)
+
+          if (trans || frete > 0) {
+            detailMap.set(codigo, { transportadora: trans || 'Sem transportadora', frete })
+          }
+        } catch (err) {
+          console.warn(`[Freight] Falha detalhe ${codigo}:`, err)
+        }
+      }))
+    }
+
+    // Mesclar fase1 com detalhes
+    return phase1.map(p => {
+      const d = detailMap.get(p.codigo)
+      if (!d) return p
+      return {
+        ...p,
+        transportadora: (d.transportadora && d.transportadora !== 'Sem transportadora') ? d.transportadora : p.transportadora,
+        frete: d.frete > 0 ? d.frete : p.frete,
+      }
+    })
+
   } catch (err) {
     console.error('[Magazord] fetchOrdersForFreightAnalysis falhou:', err)
     return []
