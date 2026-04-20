@@ -382,50 +382,85 @@ export default function Dashboard() {
     if (loadingOrders || allOrders.length === 0) return
 
     const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    let start = new Date(now.getFullYear(), now.getMonth(), 1)
+    let end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-    // Pedidos deste mês (status 4 = Aprovado, 7 = Faturado/Transporte)
-    const pedidosMes = allOrders.filter(p => {
+    if (periodo === 'Últimos 7 Dias') {
+      start = new Date(now)
+      start.setDate(now.getDate() - 6)
+      start.setHours(0,0,0,0)
+      end = now
+    } else if (periodo === 'Últimos 30 Dias') {
+      start = new Date(now)
+      start.setDate(now.getDate() - 29)
+      start.setHours(0,0,0,0)
+      end = now
+    } else if (periodo === 'Trimestre') {
+      start = new Date(now)
+      start.setMonth(now.getMonth() - 2)
+      start.setDate(1)
+      start.setHours(0,0,0,0)
+    } else if (periodo === 'Ano') {
+      start = new Date(now)
+      start.setMonth(0)
+      start.setDate(1)
+      start.setHours(0,0,0,0)
+    }
+
+    // Pedidos no período (status 4 = Aprovado, 7 = Faturado/Transporte)
+    const pedidosFiltrados = allOrders.filter(p => {
       const d = new Date(p.data || new Date())
-      return d >= startOfMonth && d <= endOfMonth
+      return d >= start && d <= end
     })
 
-    const fat = pedidosMes.reduce((acc, p) => acc + (p.valor || 0), 0)
-    const totalPedMes = pedidosMes.length
-    const ticket = totalPedMes > 0 ? fat / totalPedMes : 0
+    const fat = pedidosFiltrados.reduce((acc, p) => acc + (p.valor || 0), 0)
+    const totalPed = pedidosFiltrados.length
+    const ticket = totalPed > 0 ? fat / totalPed : 0
 
-    // Pedidos em andamento = status 4+5
-    const andamento = pedidosMes.filter(p => [4, 5].includes(p.situacao ?? 0)).length
+    // Pedidos em andamento = status 4+5 (ativos no período)
+    const andamento = pedidosFiltrados.filter(p => [4, 5].includes(p.situacao ?? 0)).length
 
-    // Quadros Produzidos - Modificado para Volumes de Venda (todos do mês, extraindo do background fetch)
-    const faturados = pedidosMes.reduce((acc, p) => acc + (p.quantidade || 1), 0)
-
-    const totalAtivosMes = pedidosMes.length
+    // Quadros Produzidos - Modificado para Volumes de Venda do período
+    const faturados = pedidosFiltrados.reduce((acc, p) => acc + (p.quantidade || 1), 0)
 
     setFaturamentoMensal(fat)
     setTicketMedio(ticket)
     setQuadrosProduzidos(faturados)
-    setPedidosAtrasados(0)
-    setPedidosAndamento(totalAtivosMes) 
+    // Usando pedidosAtrasados stte para armazenar o Total de Pedidos daquele bloco
+    setPedidosAtrasados(totalPed) 
+    setPedidosAndamento(totalPed) 
     
-    const cap = totalAtivosMes > 0 ? Math.round((andamento / totalAtivosMes) * 100) : 0
+    const cap = totalPed > 0 ? Math.round((andamento / totalPed) * 100) : 0
     setCapacidade(Math.min(cap, 100))
 
-    // Aggregating daily sales
+    // Aggregating daily sales for the period
     const salesMap = new Map<string, number>()
-    for (let i = 1; i <= now.getDate(); i++) {
-      salesMap.set(String(i).padStart(2, '0'), 0)
+    
+    // Create an array of dates from start to end (up to 90 days max to avoid long loops on Year view)
+    let iterDate = new Date(start)
+    let safetyCounter = 0
+    while (iterDate <= end && safetyCounter < 366) {
+      const dayStr = String(iterDate.getDate()).padStart(2, '0')
+      const monthStr = String(iterDate.getMonth() + 1).padStart(2, '0')
+      // For short ranges use Day, for long ranges use Day/Month
+      const key = (end.getTime() - start.getTime()) > (60 * 24 * 60 * 60 * 1000) ? `${dayStr}/${monthStr}` : dayStr
+      if (!salesMap.has(key)) salesMap.set(key, 0)
+      iterDate.setDate(iterDate.getDate() + 1)
+      safetyCounter++
     }
-    pedidosMes.forEach(p => {
+
+    pedidosFiltrados.forEach(p => {
       const d = new Date(p.data || new Date())
-      const day = String(d.getDate()).padStart(2, '0')
-      if (salesMap.has(day)) salesMap.set(day, (salesMap.get(day) || 0) + (p.valor || 0))
+      const dayStr = String(d.getDate()).padStart(2, '0')
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0')
+      const key = (end.getTime() - start.getTime()) > (60 * 24 * 60 * 60 * 1000) ? `${dayStr}/${monthStr}` : dayStr
+      if (salesMap.has(key)) salesMap.set(key, (salesMap.get(key) || 0) + (p.valor || 0))
     })
+    
     const salesArr = Array.from(salesMap.entries()).map(([k, v]) => ({ date: k, valor: v }))
     setDailySales(salesArr)
 
-  }, [allOrders, loadingOrders])
+  }, [allOrders, loadingOrders, periodo])
 
 
   const showToast = (msg: string) => {
@@ -494,44 +529,40 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* KPI Cards (Clean SaaS Design) */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
         {[
-          { label: 'FATURAMENTO MENSAL',     value: fmt(faturamentoMensal),      tag: 'Este mês',       tagColor: 'text-emerald-700 bg-emerald-100',  icon: TrendingUp,    iconColor: 'text-emerald-500',   onClick: () => navigate('/financial') },
-          { label: 'VOLUMES DE VENDA (QUADROS)',value: String(quadrosProduzidos),   tag: 'Ativos',tagColor: 'text-blue-700 bg-blue-100',  icon: ShoppingCart,  iconColor: 'text-blue-500',   onClick: () => navigate('/production') },
-          { label: 'PEDIDOS ATRASADOS',      value: String(pedidosAtrasados),         tag: pedidosAtrasados > 0 ? 'Atenção' : 'Aprovado', tagColor: pedidosAtrasados > 0 ? 'text-red-700 bg-red-100' : 'text-emerald-700 bg-emerald-100',  icon: AlertTriangle, iconColor: pedidosAtrasados > 0 ? 'text-red-500' : 'text-emerald-500',   onClick: () => navigate('/production') },
-          { label: 'TICKET MÉDIO (MÊS)',     value: fmt(ticketMedio),      tag: 'Por pedido',       tagColor: 'text-purple-700 bg-purple-100',  icon: TrendingDown,  iconColor: 'text-purple-500',   onClick: () => navigate('/financial') },
+          { label: 'FATURAMENTO TOTAL',      value: fmt(faturamentoMensal),      icon: TrendingUp,     onClick: () => navigate('/financial') },
+          { label: 'TOTAL DE PEDIDOS',       value: String(pedidosAtrasados),    icon: Receipt,        onClick: () => navigate('/production') },
+          { label: 'VOLUMES (QUADROS)',      value: String(quadrosProduzidos),   icon: ShoppingCart,   onClick: () => navigate('/production') },
+          { label: 'TICKET MÉDIO',           value: fmt(ticketMedio),            icon: TrendingDown,   onClick: () => navigate('/financial') },
         ].map((k, i) => (
           <motion.div
             key={k.label}
-            initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, type: 'spring', stiffness: 200, damping: 20 }}
-            className="group cursor-pointer bg-white/80 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-0.5 rounded-2xl p-5 transition-all duration-300 relative overflow-hidden"
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05, ease: "easeOut" }}
+            className="group cursor-pointer bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 rounded-xl p-5 transition-all duration-200"
             onClick={k.onClick}
           >
-            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-gradient-to-br from-transparent to-current opacity-[0.03] rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" style={{ color: k.iconColor.split(' ')[0].replace('text-', '') }}></div>
-            <div className="flex items-center justify-between relative z-10">
-              <div className={`p-2.5 rounded-xl bg-white shadow-sm border border-gray-50 flex items-center justify-center`}>
-                <k.icon size={20} className={k.iconColor} strokeWidth={2.5} />
-              </div>
-              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${k.tagColor}`}>{k.tag}</span>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">{k.label}</p>
+              <k.icon size={16} strokeWidth={2.5} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
             </div>
-            <p className="text-3xl font-extrabold text-gray-900 mt-4 tracking-tight relative z-10">{k.value}</p>
-            <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-widest mt-1 relative z-10">{k.label}</p>
+            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">{k.value}</p>
           </motion.div>
         ))}
       </div>
 
       {/* Chart + Quick Actions */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 xl:col-span-2 flex flex-col">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 xl:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 tracking-tight">Desempenho de Vendas</h2>
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight">Desempenho de Vendas</h2>
               <p className="text-xs text-gray-500 font-medium mt-0.5">Faturamento Diário — {periodo}</p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-slate-500 font-semibold uppercase tracking-wider">
-              <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />Faturamento</span>
+            <div className="flex items-center gap-3 text-[11px] text-gray-500 font-bold uppercase tracking-wider">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600" />Faturamento</span>
             </div>
           </div>
           <div className="flex-1 min-h-[240px]">
@@ -539,7 +570,7 @@ export default function Dashboard() {
               <AreaChart data={dailySales} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25}/>
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15}/>
                     <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
@@ -549,68 +580,61 @@ export default function Dashboard() {
                 <Tooltip 
                   formatter={(v: number) => [fmt(v), 'Faturamento']} 
                   labelFormatter={(l) => `Dia ${l}`}
-                  contentStyle={{ fontSize: 12, borderRadius: 12, border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px', fontWeight: 600, color: '#0f172a' }} 
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', padding: '12px', fontWeight: 600, color: '#0f172a' }} 
                   itemStyle={{ color: '#2563eb', padding: '4px 0 0' }}
                 />
-                <Area type="monotone" dataKey="valor" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorValor)" activeDot={{ r: 6, fill: '#2563eb', stroke: '#fff', strokeWidth: 3 }} />
+                <Area type="monotone" dataKey="valor" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorValor)" activeDot={{ r: 5, fill: '#2563eb', stroke: '#fff', strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
+        <div className="space-y-5">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center justify-between">
               Ações Rápidas
-              <ArrowRight size={12} className="text-slate-300" />
+              <ArrowRight size={12} className="text-gray-300" />
             </p>
             {[
-              { label: 'Novo Pedido',        sub: 'LANÇA VENDA MANUAL',          icon: ShoppingCart, to: '/production' },
-              { label: 'Cadastrar Parceiro', sub: 'NOVOS FORNECEDORES/ARTISTAS', icon: UserPlus,     to: '/partners'   },
-              { label: 'Lançar Despesa',     sub: 'CUSTOS FIXOS E VARIÁVEIS',    icon: Receipt,      to: '/financial'  },
+              { label: 'Novo Pedido',        sub: 'Lançar venda',        icon: ShoppingCart, to: '/production' },
+              { label: 'Cadastrar Parceiro', sub: 'Fornecedores locais', icon: UserPlus,     to: '/partners'   },
+              { label: 'Lançar Despesa',     sub: 'Custos operacionais', icon: Receipt,      to: '/financial'  },
             ].map(a => (
               <button
                 key={a.label}
                 onClick={() => navigate(a.to)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border border-transparent hover:border-blue-100 hover:bg-blue-50/50 hover:shadow-sm transition-all mb-2 group"
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-all mb-1 group"
               >
-                <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm shrink-0">
+                <div className="w-8 h-8 rounded-md flex items-center justify-center text-gray-400 group-hover:text-blue-600 transition-colors">
                   <a.icon size={16} strokeWidth={2.5} />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-bold text-slate-700 group-hover:text-blue-900 transition-colors">{a.label}</p>
-                  <p className="text-[10px] text-slate-400 font-medium tracking-wide group-hover:text-blue-600/70">{a.sub}</p>
+                  <p className="text-sm font-semibold text-gray-700 group-hover:text-slate-900 transition-colors">{a.label}</p>
+                  <p className="text-[10px] text-gray-400 font-medium tracking-wide">{a.sub}</p>
                 </div>
-                <ArrowRight size={14} strokeWidth={2.5} className="text-slate-300 group-hover:text-blue-600 transition-colors transform group-hover:translate-x-1" />
               </button>
             ))}
           </div>
 
-          <div className="relative bg-gradient-to-br from-navy-900 to-indigo-950 rounded-2xl p-6 text-white shadow-lg overflow-hidden border border-navy-800/50">
-            {/* Decal background */}
-            <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/20 blur-3xl rounded-full"></div>
-            <div className="absolute bottom-0 right-0 w-24 h-24 bg-blue-500/20 blur-2xl rounded-full"></div>
-            
-            <p className="text-[10px] text-blue-200/80 font-bold tracking-widest uppercase mb-1.5 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
+            <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-1 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
               Status da Fábrica
             </p>
-            <p className="font-extrabold text-xl tracking-tight mt-1 flex items-baseline gap-2">
-              {capacidade}% <span className="text-sm font-semibold text-blue-200/90 tracking-normal">Ativos</span>
+            <p className="font-extrabold text-2xl tracking-tight text-slate-900 mt-0.5 flex items-baseline gap-2">
+              {capacidade}% <span className="text-xs font-semibold text-gray-500 tracking-normal uppercase">Ocupação</span>
             </p>
             
-            <div className="mt-5 bg-navy-800/80 backdrop-blur-sm rounded-full h-2.5 overflow-hidden ring-1 ring-white/10 shadow-inner">
+            <div className="mt-4 bg-gray-100 rounded-full h-1.5 overflow-hidden">
               <div 
-                className="bg-gradient-to-r from-blue-500 via-indigo-400 to-purple-400 rounded-full h-full transition-all duration-1000 ease-out relative" 
+                className="bg-blue-600 rounded-full h-full transition-all duration-1000 ease-out" 
                 style={{ width: `${capacidade}%` }} 
-              >
-                <div className="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite] -translate-x-full" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)' }} />
-              </div>
+              />
             </div>
             
-            <div className="mt-3 flex justify-between items-center text-xs">
-              <span className="text-blue-100 font-medium">{pedidosAndamento} pedidos em fila</span>
-              <span className="text-indigo-300 font-mono text-[10px] font-bold">100%</span>
+            <div className="mt-3 flex justify-between items-center text-[11px] font-medium text-gray-500">
+              <span>{pedidosAndamento} pedidos em andamento</span>
             </div>
           </div>
         </div>
