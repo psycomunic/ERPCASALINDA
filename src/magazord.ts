@@ -719,20 +719,24 @@ export function magazordDetailedToOrder(data: any): any {
     }
   }
 
-  // 2. Se não achou em arrays, tenta direto na raiz do pedido ou no rastreio
+  // 2. Se não achou em arrays, tenta direto na raiz pelas chaves explícitas (não por numero genérico)
   if (!nfEncontrada) {
     nfEncontrada = 
-      buscarNfNoObjeto(data) || 
-      buscarNfNoObjeto(rastreio) || 
+      data.notaFiscalNumero ||
+      data.pedidoNotaFiscalNumero ||
       data.notaFiscal || 
       data.numero_nf || 
-      data.numeronf;
+      data.numeronf ||
+      rastreio.notaFiscalNumero ||
+      rastreio.pedidoNotaFiscalNumero;
   }
 
-  // 3. DEBUG na UI: se a Magazord diz que tem NF (situação 6) mas não achamos, 
-  // jogamos as chaves na tela para o dev ver
-  if (!nfEncontrada && (data.situacao === 6 || data.situacao === '6' || rastreio.pedidoNotaFiscalNumero)) {
-    nfEncontrada = `Err: ` + Object.keys(data.arrayPedidoNota?.[0] || data.pedidoNota?.[0] || {}).join(',');
+  // 3. DEBUG na UI: Se não achamos através dos nomes padronizados, forçamos a impressão das chaves do arrayPedidoNota na UI 
+  // para você conseguir ler qual é o nome exato do campo que a Magazord está retornando.
+  if (!nfEncontrada && data.arrayPedidoNota && data.arrayPedidoNota.length > 0) {
+    nfEncontrada = "KEYS: " + Object.keys(data.arrayPedidoNota[0]).join(',');
+  } else if (!nfEncontrada && data.situacao == 6) {
+    nfEncontrada = "Err: NF não encontrada no JSON";
   }
 
   return {
