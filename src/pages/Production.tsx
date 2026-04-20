@@ -1473,13 +1473,13 @@ export default function Production() {
     return () => clearInterval(interval)
   }, [syncMagazord])
 
-  // ── Background image enrichment ──
-  // Para cards Magazord já em produção sem imagemUrl, busca os dados detalhados silenciosamente
+  // ── Background enrichment (imagem + NF) ──
+  // Busca dados detalhados da Magazord para cards sem imagem OU sem número de NF
   useEffect(() => {
     const productionStages: KanbanStage[] = ['Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento', 'Revisão', 'Embalagem']
     const needsEnrich = productionStages
       .flatMap(s => board[s])
-      .filter(o => o.fromMagazord && !o.imagemUrl && o.id)
+      .filter(o => o.fromMagazord && (!o.imagemUrl || !o.notaFiscal) && o.id)
 
     if (needsEnrich.length === 0) return
 
@@ -1520,7 +1520,15 @@ export default function Production() {
     })()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board['Impressão'].length, board['Corte Moldura'].length, board['Entelamento + Vidro'].length, board['Acabamento'].length])
+  }, [
+    board['Impressão'].length,
+    board['Corte Moldura'].length,
+    board['Entelamento + Vidro'].length,
+    board['Acabamento'].length,
+    board['Revisão'].length,
+    board['Embalagem'].length,
+    lastSync, // re-run when Magazord syncs (every 5 min)
+  ])
 
   // ── Drag & drop ──
   const onDrop = (to: Stage, e?: React.DragEvent) => {
