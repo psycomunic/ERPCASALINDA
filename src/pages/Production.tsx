@@ -51,16 +51,24 @@ export interface ProductionOrder {
     acabamento?: string
     imagemUrl?: string
   }[]
+  // Revisão de qualidade
+  revisaoStatus?: 'aprovado' | 'reprovado'
+  revisaoRevisor?: string
+  revisaoMotivo?: string
+  revisaoAreas?: string[]
+  revisaoFotoUrl?: string
 }
 
 type Order = ProductionOrder
 
-type KanbanStage = 'Novos Pedidos' | 'Impressão' | 'Corte Moldura' | 'Entelamento + Vidro' | 'Acabamento' | 'Embalagem'
+type KanbanStage = 'Novos Pedidos' | 'Impressão' | 'Corte Moldura' | 'Entelamento + Vidro' | 'Acabamento' | 'Revisão' | 'Embalagem'
 type DeliveryStage = 'Prontos para Envio' | 'Despachados'
 type Stage = KanbanStage | DeliveryStage
 
-const KANBAN_STAGES: KanbanStage[] = ['Novos Pedidos', 'Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento', 'Embalagem']
+const KANBAN_STAGES: KanbanStage[] = ['Novos Pedidos', 'Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento', 'Revisão', 'Embalagem']
 const ALL_STAGES: Stage[] = [...KANBAN_STAGES, 'Prontos para Envio', 'Despachados']
+
+const ETAPAS_RETORNO: KanbanStage[] = ['Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento']
 
 const STAGE_DOT: Record<Stage, string> = {
   'Novos Pedidos':       'bg-violet-500',
@@ -68,6 +76,7 @@ const STAGE_DOT: Record<Stage, string> = {
   'Corte Moldura':       'bg-orange-500',
   'Entelamento + Vidro': 'bg-green-500',
   'Acabamento':          'bg-purple-500',
+  'Revisão':             'bg-rose-500',
   'Embalagem':           'bg-gray-400',
   'Prontos para Envio':  'bg-yellow-500',
   'Despachados':         'bg-emerald-500',
@@ -92,6 +101,7 @@ const INITIAL: Record<Stage, Order[]> = {
   'Corte Moldura': [],
   'Entelamento + Vidro': [],
   'Acabamento': [],
+  'Revisão': [],
   'Embalagem': [],
   'Prontos para Envio': [],
   'Despachados': [],
@@ -748,7 +758,7 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
               {/* vertical line */}
               <div className="absolute left-[17px] top-4 bottom-4 w-px bg-gray-200" />
               <div className="space-y-1.5">
-                {['Novos Pedidos','Impressão','Corte Moldura','Entelamento + Vidro','Acabamento','Embalagem','Prontos para Envio','Despachados'].map((s, i, arr) => {
+                {['Novos Pedidos','Impressão','Corte Moldura','Entelamento + Vidro','Acabamento','Revisão','Embalagem','Prontos para Envio','Despachados'].map((s, i, arr) => {
                   const currentIdx = arr.indexOf(stage as string)
                   const isDone    = i < currentIdx
                   const isCurrent = i === currentIdx
@@ -859,6 +869,199 @@ function DispatchModal({ order, onClose, onConfirm }: {
             <button onClick={() => { onConfirm(trans, rastreio); onClose() }} className="btn-primary flex-1 justify-center" style={{ background: '#059669' }}>
               <Send size={14} /> Confirmar Despacho
             </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── Review Modal ─────────────────────────────────────────────────────────────
+
+const AREAS_REVISAO = ['Impressão', 'Entelamento', 'Vidro', 'Moldura', 'Acabamento'] as const
+
+function ReviewModal({ order, onClose, onApprove, onReject }: {
+  order: Order
+  onClose: () => void
+  onApprove: (revisor: string) => void
+  onReject: (revisor: string, etapaRetorno: KanbanStage, areas: string[], motivo: string, fotoUrl?: string) => void
+}) {
+  const [revisor, setRevisor]         = useState('')
+  const [decision, setDecision]       = useState<'aprovado' | 'reprovado' | null>(null)
+  const [areas, setAreas]             = useState<string[]>([])
+  const [motivo, setMotivo]           = useState('')
+  const [etapaRetorno, setEtapaRetorno] = useState<KanbanStage>(ETAPAS_RETORNO[0])
+  const [fotoPreview, setFotoPreview] = useState<string | undefined>(undefined)
+
+  const toggleArea = (a: string) =>
+    setAreas(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])
+
+  const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setFotoPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const canConfirm = !!revisor
+  const canReject  = !!revisor && areas.length > 0 && !!motivo
+
+  return (
+    <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="modal" style={{ maxWidth: 520 }} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+          <div>
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <CheckCircle size={16} className="text-rose-500" /> Revisão de Qualidade
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">Pedido #{order.id} — {order.cliente}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Revisor */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-2">Revisor *</label>
+            <div className="flex gap-2">
+              {['Marcelo', 'Isac'].map(name => (
+                <button
+                  key={name}
+                  onClick={() => setRevisor(name)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                    revisor === name
+                      ? 'border-navy-900 bg-navy-900 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Decisão */}
+          {revisor && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-2">Resultado da Revisão *</label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDecision('aprovado')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border-2 transition-all ${
+                    decision === 'aprovado'
+                      ? 'border-emerald-500 bg-emerald-500 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-emerald-300'
+                  }`}
+                >
+                  <Check size={16} /> Aprovado
+                </button>
+                <button
+                  onClick={() => setDecision('reprovado')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border-2 transition-all ${
+                    decision === 'reprovado'
+                      ? 'border-rose-500 bg-rose-500 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-rose-300'
+                  }`}
+                >
+                  <X size={16} /> Reprovado
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Formulário de reprovação */}
+          {decision === 'reprovado' && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+              <div className="h-px bg-rose-100" />
+
+              {/* Áreas afetadas */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-2">Área(s) com Problema *</label>
+                <div className="flex flex-wrap gap-2">
+                  {AREAS_REVISAO.map(area => (
+                    <button
+                      key={area}
+                      onClick={() => toggleArea(area)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                        areas.includes(area)
+                          ? 'bg-rose-500 border-rose-500 text-white'
+                          : 'border-gray-300 text-gray-600 hover:border-rose-300'
+                      }`}
+                    >
+                      {area}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Motivo */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Motivo da Reprovação *</label>
+                <textarea
+                  className="input h-20 resize-none"
+                  placeholder="Descreva o defeito encontrado..."
+                  value={motivo}
+                  onChange={e => setMotivo(e.target.value)}
+                />
+              </div>
+
+              {/* Etapa de retorno */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Retornar para a Etapa</label>
+                <select className="input" value={etapaRetorno} onChange={e => setEtapaRetorno(e.target.value as KanbanStage)}>
+                  {ETAPAS_RETORNO.map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+
+              {/* Foto do defeito */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Foto do Defeito (opcional)</label>
+                {fotoPreview ? (
+                  <div className="relative">
+                    <img src={fotoPreview} alt="Defeito" className="w-full h-40 object-cover rounded-xl border border-rose-200" />
+                    <button
+                      onClick={() => setFotoPreview(undefined)}
+                      className="absolute top-2 right-2 bg-white border border-gray-200 rounded-full p-1 hover:bg-red-50"
+                    >
+                      <X size={12} className="text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-rose-300 hover:bg-rose-50 transition-all">
+                    <Upload size={18} className="text-gray-400 mb-1" />
+                    <span className="text-xs text-gray-400">Clique para adicionar foto</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFoto} />
+                  </label>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Footer actions */}
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+            {decision === 'aprovado' && (
+              <button
+                onClick={() => { if (canConfirm) { onApprove(revisor); onClose() } }}
+                disabled={!canConfirm}
+                className="btn-primary flex-1 justify-center"
+                style={{ background: '#059669' }}
+              >
+                <Check size={14} /> Aprovar → Embalagem
+              </button>
+            )}
+            {decision === 'reprovado' && (
+              <button
+                onClick={() => { if (canReject) { onReject(revisor, etapaRetorno, areas, motivo, fotoPreview); onClose() } }}
+                disabled={!canReject}
+                className="btn-primary flex-1 justify-center"
+                style={{ background: '#e11d48' }}
+              >
+                <X size={14} /> Registrar Reprovação
+              </button>
+            )}
           </div>
         </div>
       </motion.div>
@@ -1138,6 +1341,7 @@ export default function Production() {
   const [detail, setDetail]         = useState<{ order: Order; stage: Stage } | null>(null)
   const [readyModal, setReadyModal] = useState<Order | null>(null)
   const [dispatchModal, setDispatchModal] = useState<Order | null>(null)
+  const [reviewModal, setReviewModal] = useState<Order | null>(null)
   const [toast, setToast]           = useState<string | null>(null)
   const [filter, setFilter]         = useState<'todos' | 'atrasado' | 'pendente'>('todos')
   const [view, setView]             = useState<ViewMode>('kanban')
@@ -1163,7 +1367,7 @@ export default function Production() {
 
       const grouped: Record<Stage, Order[]> = {
         'Novos Pedidos': [], 'Impressão': [], 'Corte Moldura': [],
-        'Entelamento + Vidro': [], 'Acabamento': [], 'Embalagem': [],
+        'Entelamento + Vidro': [], 'Acabamento': [], 'Revisão': [], 'Embalagem': [],
         'Prontos para Envio': [], 'Despachados': [],
       }
 
@@ -1320,6 +1524,7 @@ export default function Production() {
     const order = board[stage].find(o => o.id === id)!
     if (stage === 'Novos Pedidos') { confirmToProducao(order); return }
     if (stage === 'Embalagem')     { setReadyModal(order); return }
+    if (stage === 'Revisão')       { setReviewModal(order); return }
     const stageIdx = ALL_STAGES.indexOf(stage as KanbanStage)
     const next = ALL_STAGES[stageIdx + 1]
     setBoard(prev => ({
@@ -1353,6 +1558,43 @@ export default function Production() {
       prazo_entrega: prazoEntrega || undefined })
     setReadyModal(null)
     showToast(`Pedido #${order.id} está Pronto para Envio!`)
+  }
+
+  const handleReview = (
+    order: Order,
+    revisor: string,
+    tipo: 'aprovado' | 'reprovado',
+    extra?: { etapaRetorno?: KanbanStage; areas?: string[]; motivo?: string; fotoUrl?: string }
+  ) => {
+    if (tipo === 'aprovado') {
+      setBoard(prev => ({
+        ...prev,
+        'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
+        'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK', revisaoStatus: 'aprovado', revisaoRevisor: revisor }],
+      }))
+      const dbId = getDbId(order.id)
+      if (dbId) movePedidoEtapa(dbId, 'Embalagem')
+      showToast(`✅ Pedido #${order.id} aprovado na revisão!`)
+    } else {
+      const destino = extra?.etapaRetorno ?? 'Impressão'
+      setBoard(prev => ({
+        ...prev,
+        'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
+        [destino]: [...prev[destino], {
+          ...order,
+          status: 'Pendente',
+          revisaoStatus: 'reprovado',
+          revisaoRevisor: revisor,
+          revisaoMotivo:  extra?.motivo,
+          revisaoAreas:   extra?.areas,
+          revisaoFotoUrl: extra?.fotoUrl,
+        }],
+      }))
+      const dbId = getDbId(order.id)
+      if (dbId) movePedidoEtapa(dbId, destino)
+      showToast(`❌ Pedido #${order.id} reprovado — retornando para ${destino}`)
+    }
+    setReviewModal(null)
   }
 
   const dispatch = (order: Order, transportadora: string, rastreio: string) => {
@@ -1564,14 +1806,34 @@ export default function Production() {
                           <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
                           {order.moldura && <span className="badge badge-gray text-[10px] mb-1">{order.moldura}</span>}
                           {order.material && !order.moldura && <span className="badge badge-gray text-[10px] mb-2">{order.material}</span>}
+                          {/* Badge de reprovação */}
+                          {order.revisaoStatus === 'reprovado' && (
+                            <div className="mb-2 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1.5">
+                              <p className="text-[10px] font-bold text-rose-600 flex items-center gap-1 mb-0.5">
+                                ❌ Reprovado por {order.revisaoRevisor}
+                              </p>
+                              {order.revisaoAreas && (
+                                <p className="text-[10px] text-rose-500">{order.revisaoAreas.join(', ')}</p>
+                              )}
+                              {order.revisaoMotivo && (
+                                <p className="text-[10px] text-gray-600 mt-0.5 line-clamp-2">{order.revisaoMotivo}</p>
+                              )}
+                            </div>
+                          )}
                           <div className="flex gap-1.5 mt-2">
                             <button
                               onClick={() => conclude(stage, order.id)}
                               className={`flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors`}
-                              style={stage === 'Embalagem' ? { background: '#d97706' } : { background: '#1e3a8a' }}
+                              style={
+                                stage === 'Embalagem' ? { background: '#d97706' } :
+                                stage === 'Revisão'   ? { background: '#e11d48' } :
+                                { background: '#1e3a8a' }
+                              }
                             >
                               {stage === 'Embalagem'
                                 ? <><ClipboardList size={13} /> Pronto p/ Envio</>
+                                : stage === 'Revisão'
+                                ? <><CheckCircle size={13} /> Iniciar Revisão</>
                                 : <><CheckCircle size={13} /> OK / CONCLUÍDO</>}
                             </button>
                             {stage === 'Embalagem' && (
@@ -1741,6 +2003,16 @@ export default function Production() {
             order={dispatchModal}
             onClose={() => setDispatchModal(null)}
             onConfirm={(tr, rastreio) => dispatch(dispatchModal, tr, rastreio)}
+          />
+        )}
+        {reviewModal && (
+          <ReviewModal
+            order={reviewModal}
+            onClose={() => setReviewModal(null)}
+            onApprove={(revisor) => handleReview(reviewModal, revisor, 'aprovado')}
+            onReject={(revisor, etapaRetorno, areas, motivo, fotoUrl) =>
+              handleReview(reviewModal, revisor, 'reprovado', { etapaRetorno, areas, motivo, fotoUrl })
+            }
           />
         )}
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}

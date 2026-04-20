@@ -594,7 +594,14 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
     obs: order.observacao || item?.personalizado?.obs,
     endereco,
     transportadora: e?.transportadora || order.transportadoraNome || order.rastreio?.transportadoraNome,
-    prazoEntrega: safeDateStr(e?.prazo_entrega) || undefined,
+    prazoEntrega:
+      safeDateStr(e?.prazo_entrega) ||
+      safeDateStr((order as any).pedidoPrazoEntregaCliente, 'T12:00:00') ||
+      safeDateStr((order as any).pedidoDataPrevistaEntrega, 'T12:00:00') ||
+      safeDateStr((order as any).prazoEntregaCliente, 'T12:00:00') ||
+      safeDateStr((order as any).prazo_entrega_cliente, 'T12:00:00') ||
+      safeDateStr((order as any).pedidoPrazoEntrega, 'T12:00:00') ||
+      undefined,
     valor: order.valorTotal
       ? parseFloat(String(order.valorTotal))
       : order.valor_total || undefined,
