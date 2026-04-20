@@ -649,11 +649,18 @@ export function magazordDetailedToOrder(data: any): any {
   const derivacao = item.produtoDerivacaoNome || ''
   const tamanho = derivacao.includes('x') ? derivacao.match(/\d+x\d+cm/i)?.[0] || derivacao : undefined
 
+  // DEBUG temporário: mostra no console do browser os campos NF retornados pela Magazord
+  // eslint-disable-next-line no-console
+  console.log('[Magazord NF Debug] arrayPedidoNota:', JSON.stringify(data.arrayPedidoNota))
+  // eslint-disable-next-line no-console
+  console.log('[Magazord NF Debug] rastreio NF keys:', Object.keys(rastreio).filter(k => /nota|nf|fiscal/i.test(k)))
+  // eslint-disable-next-line no-console
+  console.log('[Magazord NF Debug] data NF keys:', Object.keys(data).filter(k => /nota|nf|fiscal/i.test(k)))
+
   return {
     clienteEmail: data.pessoaEmail || undefined,
     clienteTelefone: data.pessoaContato || undefined,
     produto: item.produtoTitulo || undefined,
-    // Em muitos casos o nome da derivação contém os detalhes do produto e tamanho
     tamanho: tamanho,
     formato: derivacao || undefined,
     quantidade: item.quantidade || undefined,
@@ -661,7 +668,7 @@ export function magazordDetailedToOrder(data: any): any {
     prazoEntrega: safeDateStr(rastreio.dataLimiteEntregaCliente, 'T12:00:00'),
     endereco: enderecoList.length > 0 ? enderecoList.join(', ') : undefined,
     transportadora: rastreio.transportadoraNome || undefined,
-    imagemUrl: data.lojaUrlImagem && item.midiaPath && item.midiaName 
+    imagemUrl: data.lojaUrlImagem && item.midiaPath && item.midiaName
       ? `${data.lojaUrlImagem}/${item.midiaPath}${item.midiaName}`
       : undefined,
     itens: (rastreio.pedidoItem || []).map((i: any) => {
@@ -677,14 +684,18 @@ export function magazordDetailedToOrder(data: any): any {
           : undefined
       }
     }),
-    // Número da NF — tenta os campos mais comuns da Magazord V2
+    // Número da NF — cobre todos os nomes de campo conhecidos da Magazord V2
     notaFiscal:
+      data.arrayPedidoNota?.[0]?.notaNumero ||
       data.arrayPedidoNota?.[0]?.numero ||
       data.arrayPedidoNota?.[0]?.notaFiscalNumero ||
+      data.arrayPedidoNota?.[0]?.numeroNF ||
       data.pedidoNotaFiscalNumero ||
       data.notaFiscalNumero ||
+      data.notaNumero ||
       data.numeronf ||
       data.numero_nf ||
+      rastreio.notaNumero ||
       rastreio.notaFiscalNumero ||
       rastreio.pedidoNotaFiscalNumero ||
       undefined,
