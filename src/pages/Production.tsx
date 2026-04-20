@@ -507,9 +507,13 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
               {isMagazord && <Store size={16} className="text-violet-600" />}
               Pedido #{order.id}
               {order.fromMagazord && <span className="text-[10px] font-bold bg-violet-600 text-white px-2 py-0.5 rounded-full">MAGAZORD</span>}
-              {order.notaFiscal && (
+              {order.notaFiscal ? (
                 <span className="text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <ClipboardList size={9} /> NF {order.notaFiscal}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <ClipboardList size={9} /> Sem NF
                 </span>
               )}
               {order.canal && (
@@ -1914,9 +1918,13 @@ export default function Production() {
                               #{order.id}
                               {order.fromMagazord && <span className="ml-1 text-[9px] opacity-80">MG</span>}
                             </span>
-                            {order.notaFiscal && (
+                            {order.notaFiscal ? (
                               <span className="inline-flex items-center gap-0.5 bg-amber-50 border border-amber-300 text-amber-700 rounded px-1.5 py-0.5 text-[10px] font-bold shrink-0">
                                 <ClipboardList size={9} /> NF {order.notaFiscal}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 bg-gray-50 border border-gray-200 text-gray-500 rounded px-1.5 py-0.5 text-[10px] font-bold shrink-0">
+                                <ClipboardList size={9} /> Sem NF
                               </span>
                             )}
                             <span className="flex-1" />

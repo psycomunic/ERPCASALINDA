@@ -731,17 +731,7 @@ export function magazordDetailedToOrder(data: any): any {
       rastreio.pedidoNotaFiscalNumero;
   }
 
-  // 3. DEBUG na UI: Se não achamos através dos nomes padronizados, forçamos a impressão das chaves do arrayPedidoNota na UI 
-  // para você conseguir ler qual é o nome exato do campo que a Magazord está retornando.
-  if (!nfEncontrada && data.arrayPedidoNota && data.arrayPedidoNota.length > 0) {
-    nfEncontrada = "KEYS: " + Object.keys(data.arrayPedidoNota[0]).join(',');
-  } else if (!nfEncontrada) {
-    const chavesPossiveis = Object.keys(data).filter(k => /nota|nf|fiscal|array/i.test(k));
-    nfEncontrada = chavesPossiveis.length > 0
-      ? `DBG: ` + chavesPossiveis.join(',')
-      : `DBG: Sem arrayPedidoNota`;
-  }
-
+  // O debug via UI foi removido a pedido do usuário (para parar de poluir a tela com arrays vazios etc)
   return {
     ...baseOrder,
     notaFiscal: nfEncontrada,
