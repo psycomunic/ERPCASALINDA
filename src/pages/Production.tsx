@@ -872,9 +872,44 @@ function ReadyModal({ order, onClose, onConfirm }: {
   order: Order; onClose: () => void
   onConfirm: (endereco: string, transportadora: string, prazo: string) => void
 }) {
+  // Convert prazoEntrega "dd/mm/yyyy" → "yyyy-mm-dd" for the date input
+  const toInputDate = (dateStr?: string) => {
+    if (!dateStr) return ''
+    // Already ISO format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+    // Convert "dd/mm/yyyy"
+    const parts = dateStr.split('/')
+    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
+    return ''
+  }
+
   const [endereco, setEndereco] = useState(order.endereco ?? '')
   const [trans, setTrans]       = useState(order.transportadora ?? CARRIER_NAMES[0])
-  const [prazo, setPrazo]       = useState(order.prazoEntrega ?? '')
+  const [prazo, setPrazo]       = useState(toInputDate(order.prazoEntrega))
+  const [fetching, setFetching] = useState(false)
+  const [fetched, setFetched]   = useState(false)
+
+  // Auto-fetch Magazord detailed data when modal opens
+  useEffect(() => {
+    // Only fetch if it's a Magazord order and we're missing any key field
+    const needsFetch = order.fromMagazord && (!order.endereco || !order.transportadora || !order.prazoEntrega)
+    if (!needsFetch || fetched) return
+
+    setFetching(true)
+    fetchOrderByCodigo(order.id).then(data => {
+      if (!data) return
+      const rich = magazordDetailedToOrder(data)
+
+      if (rich.endereco && !endereco)     setEndereco(rich.endereco)
+      if (rich.transportadora && (!trans || trans === CARRIER_NAMES[0])) {
+        setTrans(rich.transportadora)
+      }
+      if (rich.prazoEntrega && !prazo)    setPrazo(toInputDate(rich.prazoEntrega))
+      setFetched(true)
+    }).catch(() => {
+      /* silencia erros */
+    }).finally(() => setFetching(false))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -891,14 +926,35 @@ function ReadyModal({ order, onClose, onConfirm }: {
             <Package size={14} className="text-yellow-600 shrink-0 mt-0.5" />
             <p className="text-xs text-yellow-800">Preencha os dados de entrega. O pedido ficará em <strong>Prontos para Envio</strong> aguardando coleta ou despacho.</p>
           </div>
+
+          {/* Loading indicator while fetching Magazord data */}
+          {fetching && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl">
+              <RefreshCw size={13} className="text-blue-500 animate-spin shrink-0" />
+              <p className="text-xs text-blue-700">Buscando dados do pedido na Magazord…</p>
+            </div>
+          )}
+          {fetched && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
+              <Check size={13} className="text-emerald-500 shrink-0" />
+              <p className="text-xs text-emerald-700">Dados preenchidos automaticamente com base no pedido do cliente.</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">Endereço de Entrega</label>
-            <input className="input" placeholder="Rua, Nº — Bairro, Cidade, UF" value={endereco} onChange={e => setEndereco(e.target.value)} />
+            <input
+              className="input"
+              placeholder={fetching ? 'Buscando endereço…' : 'Rua, Nº — Bairro, Cidade, UF'}
+              value={endereco}
+              onChange={e => setEndereco(e.target.value)}
+              disabled={fetching}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Transportadora</label>
-              <select className="input" value={trans} onChange={e => setTrans(e.target.value)}>
+              <select className="input" value={trans} onChange={e => setTrans(e.target.value)} disabled={fetching}>
                 {CARRIERS_BY_TYPE.map(g => (
                   <optgroup key={g.tipo} label={g.tipo}>
                     {g.items.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
@@ -908,12 +964,17 @@ function ReadyModal({ order, onClose, onConfirm }: {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Prazo de Entrega</label>
-              <input className="input" type="date" value={prazo} onChange={e => setPrazo(e.target.value)} />
+              <input className="input" type="date" value={prazo} onChange={e => setPrazo(e.target.value)} disabled={fetching} />
             </div>
           </div>
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-            <button onClick={() => { onConfirm(endereco, trans, prazo); onClose() }} className="btn-primary flex-1 justify-center" style={{ background: '#d97706' }}>
+            <button
+              onClick={() => { onConfirm(endereco, trans, prazo); onClose() }}
+              className="btn-primary flex-1 justify-center"
+              style={{ background: '#d97706' }}
+              disabled={fetching}
+            >
               <ClipboardList size={14} /> Marcar como Pronto
             </button>
           </div>
@@ -1185,13 +1246,19 @@ export default function Production() {
   }, [syncMagazord])
 
   // ── Drag & drop ──
-  const onDrop = (to: Stage) => {
+  const onDrop = (to: Stage, e?: React.DragEvent) => {
+    e?.stopPropagation()
     if (!dragging || dragging.from === to) return
-    setBoard(prev => ({
-      ...prev,
-      [dragging.from]: prev[dragging.from].filter(o => o.id !== dragging.order.id),
-      [to]: [...prev[to], dragging.order],
-    }))
+    const orderId = dragging.order.id
+    setBoard(prev => {
+      // Guard: avoid duplicating if already present in target
+      if (prev[to].some(o => o.id === orderId)) return prev
+      return {
+        ...prev,
+        [dragging.from]: prev[dragging.from].filter(o => o.id !== orderId),
+        [to]: [...prev[to], dragging.order],
+      }
+    })
     showToast(`Pedido #${dragging.order.id} movido para ${to}`)
     setDragging(null)
   }
@@ -1429,7 +1496,7 @@ export default function Production() {
                     : `bg-gray-100 ${dragging && dragging.from !== stage ? 'ring-2 ring-blue-200 ring-offset-1' : ''}`
                 }`}
                 onDragOver={e => e.preventDefault()}
-                onDrop={() => onDrop(stage)}
+                onDrop={e => onDrop(stage, e)}
               >
                 {/* Column header */}
                 <div className="flex items-center gap-2 px-3 py-2.5">
@@ -1524,7 +1591,8 @@ export default function Production() {
                       className={`h-24 flex flex-col items-center justify-center text-xs border-2 border-dashed rounded-lg ${
                         isNewOrders ? 'border-violet-200 text-violet-300' : 'border-gray-300 text-gray-400'
                       }`}
-                      onDrop={() => onDrop(stage)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => { e.stopPropagation(); onDrop(stage, e) }}
                     >
                       {isNewOrders
                         ? <><ShoppingBag size={18} className="mb-1" />Aguardando Magazord</>
@@ -1546,7 +1614,7 @@ export default function Production() {
               key={stage}
               className={`flex-shrink-0 w-80 rounded-xl flex flex-col ${STAGE_BG[stage] ?? 'bg-gray-100'}`}
               onDragOver={e => e.preventDefault()}
-              onDrop={() => onDrop(stage)}
+              onDrop={e => onDrop(stage, e)}
             >
               <div className="flex items-center gap-2 px-3 py-3">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STAGE_DOT[stage]}`} />
