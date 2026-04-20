@@ -31,6 +31,7 @@ interface CarrierStats {
   nome: string
   totalFrete: number
   totalPedidos: number
+  totalVolumes: number
   totalValorPedidos: number
   qtdComFrete: number
   percFreteMedio: number   // avg (frete/valor) per order
@@ -150,7 +151,7 @@ function FreightByCarrier() {
   useEffect(() => {
     if (loadingOrders) return
     const today = new Date(); today.setHours(23, 59, 59, 999)
-    const map = new Map<string, { frete: number; valor: number; count: number }>()
+    const map = new Map<string, { frete: number; valor: number; count: number; volumes: number; comFrete: number; percSum: number }>()
 
     allOrders.forEach(p => {
       const d = new Date(p.data || new Date())
@@ -172,9 +173,16 @@ function FreightByCarrier() {
       const trans = p.transportadora?.trim() || 'Sem transportadora'
       const frete = p.frete || 0
       const valor = p.valor || 0
-      if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0 })
+      if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0, volumes: 0, comFrete: 0, percSum: 0 })
       const cur = map.get(trans)!
-      cur.count++; cur.valor += valor; cur.frete += frete
+      cur.count++
+      cur.valor += valor
+      cur.frete += frete
+      cur.volumes += (p.quantidade || 1)
+      if (frete > 0 && valor > 0) {
+        cur.comFrete++
+        cur.percSum += (frete / valor)
+      }
     })
 
     let totalF = 0, totalV = 0
@@ -182,7 +190,7 @@ function FreightByCarrier() {
     map.forEach((v, nome) => {
       totalF += v.frete; totalV += v.valor
       const percFreteMedio = v.valor > 0 ? (v.frete / v.valor) * 100 : 0
-      result.push({ nome, totalFrete: v.frete, totalPedidos: v.count, totalValorPedidos: v.valor, qtdComFrete: v.count, percFreteMedio })
+      result.push({ nome, totalFrete: v.frete, totalPedidos: v.count, totalValorPedidos: v.valor, qtdComFrete: v.count, percFreteMedio, totalVolumes: v.volumes })
     })
     result.sort((a, b) => b.totalFrete - a.totalFrete)
     setStats(result); setTotalFreteGeral(totalF); setTotalPedidosValor(totalV)
@@ -327,7 +335,7 @@ function FreightByCarrier() {
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
                         <span className="text-xs font-bold text-gray-700 truncate max-w-[110px]">{s.nome}</span>
-                        <span className="text-[10px] text-gray-400">({s.totalPedidos} ped.)</span>
+                        <span className="text-[10px] text-gray-400">({s.totalPedidos} ped. / {s.totalVolumes} vol.)</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] font-mono text-gray-500">R$ {s.totalFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -385,8 +393,8 @@ export default function Dashboard() {
       // Pedidos em andamento = status 4+5 DESTE MÊS (aprovados, ainda em produção)
       const andamento = pedidosMes.filter(p => [4, 5].includes(p.situacao ?? 0)).length
 
-      // Faturados deste mês = status 7 (faturado = produziu e emitiu NF, pode ainda estar físico na fábrica)
-      const faturados = pedidosMes.filter(p => p.situacao === 7).length
+      // Faturados deste mês = status 7 (faturado = produziu e emitiu NF)
+      const faturados = pedidosMes.filter(p => p.situacao === 7).reduce((acc, p) => acc + (p.quantidade || 1), 0)
 
       // Total ativos deste mês (todos os status relevantes)
       const totalAtivosMes = pedidosMes.length

@@ -276,6 +276,7 @@ export interface FreightOrderData {
   valor: number
   data: string
   situacao?: number  // 4=Aprovado, 7=Transporte/Faturado, etc.
+  quantidade?: number // Quantos itens há no pedido
 }
 
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
@@ -406,6 +407,10 @@ export async function enrichOrdersWithCarriers(
         if (entry) {
           if (trans) entry.transportadora = trans
           if (frete > 0) entry.frete = frete
+          // Extrair a quantidade real de quadros/itens (volumes)
+          const itemsArr = rastreio.pedidoItem || []
+          const qtd = itemsArr.reduce((sum: number, it: any) => sum + (Number(it.quantidade) || 1), 0)
+          if (qtd > 0) entry.quantidade = qtd
         }
       } catch { /* ignora */ }
     }))
@@ -453,6 +458,7 @@ async function _fetchAllOrdersPhase1(dias: number): Promise<FreightOrderData[]> 
     valor: parseFloat(String(o.valorTotal || 0)) || 0,
     data: o.dataHora || o.data_pedido || new Date().toISOString(),
     situacao: o.pedidoSituacao ?? o.situacao,
+    quantidade: 1, // Phase 1 assume 1 volume, Phase 2 vai corrigir com o número real
   }))
 }
 
