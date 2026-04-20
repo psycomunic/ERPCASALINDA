@@ -607,6 +607,14 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
       : order.valor_total || undefined,
     frete: (e?.frete ?? parseFloat(order.valorFrete || order.valor_frete || order.pedidoValorFrete || "0")) || 0,
     fromMagazord: true,
+    notaFiscal:
+      (order as any).pedidoNotaFiscalNumero ||
+      (order as any).notaFiscalNumero ||
+      (order as any).numeronf ||
+      (order as any).numero_nf ||
+      (order as any).notaFiscal ||
+      (order as any).arrayPedidoNota?.[0]?.numero ||
+      undefined,
   }
 }
 
@@ -668,6 +676,17 @@ export function magazordDetailedToOrder(data: any): any {
           ? `${data.lojaUrlImagem}/${i.midiaPath}${i.midiaName}`
           : undefined
       }
-    })
+    }),
+    // Número da NF — tenta os campos mais comuns da Magazord V2
+    notaFiscal:
+      data.arrayPedidoNota?.[0]?.numero ||
+      data.arrayPedidoNota?.[0]?.notaFiscalNumero ||
+      data.pedidoNotaFiscalNumero ||
+      data.notaFiscalNumero ||
+      data.numeronf ||
+      data.numero_nf ||
+      rastreio.notaFiscalNumero ||
+      rastreio.pedidoNotaFiscalNumero ||
+      undefined,
   }
 }

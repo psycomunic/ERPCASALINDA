@@ -42,6 +42,7 @@ export interface ProductionOrder {
   frete?: number
   imagemUrl?: string
   fromMagazord?: boolean
+  notaFiscal?: string          // número da NF emitida
   itens?: {
     produto: string
     quantidade?: number
@@ -1496,10 +1497,11 @@ export default function Production() {
               updated[stage] = prev[stage].map(o =>
                 o.id === order.id
                   ? { ...o,
-                      imagemUrl: imgUrl ?? o.imagemUrl,
-                      itens:     imgItens ?? o.itens,
-                      produto:   rich.produto && rich.produto !== o.produto ? rich.produto : o.produto,
+                      imagemUrl:    imgUrl ?? o.imagemUrl,
+                      itens:        imgItens ?? o.itens,
+                      produto:      rich.produto && rich.produto !== o.produto ? rich.produto : o.produto,
                       prazoEntrega: rich.prazoEntrega ?? o.prazoEntrega,
+                      notaFiscal:   (rich as any).notaFiscal ?? o.notaFiscal,
                     }
                   : o
               )
@@ -1552,6 +1554,7 @@ export default function Production() {
           endereco:       rich.endereco ?? order.endereco,
           imagemUrl:      (rich as any).imagemUrl ?? order.imagemUrl,
           itens:          (rich as any).itens ?? order.itens,
+          notaFiscal:     (rich as any).notaFiscal ?? order.notaFiscal,
         }
       }
     } catch { /* silencia erros de detalhe */ }
@@ -1908,6 +1911,13 @@ export default function Production() {
                           </div>
                           {order.canal && (
                             <span className="text-[10px] text-violet-600 font-medium">{CANAL_ICON[order.canal]} {order.canal}</span>
+                          )}
+                          {/* NF badge */}
+                          {order.notaFiscal && (
+                            <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 rounded px-1.5 py-0.5 text-[10px] font-bold mb-1">
+                              <ClipboardList size={9} />
+                              NF {order.notaFiscal}
+                            </div>
                           )}
                           <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
                           <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
