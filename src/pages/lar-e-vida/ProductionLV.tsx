@@ -1266,33 +1266,51 @@ export default function ProductionLV() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="shrink-0 bg-white border-b border-gray-200">
-        <div className="px-5 pt-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
-                  <Sofa size={18} className="text-white" />
-                </div>
-                <h1 className="text-lg font-bold text-gray-900">Produção PCP</h1>
+      <div className="shrink-0 bg-white border-b border-gray-200 z-10 relative">
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl shadow-sm flex items-center justify-center border border-amber-100/50" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
+                <Sofa size={24} className="text-white" />
               </div>
-              <div className="flex gap-6 border-l border-gray-200 pl-6 h-6 items-center">
-                <button onClick={() => setBaseView('geral')} className={`text-sm font-semibold transition-colors ${baseView === 'geral' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}>Visão Geral</button>
-                <button onClick={() => setBaseView('cross')} className={`text-sm font-semibold transition-colors ${baseView === 'cross' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}>Cross-Docking (Revenda)</button>
-                <button onClick={() => setBaseView('quadros')} className={`text-sm font-semibold transition-colors ${baseView === 'quadros' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}>Produção Quadros</button>
+              <div>
+                <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Produção PCP</h1>
+                <p className="text-xs text-gray-400 font-medium mt-0.5">Gestão e acompanhamento de fluxos</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
+              {[
+                { id: 'geral', label: 'Visão Geral', icon: <ClipboardList size={14} /> },
+                { id: 'cross', label: 'Cross-Docking', icon: <Truck size={14} /> },
+                { id: 'quadros', label: 'Fábrica de Quadros', icon: <Package size={14} /> }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setBaseView(tab.id as any)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
+                    baseView === tab.id 
+                      ? 'bg-white text-amber-700 shadow-sm ring-1 ring-gray-900/5' 
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
               {loading && <RefreshCw size={15} className="text-amber-500 animate-spin" />}
-              <button onClick={() => loadOrders()} className="btn-secondary text-xs" title="Atualizar">
-                <RefreshCw size={13} />
+              <button onClick={() => loadOrders()} className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 flex items-center justify-center hover:bg-gray-100 transition-colors shadow-sm" title="Atualizar">
+                <RefreshCw size={16} />
               </button>
               <button
                 onClick={() => setNewModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 shadow-sm hover:shadow active:scale-95"
                 style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}
               >
-                <Plus size={14} /> Novo Pedido
+                <Plus size={16} /> Novo Pedido
               </button>
             </div>
           </div>
@@ -1300,44 +1318,48 @@ export default function ProductionLV() {
 
         {/* Kanban specific sub-header (only when not in geral view) */}
         {baseView !== 'geral' && (
-          <div className="px-5 pb-3 flex flex-col gap-3">
-            {/* Stats */}
-            <div className="flex items-center gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1.5">
-                <ClipboardList size={13} className="text-amber-500" />
-                <strong className="text-gray-800">{totalAtivos}</strong> em andamento
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle size={13} className="text-emerald-500" />
-                <strong className="text-gray-800">{getActiveCols()['Pronto para Envio'].length}</strong> prontos p/ envio
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Truck size={13} className="text-blue-500" />
-                <strong className="text-gray-800">{getActiveCols()['Despachados'].length}</strong> despachados
-              </span>
-              {totalAtrasados > 0 && (
-                <span className="flex items-center gap-1.5 text-red-600">
-                  <AlertTriangle size={13} />
-                  <strong>{totalAtrasados}</strong> atrasado{totalAtrasados > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-
+          <div className="px-6 pb-4 pt-1 flex items-center justify-between border-t border-gray-100 bg-gray-50/50">
             {/* Stage Toggle */}
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+            <div className="flex gap-1.5 mt-3">
               {[
-                { key: 'kanban',    label: 'Kanban' },
-                { key: 'delivery',  label: 'Envio' },
+                { key: 'kanban',    label: 'Fluxo Kanban' },
+                { key: 'delivery',  label: 'Prontos para Envio' },
                 { key: 'dispatched',label: 'Despachados' },
               ].map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveStage(tab.key as any)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeStage === tab.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all ${
+                    activeStage === tab.key 
+                      ? 'bg-amber-100 text-amber-800' 
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                  }`}
                 >
                   {tab.label}
                 </button>
               ))}
+            </div>
+
+            {/* Stats */}
+            <div className="flex items-center gap-5 text-[13px] font-medium text-gray-500 mt-3">
+              {totalAtrasados > 0 && (
+                <span className="flex items-center gap-1.5 text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100">
+                  <AlertTriangle size={14} />
+                  <strong>{totalAtrasados}</strong> atrasado{totalAtrasados > 1 ? 's' : ''}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                Ativos: <strong className="text-gray-900">{totalAtivos}</strong>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
+                Envio: <strong className="text-gray-900">{getActiveCols()['Pronto para Envio'].length}</strong>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                Despachados: <strong className="text-gray-900">{getActiveCols()['Despachados'].length}</strong>
+              </span>
             </div>
           </div>
         )}
@@ -1430,10 +1452,11 @@ export default function ProductionLV() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-2">
                   {getActiveCols()[stage].length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center text-gray-400">
-                      <Package size={24} className="mb-2 opacity-30" />
-                      <p className="text-xs">Nenhum pedido aqui</p>
-                      <p className="text-[10px]">Arraste ou adicione um novo</p>
+                    <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center m-1 rounded-[14px] border-2 border-dashed border-gray-200/60 bg-white/40">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-white shadow-sm ring-1 ring-gray-900/5 ${STAGE_DOT[stage].replace('bg-', 'text-')}`}>
+                        <Package size={18} strokeWidth={2.5} />
+                      </div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Coluna Vazia</p>
                     </div>
                   ) : (
                     getActiveCols()[stage].map(order => (
@@ -1478,9 +1501,11 @@ export default function ProductionLV() {
             </div>
             <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {getActiveCols()['Pronto para Envio'].length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400">
-                  <Truck size={32} className="mb-2 opacity-30" />
-                  <p className="text-sm">Nenhum pedido pronto para envio</p>
+                <div className="col-span-full h-40 flex flex-col items-center justify-center text-center m-1 rounded-[14px] border-2 border-dashed border-gray-200/60 bg-white/40">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-white shadow-sm ring-1 ring-gray-900/5 text-yellow-500">
+                    <Truck size={18} strokeWidth={2.5} />
+                  </div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nenhum pedido</p>
                 </div>
               ) : (
                 getActiveCols()['Pronto para Envio'].map(order => (
@@ -1506,9 +1531,11 @@ export default function ProductionLV() {
             </div>
             <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {getActiveCols()['Despachados'].length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400">
-                  <CheckCircle size={32} className="mb-2 opacity-30" />
-                  <p className="text-sm">Nenhum pedido despachado ainda</p>
+                <div className="col-span-full h-40 flex flex-col items-center justify-center text-center m-1 rounded-[14px] border-2 border-dashed border-gray-200/60 bg-white/40">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-white shadow-sm ring-1 ring-gray-900/5 text-emerald-500">
+                    <CheckCircle size={18} strokeWidth={2.5} />
+                  </div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nenhum pedido</p>
                 </div>
               ) : (
                 getActiveCols()['Despachados'].map(order => (
