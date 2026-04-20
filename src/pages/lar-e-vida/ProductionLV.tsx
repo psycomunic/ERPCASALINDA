@@ -224,6 +224,7 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
   const fileRef      = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState(false)
   const [preview,   setPreview]   = React.useState('') // base64 para feedback imediato
+  const [isFullscreen, setIsFullscreen] = React.useState(false)
 
   const handleFileUpload = React.useCallback(async (file: File | Blob) => {
     // 1. Preview local imediato (base64)
@@ -272,51 +273,86 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
   const displaySrc = preview || value
 
   return (
-    <div ref={zoneRef} className="relative" tabIndex={0}>
-      {displaySrc ? (
-        <div className="relative rounded-xl overflow-hidden border-2 border-amber-300">
-          <img src={displaySrc} alt="Produto" className="w-full h-40 object-cover" />
+    <>
+      <div ref={zoneRef} className="relative" tabIndex={0}>
+        {displaySrc ? (
+          <div className="relative rounded-xl overflow-hidden border-2 border-amber-300">
+            <img 
+              src={displaySrc} 
+              alt="Produto" 
+              className="w-full h-40 object-cover cursor-pointer hover:opacity-90 transition-opacity" 
+              onClick={() => setIsFullscreen(true)}
+            />
 
-          {/* Spinner durante upload */}
-          {uploading && (
-            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
-              <RefreshCw size={22} className="animate-spin text-white" />
-              <p className="text-white text-xs font-semibold">Enviando foto...</p>
+            {/* Spinner durante upload */}
+            {uploading && (
+              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                <RefreshCw size={22} className="animate-spin text-white" />
+                <p className="text-white text-xs font-semibold">Enviando foto...</p>
+              </div>
+            )}
+
+            {!uploading && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onChange(''); setPreview('') }}
+                className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow hover:bg-red-50 transition-colors z-10"
+              >
+                <X size={14} className="text-red-500" />
+              </button>
+            )}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent py-2 px-3 pointer-events-none">
+              <p className="text-white text-[10px] font-semibold">
+                {uploading ? 'Enviando para o servidor...' : 'Foto salva ✓ (Clique para ampliar)'}
+              </p>
             </div>
-          )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="w-full h-32 rounded-xl border-2 border-dashed border-amber-300 flex flex-col items-center justify-center gap-2 text-amber-600 hover:bg-amber-50 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-300"
+          >
+            <span className="text-2xl">📷</span>
+            <div className="text-center">
+              <p className="text-xs font-semibold">Cole (Ctrl+V) ou clique para selecionar</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">JPG, PNG — sobe automaticamente</p>
+            </div>
+          </button>
+        )}
+        <input
+          ref={fileRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }}
+        />
+      </div>
 
-          {!uploading && (
+      <AnimatePresence>
+        {isFullscreen && displaySrc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => setIsFullscreen(false)}
+          >
             <button
-              onClick={() => { onChange(''); setPreview('') }}
-              className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow hover:bg-red-50 transition-colors"
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-6 right-6 p-2 text-white bg-black/50 rounded-full hover:bg-white hover:text-black transition-colors"
             >
-              <X size={14} className="text-red-500" />
+              <X size={24} />
             </button>
-          )}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent py-2 px-3">
-            <p className="text-white text-[10px] font-semibold">
-              {uploading ? 'Enviando para o servidor...' : 'Foto salva ✓'}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="w-full h-32 rounded-xl border-2 border-dashed border-amber-300 flex flex-col items-center justify-center gap-2 text-amber-600 hover:bg-amber-50 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-300"
-        >
-          <span className="text-2xl">📷</span>
-          <div className="text-center">
-            <p className="text-xs font-semibold">Cole (Ctrl+V) ou clique para selecionar</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">JPG, PNG — sobe automaticamente</p>
-          </div>
-        </button>
-      )}
-      <input
-        ref={fileRef} type="file" accept="image/*" className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }}
-      />
-    </div>
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={displaySrc}
+              alt="Produto em detalhes"
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }
 
