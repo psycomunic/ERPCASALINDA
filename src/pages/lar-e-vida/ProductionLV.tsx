@@ -1111,27 +1111,34 @@ export default function ProductionLV() {
   const handleUpdate = async (updates: Partial<Order>) => {
     if (!viewModal) return
     const { id } = viewModal.order
-    await updatePedidoLV(id, {
-      cliente: updates.cliente,
-      produto: updates.produto,
-      canal: updates.canal ?? null,
-      obs: updates.obs ?? null,
-      endereco: updates.endereco ?? null,
-      transportadora: updates.transportadora ?? null,
-      prazo_entrega: updates.prazoEntrega ?? null,
-      valor: updates.valor ?? null,
-      frete: updates.frete ?? null,
-      ...{ sku: updates.sku ?? null } as any,
-      ...{ foto_url: updates.fotoUrl ?? null } as any,
-      ...{ nome_fornecedor: updates.nomeFornecedor ?? null } as any,
-      ...{ codigo_fornecedor: updates.codigoFornecedor ?? null } as any,
-      ...{ categoria: updates.categoria ?? null } as any,
-      ...{ tamanho: updates.tamanho ?? null } as any,
-      ...{ cor: updates.cor ?? null } as any,
-      ...{ quantidade: updates.quantidade ?? null } as any,
-    })
-    await loadOrders()
-    showToast('Pedido atualizado!')
+
+    const payload: any = {}
+    if ('cliente' in updates) payload.cliente = updates.cliente
+    if ('produto' in updates) payload.produto = updates.produto
+    if ('canal' in updates) payload.canal = updates.canal || null
+    if ('obs' in updates) payload.obs = updates.obs || null
+    if ('endereco' in updates) payload.endereco = updates.endereco || null
+    if ('transportadora' in updates) payload.transportadora = updates.transportadora || null
+    if ('prazoEntrega' in updates) payload.prazo_entrega = updates.prazoEntrega || null
+    if ('valor' in updates) payload.valor = updates.valor || null
+    if ('frete' in updates) payload.frete = updates.frete || null
+    if ('sku' in updates) payload.sku = updates.sku || null
+    if ('fotoUrl' in updates) payload.foto_url = updates.fotoUrl || null
+    if ('nomeFornecedor' in updates) payload.nome_fornecedor = updates.nomeFornecedor || null
+    if ('codigoFornecedor' in updates) payload.codigo_fornecedor = updates.codigoFornecedor || null
+    if ('categoria' in updates) payload.categoria = updates.categoria || null
+    if ('tamanho' in updates) payload.tamanho = updates.tamanho || null
+    if ('cor' in updates) payload.cor = updates.cor || null
+    if ('quantidade' in updates) payload.quantidade = updates.quantidade || null
+
+    const success = await updatePedidoLV(id, payload)
+    
+    if (success) {
+      await loadOrders()
+      showToast('Pedido atualizado!')
+    } else {
+      alert('Erro ao salvar no banco de dados. Se estiver enviando uma foto, certifique-se de que o bucket "produtos" foi criado no Supabase, ou a imagem pode ser muito grande (limite de base64).')
+    }
   }
 
   const handleAdvance = async (order: Order, stage: Stage) => {
