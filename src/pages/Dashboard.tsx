@@ -12,7 +12,7 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts'
 import { fetchPedidos, updatePedido } from '../services/pedidos'
-import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
+import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
 
 const cashflow: any[] = []
 
@@ -117,18 +117,33 @@ function FreightByCarrier() {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
-  // Fetch progressivo: mostra dados rápidos primeiro, enriquece em background
-  useEffect(() => {
-    // Fase rápida: dados da lista (sem chamadas individuais) — aparece imediatamente
-    fetchOrdersForKPIs(90)
-      .then(orders => { setAllOrders(orders); setLoadingOrders(false) })
-      .catch(() => setLoadingOrders(false))
+  const [enriching, setEnriching] = useState(false)
+  const [enrichProgress, setEnrichProgress] = useState(0)
 
-    // Fase enriquecida: busca nomes de transportadora via detalhe (30 pedidos max)
-    // Atualiza os dados em background sem bloquear a UI
-    fetchOrdersForFreightAnalysis(90)
-      .then(orders => { setAllOrders(orders) })
-      .catch(() => { /* mantém os dados rápidos */ })
+  // Fetch progressivo: mostra todos os 287 pedidos imediatamente, depois enriquece
+  useEffect(() => {
+    // Fase 1 rápida: todos os pedidos via paginação (sem chamadas individuais)
+    fetchOrdersForKPIs(90)
+      .then(orders => {
+        setAllOrders(orders)
+        setLoadingOrders(false)
+
+        // Fase 2 progressiva: enriquece TODOS com transportadora real, atualizando gráfico a cada lote
+        const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0)
+        if (needsEnrich.length === 0) return
+
+        setEnriching(true)
+        let done = 0
+        enrichOrdersWithCarriers(orders, (enriched) => {
+          done += 12
+          setEnrichProgress(Math.min(100, Math.round((done / needsEnrich.length) * 100)))
+          setAllOrders(enriched)
+        }).then(() => {
+          setEnriching(false)
+          setEnrichProgress(100)
+        }).catch(() => setEnriching(false))
+      })
+      .catch(() => setLoadingOrders(false))
   }, [])
 
   // Recompute stats whenever period or data changes
@@ -257,6 +272,19 @@ function FreightByCarrier() {
       {syncMsg && (
         <div className="text-center text-xs text-indigo-600 font-bold bg-indigo-50 rounded-lg py-2 px-4 mb-4">{syncMsg}</div>
       )}
+
+      {enriching && (
+        <div className="mb-4 px-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-indigo-500 font-semibold">Identificando transportadoras... {enrichProgress}%</span>
+            <span className="text-[10px] text-gray-400">O gráfico atualiza em tempo real</span>
+          </div>
+          <div className="h-1 w-full bg-indigo-100 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${enrichProgress}%` }} />
+          </div>
+        </div>
+      )}
+
 
       {loadingOrders ? (
         <div className="flex items-center justify-center py-12 gap-3 text-gray-400 text-sm">
