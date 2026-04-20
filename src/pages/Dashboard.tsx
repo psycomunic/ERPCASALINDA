@@ -502,23 +502,27 @@ export default function Dashboard() {
           <div className="relative">
             <button
               onClick={() => setShowPeriodo(v => !v)}
-              className="btn-secondary"
+              className="bg-white hover:bg-gray-50 border border-gray-200 text-slate-700 text-[13px] font-semibold tracking-wide px-3.5 py-2 rounded-lg shadow-sm transition-all flex items-center gap-2 active:scale-95"
             >
-              <Clock size={14} /> {periodo} <ChevronDown size={12} />
+              <Clock size={14} className="text-gray-400" /> {periodo} <ChevronDown size={14} className={`text-gray-400 transition-transform ${showPeriodo ? 'rotate-180':''}`} />
             </button>
             <AnimatePresence>
               {showPeriodo && (
                 <motion.div
-                  initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                  className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-max overflow-hidden"
+                  initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] z-20 min-w-max overflow-hidden"
                 >
-                  {PERIODOS.map(p => (
-                    <button key={p} onClick={() => { setPeriodo(p); setShowPeriodo(false) }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${periodo === p ? 'text-navy-900 font-semibold' : 'text-gray-700'}`}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                  <div className="p-1">
+                    {PERIODOS.map(p => (
+                      <button key={p} onClick={() => { setPeriodo(p); setShowPeriodo(false) }}
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-between group ${periodo === p ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}
+                      >
+                        {p}
+                        {periodo === p && <Check size={14} className="text-blue-600" />}
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
