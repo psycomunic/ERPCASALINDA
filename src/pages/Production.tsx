@@ -904,8 +904,11 @@ function ReviewModal({ order, onClose, onApprove, onReject }: {
     reader.readAsDataURL(file)
   }
 
+  const [validationError, setValidationError] = useState('')
+
   const canConfirm = !!revisor
-  const canReject  = !!revisor && areas.length > 0 && !!motivo
+  // Motivo é opcional — basta ter revisor e ao menos uma área selecionada
+  const canReject  = !!revisor && areas.length > 0
 
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -1040,28 +1043,39 @@ function ReviewModal({ order, onClose, onApprove, onReject }: {
           )}
 
           {/* Footer actions */}
-          <div className="flex gap-3 pt-1">
-            <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-            {decision === 'aprovado' && (
-              <button
-                onClick={() => { if (canConfirm) { onApprove(revisor); onClose() } }}
-                disabled={!canConfirm}
-                className="btn-primary flex-1 justify-center"
-                style={{ background: '#059669' }}
-              >
-                <Check size={14} /> Aprovar → Embalagem
-              </button>
+          <div className="space-y-2">
+            {validationError && (
+              <p className="text-xs text-rose-600 font-medium text-center">{validationError}</p>
             )}
-            {decision === 'reprovado' && (
-              <button
-                onClick={() => { if (canReject) { onReject(revisor, etapaRetorno, areas, motivo, fotoPreview); onClose() } }}
-                disabled={!canReject}
-                className="btn-primary flex-1 justify-center"
-                style={{ background: '#e11d48' }}
-              >
-                <X size={14} /> Registrar Reprovação
-              </button>
-            )}
+            <div className="flex gap-3">
+              <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+              {decision === 'aprovado' && (
+                <button
+                  onClick={() => {
+                    if (!canConfirm) { setValidationError('Selecione o revisor.'); return }
+                    onApprove(revisor); onClose()
+                  }}
+                  className={`btn-primary flex-1 justify-center ${!canConfirm ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  style={{ background: '#059669' }}
+                >
+                  <Check size={14} /> Aprovar → Embalagem
+                </button>
+              )}
+              {decision === 'reprovado' && (
+                <button
+                  onClick={() => {
+                    if (!revisor)         { setValidationError('Selecione o revisor.'); return }
+                    if (areas.length === 0) { setValidationError('Selecione ao menos uma área com problema.'); return }
+                    onReject(revisor, etapaRetorno, areas, motivo, fotoPreview)
+                    onClose()
+                  }}
+                  className={`btn-primary flex-1 justify-center ${!canReject ? 'opacity-60' : ''}`}
+                  style={{ background: '#e11d48' }}
+                >
+                  <X size={14} /> Registrar Reprovação
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -1577,10 +1591,17 @@ export default function Production() {
         'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK', revisaoStatus: 'aprovado', revisaoRevisor: revisor }],
       }))
       const dbId = getDbId(order.id)
-      if (dbId) movePedidoEtapa(dbId, 'Embalagem')
+      if (dbId) updatePedido(dbId, {
+        etapa: 'Embalagem',
+        obs: [order.obs, `[REVISÃO APROVADA] Revisor: ${revisor}`].filter(Boolean).join('\n---\n'),
+      })
       showToast(`✅ Pedido #${order.id} aprovado na revisão!`)
     } else {
       const destino = extra?.etapaRetorno ?? 'Impressão'
+      const areas   = extra?.areas ?? []
+      const motivo  = extra?.motivo ?? ''
+      const fotoUrl = extra?.fotoUrl
+
       setBoard(prev => ({
         ...prev,
         'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
@@ -1589,13 +1610,24 @@ export default function Production() {
           status: 'Pendente',
           revisaoStatus: 'reprovado',
           revisaoRevisor: revisor,
-          revisaoMotivo:  extra?.motivo,
-          revisaoAreas:   extra?.areas,
-          revisaoFotoUrl: extra?.fotoUrl,
+          revisaoMotivo:  motivo,
+          revisaoAreas:   areas,
+          revisaoFotoUrl: fotoUrl,
         }],
       }))
+
       const dbId = getDbId(order.id)
-      if (dbId) movePedidoEtapa(dbId, destino)
+      if (dbId) {
+        // Persiste texto de revisão no campo obs (sem foto — base64 é muito grande para texto SQL)
+        const obsRevisao = [
+          order.obs,
+          `[REPROVADO] Revisor: ${revisor}`,
+          areas.length > 0 ? `Áreas: ${areas.join(', ')}` : null,
+          motivo ? `Motivo: ${motivo}` : null,
+        ].filter(Boolean).join('\n')
+        updatePedido(dbId, { etapa: destino, status: 'Pendente', obs: obsRevisao })
+      }
+
       showToast(`❌ Pedido #${order.id} reprovado — retornando para ${destino}`)
     }
     setReviewModal(null)
