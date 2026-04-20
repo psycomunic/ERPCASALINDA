@@ -657,7 +657,7 @@ export function magazordDetailedToOrder(data: any): any {
   // eslint-disable-next-line no-console
   console.log('[Magazord NF Debug] data NF keys:', Object.keys(data).filter(k => /nota|nf|fiscal/i.test(k)))
 
-  return {
+  const baseOrder = {
     clienteEmail: data.pessoaEmail || undefined,
     clienteTelefone: data.pessoaContato || undefined,
     produto: item.produtoTitulo || undefined,
@@ -684,20 +684,59 @@ export function magazordDetailedToOrder(data: any): any {
           : undefined
       }
     }),
-    // Número da NF — cobre todos os nomes de campo conhecidos da Magazord V2
-    notaFiscal:
-      data.arrayPedidoNota?.[0]?.notaNumero ||
-      data.arrayPedidoNota?.[0]?.numero ||
-      data.arrayPedidoNota?.[0]?.notaFiscalNumero ||
-      data.arrayPedidoNota?.[0]?.numeroNF ||
-      data.pedidoNotaFiscalNumero ||
-      data.notaFiscalNumero ||
-      data.notaNumero ||
-      data.numeronf ||
-      data.numero_nf ||
-      rastreio.notaNumero ||
-      rastreio.notaFiscalNumero ||
-      rastreio.pedidoNotaFiscalNumero ||
-      undefined,
+  }
+
+  // ── Extração Inteligente de Nota Fiscal ──
+  // A Magazord V2 varia muito onde coloca a NF (arrayPedidoNota, pedidoNota, notaFiscal, etc).
+  // Vamos buscar em todos os lugares possíveis recursivamente.
+  let nfEncontrada: string | undefined = undefined;
+
+  const buscarNfNoObjeto = (obj: any): string | undefined => {
+    if (!obj || typeof obj !== 'object') return undefined;
+    // Chaves mais comuns:
+    if (obj.numero && !isNaN(Number(obj.numero))) return String(obj.numero);
+    if (obj.notaNumero) return String(obj.notaNumero);
+    if (obj.numeroNf) return String(obj.numeroNf);
+    if (obj.nNF || obj.nNf) return String(obj.nNF || obj.nNf);
+    if (obj.notaFiscalNumero) return String(obj.notaFiscalNumero);
+    
+    // Tenta dentro de notas
+    if (obj.nota_fiscal && obj.nota_fiscal.numero) return String(obj.nota_fiscal.numero);
+    if (obj.nota && obj.nota.numero) return String(obj.nota.numero);
+    
+    return undefined;
+  };
+
+  // 1. Tenta nos arrays conhecidos
+  const notasArrays = [data.arrayPedidoNota, data.pedidoNota, rastreio.notasFiscais, data.notas];
+  for (const arr of notasArrays) {
+    if (Array.isArray(arr) && arr.length > 0) {
+      const nf = buscarNfNoObjeto(arr[0]);
+      if (nf) {
+        nfEncontrada = nf;
+        break;
+      }
+    }
+  }
+
+  // 2. Se não achou em arrays, tenta direto na raiz do pedido ou no rastreio
+  if (!nfEncontrada) {
+    nfEncontrada = 
+      buscarNfNoObjeto(data) || 
+      buscarNfNoObjeto(rastreio) || 
+      data.notaFiscal || 
+      data.numero_nf || 
+      data.numeronf;
+  }
+
+  // 3. DEBUG na UI: se a Magazord diz que tem NF (situação 6) mas não achamos, 
+  // jogamos as chaves na tela para o dev ver
+  if (!nfEncontrada && (data.situacao === 6 || data.situacao === '6' || rastreio.pedidoNotaFiscalNumero)) {
+    nfEncontrada = `Err: ` + Object.keys(data.arrayPedidoNota?.[0] || data.pedidoNota?.[0] || {}).join(',');
+  }
+
+  return {
+    ...baseOrder,
+    notaFiscal: nfEncontrada,
   }
 }
