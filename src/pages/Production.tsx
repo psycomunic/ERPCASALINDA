@@ -1467,6 +1467,54 @@ export default function Production() {
     return () => clearInterval(interval)
   }, [syncMagazord])
 
+  // ── Background image enrichment ──
+  // Para cards Magazord já em produção sem imagemUrl, busca os dados detalhados silenciosamente
+  useEffect(() => {
+    const productionStages: KanbanStage[] = ['Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento', 'Revisão', 'Embalagem']
+    const needsEnrich = productionStages
+      .flatMap(s => board[s])
+      .filter(o => o.fromMagazord && !o.imagemUrl && o.id)
+
+    if (needsEnrich.length === 0) return
+
+    // Enriquecer em série com delay para não sobrecarregar a API
+    let cancelled = false
+    ;(async () => {
+      for (const order of needsEnrich) {
+        if (cancelled) break
+        try {
+          const detail = await fetchOrderByCodigo(order.id)
+          if (!detail || cancelled) continue
+          const rich = magazordDetailedToOrder(detail)
+          const imgUrl  = (rich as any).imagemUrl as string | undefined
+          const imgItens = (rich as any).itens as Order['itens'] | undefined
+          if (!imgUrl && !imgItens) continue
+          // Atualiza o card no board independente de qual etapa está
+          setBoard(prev => {
+            const updated = { ...prev }
+            for (const stage of productionStages) {
+              updated[stage] = prev[stage].map(o =>
+                o.id === order.id
+                  ? { ...o,
+                      imagemUrl: imgUrl ?? o.imagemUrl,
+                      itens:     imgItens ?? o.itens,
+                      produto:   rich.produto && rich.produto !== o.produto ? rich.produto : o.produto,
+                      prazoEntrega: rich.prazoEntrega ?? o.prazoEntrega,
+                    }
+                  : o
+              )
+            }
+            return updated
+          })
+        } catch { /* silencia */ }
+        // Pequena pausa entre requisições
+        await new Promise(r => setTimeout(r, 300))
+      }
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board['Impressão'].length, board['Corte Moldura'].length, board['Entelamento + Vidro'].length, board['Acabamento'].length])
+
   // ── Drag & drop ──
   const onDrop = (to: Stage, e?: React.DragEvent) => {
     e?.stopPropagation()
@@ -1487,49 +1535,60 @@ export default function Production() {
 
   // ── Confirm Magazord order → Impressão ──
   const confirmToProducao = async (order: Order) => {
-    if (order.magazordId) await updateOrderSituacao(order.magazordId, 5) // 5 = Aprovado e Integrado (Produção)
+    if (order.magazordId) await updateOrderSituacao(order.magazordId, 5)
+
+    // Buscar dados detalhados sempre — traz imagemUrl, itens, transportadora, frete reais
+    let enriched: Partial<Order> = {}
+    try {
+      const detail = await fetchOrderByCodigo(order.id)
+      if (detail) {
+        const rich = magazordDetailedToOrder(detail)
+        enriched = {
+          transportadora: rich.transportadora ?? order.transportadora,
+          frete:          (rich.frete != null && rich.frete > 0) ? rich.frete : order.frete,
+          produto:        rich.produto ?? order.produto,
+          tamanho:        rich.tamanho ?? order.tamanho,
+          prazoEntrega:   rich.prazoEntrega ?? order.prazoEntrega,
+          endereco:       rich.endereco ?? order.endereco,
+          imagemUrl:      (rich as any).imagemUrl ?? order.imagemUrl,
+          itens:          (rich as any).itens ?? order.itens,
+        }
+      }
+    } catch { /* silencia erros de detalhe */ }
+
+    const enrichedOrder: Order = { ...order, ...enriched, status: 'Pendente', fromMagazord: true }
+
     setBoard(prev => ({
       ...prev,
       'Novos Pedidos': prev['Novos Pedidos'].filter(o => o.id !== order.id),
-      'Impressão': prev['Impressão'].some(o => o.id === order.id) 
-        ? prev['Impressão'] 
-        : [{ ...order, status: 'Pendente', fromMagazord: true }, ...prev['Impressão']],
+      'Impressão': prev['Impressão'].some(o => o.id === order.id)
+        ? prev['Impressão']
+        : [enrichedOrder, ...prev['Impressão']],
     }))
-    // Supabase: move to Impressão (or create if not persisted yet)
+
+    // Supabase sync
     const dbId = getDbId(order.id)
     if (dbId) {
-      updatePedido(dbId, { etapa: 'Impressão', frete: order.frete })
+      updatePedido(dbId, { etapa: 'Impressão', frete: enriched.frete, transportadora: enriched.transportadora })
     } else if (isSupabaseConfigured()) {
-      // Enriquecer com dados detalhados (transportadora + frete real) antes de persistir
-      let enrichedTrans = order.transportadora
-      let enrichedFrete = order.frete
-      try {
-        const detail = await fetchOrderByCodigo(order.id)
-        if (detail) {
-          const rich = magazordDetailedToOrder(detail)
-          if (rich.transportadora) enrichedTrans = rich.transportadora
-          if (rich.frete != null && rich.frete > 0) enrichedFrete = rich.frete
-        }
-      } catch { /* silencia erros de detalhe */ }
-
       const created = await createPedido({
         numero:         order.id,
         magazord_id:    order.magazordId,
         cliente:        order.cliente,
-        produto:        order.produto,
+        produto:        enrichedOrder.produto,
         moldura:        order.moldura,
         acabamento:     order.acabamento,
         canal:          order.canal,
         etapa:          'Impressão',
         status:         'Pendente',
-        prazo_entrega:  order.prazoEntrega
-          ? order.prazoEntrega.split('/').reverse().join('-')
+        prazo_entrega:  enrichedOrder.prazoEntrega
+          ? enrichedOrder.prazoEntrega.split('/').reverse().join('-')
           : undefined,
         valor:          order.valor,
-        frete:          enrichedFrete,
+        frete:          enrichedOrder.frete,
         obs:            order.obs,
-        endereco:       order.endereco,
-        transportadora: enrichedTrans,
+        endereco:       enrichedOrder.endereco,
+        transportadora: enrichedOrder.transportadora,
         from_magazord:  true,
       })
       if (created) dbIdMap.current.set(order.id, created.id)
