@@ -382,20 +382,24 @@ export default function Dashboard() {
       const totalPedMes = pedidosMes.length
       const ticket = totalPedMes > 0 ? fat / totalPedMes : 0
 
-      // Pedidos em andamento = status 4+5 (aprovados ainda não expedidos)
-      const andamento = orders.filter(p => [4, 5].includes(p.situacao ?? 0)).length
+      // Pedidos em andamento = status 4+5 DESTE MÊS (aprovados, ainda em produção)
+      const andamento = pedidosMes.filter(p => [4, 5].includes(p.situacao ?? 0)).length
 
-      // Estimar "prontos" = status 7 (faturados = aprovados para envio)
-      const faturados = orders.filter(p => p.situacao === 7).length
+      // Faturados deste mês = status 7 (faturado = produziu e emitiu NF, pode ainda estar físico na fábrica)
+      const faturados = pedidosMes.filter(p => p.situacao === 7).length
+
+      // Total ativos deste mês (todos os status relevantes)
+      const totalAtivosMes = pedidosMes.length
 
       setFaturamentoMensal(fat)
       setTicketMedio(ticket)
       setQuadrosProduzidos(faturados)
-      setPedidosAtrasados(0) // não temos info de atraso via Magazord
-      setPedidosAndamento(andamento + faturados)
-      // Capacidade baseada em pedidos ativos vs. histórico 90 dias
-      const avgMensalEstimado = Math.max(pedidosMes.length * 1.1, 100)
-      setCapacidade(Math.min(Math.round(((andamento + faturados) / avgMensalEstimado) * 100), 100))
+      setPedidosAtrasados(0)
+      setPedidosAndamento(totalAtivosMes) // Total de pedidos do mês
+      // Capacidade: pedidos em produção ativa (4+5) vs total do mês
+      const cap = totalAtivosMes > 0 ? Math.round((andamento / totalAtivosMes) * 100) : 0
+      setCapacidade(Math.min(cap, 100))
+
     }).catch(() => {
       // Fallback: usa Supabase se Magazord falhar
       fetchPedidos().then(pedidos => {
@@ -564,12 +568,13 @@ export default function Dashboard() {
 
           <div className="bg-navy-900 rounded-xl p-4 text-white">
             <p className="text-xs text-blue-200 font-medium mb-1">STATUS DA FÁBRICA</p>
-            <p className="font-bold text-base">Capacidade de Produção em {capacidade}%</p>
+            <p className="font-bold text-base">Pedidos em Processamento: {capacidade}%</p>
             <div className="mt-3 bg-white/20 rounded-full h-2">
               <div className="bg-white rounded-full h-2 transition-all duration-1000" style={{ width: `${capacidade}%` }} />
             </div>
-            <p className="text-xs text-blue-200 mt-2">{pedidosAndamento} pedidos em andamento</p>
+            <p className="text-xs text-blue-200 mt-2">{pedidosAndamento} pedidos ativos este mês</p>
           </div>
+
         </div>
       </div>
 
