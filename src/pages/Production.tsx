@@ -1913,7 +1913,7 @@ export default function Production() {
                           onDragStart={() => setDragging({ order, from: stage })}
                           onDragEnd={() => setDragging(null)}
                         >
-                          <div className="flex items-center gap-1.5 mb-1.5">
+                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                             <span className={`text-xs font-bold px-2 py-0.5 rounded text-white ${order.fromMagazord ? 'bg-violet-600' : 'bg-navy-900'}`}>
                               #{order.id}
                               {order.fromMagazord && <span className="ml-1 text-[9px] opacity-80">MG</span>}
@@ -1927,7 +1927,9 @@ export default function Production() {
                                 <ClipboardList size={9} /> Sem NF
                               </span>
                             )}
-                            <span className="flex-1" />
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                             {order.status === 'Atrasado'
                               ? <span className="badge badge-critico flex items-center gap-1"><AlertTriangle size={9} />Atrasado</span>
                               : order.prazoEntrega
@@ -1935,10 +1937,10 @@ export default function Production() {
                               : order.data
                               ? <span className="text-xs text-gray-400 flex items-center gap-1"><Clock size={10} />{order.data} {order.hora}</span>
                               : null}
+                            {order.canal && (
+                              <span className="text-[10px] text-violet-600 font-medium">{CANAL_ICON[order.canal]} {order.canal}</span>
+                            )}
                           </div>
-                          {order.canal && (
-                            <span className="text-[10px] text-violet-600 font-medium">{CANAL_ICON[order.canal]} {order.canal}</span>
-                          )}
 
                           <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
                           <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
