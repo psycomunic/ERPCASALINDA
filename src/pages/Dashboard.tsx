@@ -8,8 +8,8 @@ import {
   Check, ChevronDown, Truck
 } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell
 } from 'recharts'
 import { fetchPedidos, updatePedido } from '../services/pedidos'
 import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
@@ -373,6 +373,9 @@ export default function Dashboard() {
   const [pedidosAndamento, setPedidosAndamento] = useState(0)
   const [capacidade, setCapacidade] = useState(0)
 
+  // Daily Sales Metric
+  const [dailySales, setDailySales] = useState<{ date: string; valor: number }[]>([])
+
   useEffect(() => {
     // Usa fetchOrdersForKPIs (rápido, só lista) para não bloquear o carregamento
     fetchOrdersForKPIs(90).then(orders => {
@@ -407,6 +410,19 @@ export default function Dashboard() {
       // Capacidade: pedidos em produção ativa (4+5) vs total do mês
       const cap = totalAtivosMes > 0 ? Math.round((andamento / totalAtivosMes) * 100) : 0
       setCapacidade(Math.min(cap, 100))
+
+      // Aggregating daily sales
+      const salesMap = new Map<string, number>()
+      for (let i = 1; i <= now.getDate(); i++) {
+        salesMap.set(String(i).padStart(2, '0'), 0)
+      }
+      pedidosMes.forEach(p => {
+        const d = new Date(p.data || new Date())
+        const day = String(d.getDate()).padStart(2, '0')
+        if (salesMap.has(day)) salesMap.set(day, (salesMap.get(day) || 0) + (p.valor || 0))
+      })
+      const salesArr = Array.from(salesMap.entries()).map(([k, v]) => ({ date: k, valor: v }))
+      setDailySales(salesArr)
 
     }).catch(() => {
       // Fallback: usa Supabase se Magazord falhar
@@ -508,50 +524,66 @@ export default function Dashboard() {
         ].map((k, i) => (
           <motion.div
             key={k.label}
-            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="stat cursor-pointer hover:shadow-lg transition-shadow"
+            initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08, type: 'spring', stiffness: 200, damping: 20 }}
+            className="group cursor-pointer bg-white/80 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-0.5 rounded-2xl p-5 transition-all duration-300 relative overflow-hidden"
             onClick={k.onClick}
           >
-            <div className="flex items-center justify-between">
-              <k.icon size={18} className={k.iconColor} />
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${k.tagColor}`}>{k.tag}</span>
+            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-gradient-to-br from-transparent to-current opacity-[0.03] rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" style={{ color: k.iconColor.split(' ')[0].replace('text-', '') }}></div>
+            <div className="flex items-center justify-between relative z-10">
+              <div className={`p-2.5 rounded-xl bg-white shadow-sm border border-gray-50 flex items-center justify-center`}>
+                <k.icon size={20} className={k.iconColor} strokeWidth={2.5} />
+              </div>
+              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${k.tagColor}`}>{k.tag}</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900 mt-2">{k.value}</p>
-            <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{k.label}</p>
+            <p className="text-3xl font-extrabold text-gray-900 mt-4 tracking-tight relative z-10">{k.value}</p>
+            <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-widest mt-1 relative z-10">{k.label}</p>
           </motion.div>
         ))}
       </div>
 
       {/* Chart + Quick Actions */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <div className="card p-5 xl:col-span-2">
-          <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 xl:col-span-2 flex flex-col">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="font-semibold text-gray-800">Fluxo de Caixa</h2>
-              <p className="text-xs text-gray-400">Entradas vs Saídas — {periodo}</p>
+              <h2 className="text-lg font-bold text-gray-900 tracking-tight">Desempenho de Vendas</h2>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">Faturamento Diário — {periodo}</p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-600 inline-block" />ENTRADAS</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-800 inline-block" />SAÍDAS</span>
+            <div className="flex items-center gap-4 text-xs text-slate-500 font-semibold uppercase tracking-wider">
+              <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />Faturamento</span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={cashflow} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="semana" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => [fmt(v)]} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
-              <Bar dataKey="entradas" name="Entradas" fill="#1d4ed8" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="saidas"   name="Saídas"   fill="#991b1b" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="flex-1 min-h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailySales} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} tickMargin={12} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                <Tooltip 
+                  formatter={(v: number) => [fmt(v), 'Faturamento']} 
+                  labelFormatter={(l) => `Dia ${l}`}
+                  contentStyle={{ fontSize: 12, borderRadius: 12, border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', padding: '12px 16px', fontWeight: 600, color: '#0f172a' }} 
+                  itemStyle={{ color: '#2563eb', padding: '4px 0 0' }}
+                />
+                <Area type="monotone" dataKey="valor" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorValor)" activeDot={{ r: 6, fill: '#2563eb', stroke: '#fff', strokeWidth: 3 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="card p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Atalhos Rápidos</p>
-            <p className="text-xs text-gray-400 -mt-2 mb-3">Ações administrativas frequentes</p>
+        <div className="space-y-4">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-5">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
+              Ações Rápidas
+              <ArrowRight size={12} className="text-slate-300" />
+            </p>
             {[
               { label: 'Novo Pedido',        sub: 'LANÇA VENDA MANUAL',          icon: ShoppingCart, to: '/production' },
               { label: 'Cadastrar Parceiro', sub: 'NOVOS FORNECEDORES/ARTISTAS', icon: UserPlus,     to: '/partners'   },
@@ -560,29 +592,47 @@ export default function Dashboard() {
               <button
                 key={a.label}
                 onClick={() => navigate(a.to)}
-                className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-navy-900/20 hover:bg-gray-50 transition-all mb-2 group"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-transparent hover:border-blue-100 hover:bg-blue-50/50 hover:shadow-sm transition-all mb-2 group"
               >
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-900 transition-colors shrink-0">
-                  <a.icon size={16} />
+                <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm shrink-0">
+                  <a.icon size={16} strokeWidth={2.5} />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{a.label}</p>
-                  <p className="text-[10px] text-gray-400">{a.sub}</p>
+                  <p className="text-sm font-bold text-slate-700 group-hover:text-blue-900 transition-colors">{a.label}</p>
+                  <p className="text-[10px] text-slate-400 font-medium tracking-wide group-hover:text-blue-600/70">{a.sub}</p>
                 </div>
-                <ArrowRight size={14} className="text-gray-300 group-hover:text-blue-900 transition-colors" />
+                <ArrowRight size={14} strokeWidth={2.5} className="text-slate-300 group-hover:text-blue-600 transition-colors transform group-hover:translate-x-1" />
               </button>
             ))}
           </div>
 
-          <div className="bg-navy-900 rounded-xl p-4 text-white">
-            <p className="text-xs text-blue-200 font-medium mb-1">STATUS DA FÁBRICA</p>
-            <p className="font-bold text-base">Pedidos em Processamento: {capacidade}%</p>
-            <div className="mt-3 bg-white/20 rounded-full h-2">
-              <div className="bg-white rounded-full h-2 transition-all duration-1000" style={{ width: `${capacidade}%` }} />
+          <div className="relative bg-gradient-to-br from-navy-900 to-indigo-950 rounded-2xl p-6 text-white shadow-lg overflow-hidden border border-navy-800/50">
+            {/* Decal background */}
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/20 blur-3xl rounded-full"></div>
+            <div className="absolute bottom-0 right-0 w-24 h-24 bg-blue-500/20 blur-2xl rounded-full"></div>
+            
+            <p className="text-[10px] text-blue-200/80 font-bold tracking-widest uppercase mb-1.5 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+              Status da Fábrica
+            </p>
+            <p className="font-extrabold text-xl tracking-tight mt-1 flex items-baseline gap-2">
+              {capacidade}% <span className="text-sm font-semibold text-blue-200/90 tracking-normal">Ativos</span>
+            </p>
+            
+            <div className="mt-5 bg-navy-800/80 backdrop-blur-sm rounded-full h-2.5 overflow-hidden ring-1 ring-white/10 shadow-inner">
+              <div 
+                className="bg-gradient-to-r from-blue-500 via-indigo-400 to-purple-400 rounded-full h-full transition-all duration-1000 ease-out relative" 
+                style={{ width: `${capacidade}%` }} 
+              >
+                <div className="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite] -translate-x-full" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)' }} />
+              </div>
             </div>
-            <p className="text-xs text-blue-200 mt-2">{pedidosAndamento} pedidos ativos este mês</p>
+            
+            <div className="mt-3 flex justify-between items-center text-xs">
+              <span className="text-blue-100 font-medium">{pedidosAndamento} pedidos em fila</span>
+              <span className="text-indigo-300 font-mono text-[10px] font-bold">100%</span>
+            </div>
           </div>
-
         </div>
       </div>
 

@@ -21,6 +21,14 @@ export default {
         card: '0 1px 4px 0 rgba(0,0,0,0.07)',
         'card-hover': '0 4px 16px 0 rgba(0,0,0,0.10)',
       },
+      keyframes: {
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        }
+      },
+      animation: {
+        shimmer: 'shimmer 2s infinite',
+      }
     },
   },
   plugins: [],
