@@ -504,6 +504,8 @@ function DetailModal({ order, stage, onClose, onConclude, onUpdate }: {
   const [historico, setHistorico] = React.useState<HistoricoEntry[]>([])
   const [loadingH, setLoadingH] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  // Foto gerenciada diretamente na aba Detalhes
+  const [currentFoto, setCurrentFoto] = React.useState(order.fotoUrl ?? '')
 
   // Edit form state (initialized from current order)
   const [edit, setEdit] = React.useState({
@@ -528,6 +530,20 @@ function DetailModal({ order, stage, onClose, onConclude, onUpdate }: {
     obs: order.obs ?? '',
   })
   const setE = (field: string, val: any) => setEdit(p => ({ ...p, [field]: val }))
+
+  // Salva a foto imediatamente ao fazer upload na aba Detalhes
+  const handleFotoChange = React.useCallback(async (url: string) => {
+    setCurrentFoto(url)
+    setE('fotoUrl', url)
+    await onUpdate({ fotoUrl: url || undefined })
+    if (url) {
+      await logHistoricoLV(order.id, [{
+        campo: 'foto_url',
+        valorAnterior: order.fotoUrl ? '[foto anterior]' : null,
+        valorNovo: '[foto atualizada]',
+      }])
+    }
+  }, [onUpdate, order.id, order.fotoUrl])
 
   const loadHistorico = React.useCallback(async () => {
     setLoadingH(true)
@@ -638,37 +654,48 @@ function DetailModal({ order, stage, onClose, onConclude, onUpdate }: {
           {/* ─── Tab: Detalhes ─── */}
           {tab === 'detalhes' && (
             <div className="p-5 space-y-4">
-              {/* Foto */}
-              {order.fotoUrl && (
-                <div className="rounded-xl overflow-hidden border border-amber-100">
-                  <img src={order.fotoUrl} alt={order.produto} className="w-full h-40 object-cover" />
-                </div>
-              )}
-
-              {/* Identidade rápida */}
-              <div className="flex gap-2 flex-wrap">
-                {order.sku && <span className="font-mono text-xs bg-gray-900 text-white px-2 py-1 rounded font-bold">SKU: {order.sku}</span>}
-                {order.tamanho && <span className="text-xs border border-amber-300 text-amber-700 px-2 py-1 rounded bg-amber-50 font-semibold">{order.tamanho}</span>}
-                {order.categoria && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">{order.categoria}</span>}
-              </div>
-
               {/* Cliente */}
-              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
-                <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wide mb-1 flex items-center gap-1"><User size={9} /> Cliente</p>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex flex-col">
+                <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wide mb-1 flex items-center gap-1.5"><User size={10} /> Cliente</p>
                 <p className="text-sm font-bold text-gray-900">{order.cliente}</p>
-                {order.clienteEmail && <p className="text-[11px] text-gray-500 mt-0.5">✉ {order.clienteEmail}</p>}
-                {order.clienteTelefone && <p className="text-[11px] text-gray-500">📞 {order.clienteTelefone}</p>}
+                {order.clienteEmail && <p className="text-[11px] text-amber-700/80 mt-0.5">✉ {order.clienteEmail}</p>}
+                {order.clienteTelefone && <p className="text-[11px] text-amber-700/80">📞 {order.clienteTelefone}</p>}
               </div>
 
               {/* Produto */}
-              <div className="border border-gray-200 rounded-xl p-3 space-y-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">🛋️ Produto</p>
-                <p className="text-sm font-bold text-gray-900">{order.produto}</p>
-                {order.nomeFornecedor && <p className="text-xs text-blue-600">Fornecedor: {order.nomeFornecedor}</p>}
-                {order.codigoFornecedor && <p className="text-[10px] font-mono text-blue-500">COD: {order.codigoFornecedor}</p>}
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {order.cor && <div className="bg-gray-50 rounded-lg p-2"><p className="text-[9px] text-gray-400 font-bold uppercase">Cor</p><p className="text-xs font-semibold">{order.cor}</p></div>}
-                  <div className="bg-gray-50 rounded-lg p-2"><p className="text-[9px] text-gray-400 font-bold uppercase">Qtd</p><p className="text-sm font-black">{order.quantidade || 1}x</p></div>
+              <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="p-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">🛋️ Produto</p>
+                  <div className="flex gap-1.5 flex-wrap justify-end">
+                    {order.categoria && <span className="text-[9px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded shadow-sm">{order.categoria}</span>}
+                    {order.sku && <span className="font-mono text-[9px] bg-gray-900 text-white px-1.5 py-0.5 rounded shadow-sm">SKU: {order.sku}</span>}
+                    {order.tamanho && <span className="text-[9px] border border-amber-300 text-amber-700 px-1.5 py-0.5 rounded bg-amber-50 shadow-sm">{order.tamanho}</span>}
+                  </div>
+                </div>
+                
+                <div className="p-3">
+                  <p className="text-[15px] font-bold text-gray-900 leading-tight mb-3">{order.produto}</p>
+                  
+                  {/* Foto integrada aqui */}
+                  <div className="mb-4">
+                    <PhotoZone value={currentFoto} onChange={handleFotoChange} />
+                  </div>
+
+                  {order.nomeFornecedor && <p className="text-[11px] text-blue-600 font-medium">Fornecedor: {order.nomeFornecedor}</p>}
+                  {order.codigoFornecedor && <p className="text-[10px] font-mono text-blue-500 mb-2">COD: {order.codigoFornecedor}</p>}
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                    {order.cor && (
+                      <div className="bg-gray-50 border border-gray-100 rounded-lg p-2">
+                        <p className="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Cor</p>
+                        <p className="text-xs font-semibold text-gray-700 truncate">{order.cor}</p>
+                      </div>
+                    )}
+                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-2">
+                      <p className="text-[9px] text-gray-400 font-bold uppercase mb-0.5">Qtd</p>
+                      <p className="text-sm font-black text-gray-900">{order.quantidade || 1}x</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
