@@ -331,43 +331,59 @@ export default function Dashboard() {
   const [capacidade, setCapacidade] = useState(0)
 
   useEffect(() => {
-    fetchPedidos().then(pedidos => {
+    // Usa a mesma base de dados da Magazord (status 4+7) para KPIs consistentes
+    fetchOrdersForFreightAnalysis(90).then(orders => {
       const now = new Date()
-      
-      // Filtros para "Este Mês"
-      let fat = 0
-      let qtdProd = 0
-      let totalPedMes = 0
-      let atrasados = 0
-      let andamento = 0
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-      for (const p of pedidos) {
-        // Pedidos em andamento
-        const isFinished = p.etapa === 'Prontos para Envio' || p.etapa === 'Despachados'
-        if (!isFinished) andamento++
-        
-        if (p.status === 'Atrasado') atrasados++
-        
-        const dt = new Date(p.created_at)
-        if (dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()) {
-          fat += (p.valor || 0)
-          totalPedMes++
-          if (isFinished) {
-            qtdProd += ((p as any).quantidade || 1)
-          }
-        }
-      }
+      // Pedidos deste mês (status 4 = Aprovado, 7 = Faturado/Transporte)
+      const pedidosMes = orders.filter(p => {
+        const d = new Date(p.data || new Date())
+        return d >= startOfMonth && d <= endOfMonth
+      })
+
+      const fat = pedidosMes.reduce((acc, p) => acc + (p.valor || 0), 0)
+      const totalPedMes = pedidosMes.length
+      const ticket = totalPedMes > 0 ? fat / totalPedMes : 0
+
+      // Pedidos em andamento = status 4+5 (aprovados ainda não expedidos)
+      const andamento = orders.filter(p => [4, 5].includes(p.situacao ?? 0)).length
+
+      // Estimar "prontos" = status 7 (faturados = aprovados para envio)
+      const faturados = orders.filter(p => p.situacao === 7).length
 
       setFaturamentoMensal(fat)
-      setPedidosAtrasados(atrasados)
-      setQuadrosProduzidos(qtdProd)
-      setTicketMedio(totalPedMes > 0 ? fat / totalPedMes : 0)
-      
-      setPedidosAndamento(andamento)
-      // Assume a max capacity of 50 orders in pipeline for 100% visualization
-      setCapacidade(Math.min(Math.round((andamento / 50) * 100), 100))
+      setTicketMedio(ticket)
+      setQuadrosProduzidos(faturados)
+      setPedidosAtrasados(0) // não temos info de atraso via Magazord
+      setPedidosAndamento(andamento + faturados)
+      // Capacidade baseada em pedidos ativos vs. histórico 90 dias
+      const avgMensalEstimado = Math.max(pedidosMes.length * 1.1, 100)
+      setCapacidade(Math.min(Math.round(((andamento + faturados) / avgMensalEstimado) * 100), 100))
+    }).catch(() => {
+      // Fallback: usa Supabase se Magazord falhar
+      fetchPedidos().then(pedidos => {
+        const now = new Date()
+        let fat = 0, qtdProd = 0, totalPedMes = 0, atrasados = 0, andamento = 0
+        for (const p of pedidos) {
+          const isFinished = p.etapa === 'Prontos para Envio' || p.etapa === 'Despachados'
+          if (!isFinished) andamento++
+          if (p.status === 'Atrasado') atrasados++
+          const dt = new Date(p.created_at)
+          if (dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()) {
+            fat += (p.valor || 0); totalPedMes++
+            if (isFinished) qtdProd += ((p as any).quantidade || 1)
+          }
+        }
+        setFaturamentoMensal(fat); setPedidosAtrasados(atrasados); setQuadrosProduzidos(qtdProd)
+        setTicketMedio(totalPedMes > 0 ? fat / totalPedMes : 0)
+        setPedidosAndamento(andamento)
+        setCapacidade(Math.min(Math.round((andamento / 50) * 100), 100))
+      })
     })
   }, [])
+
 
   const showToast = (msg: string) => {
     setToast(msg)
