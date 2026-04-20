@@ -1258,10 +1258,10 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
 // ─── Delivery Card ─────────────────────────────────────────────────────────────
 
 function DeliveryCard({
-  order, stage, onView, onDispatch, onDragStart, onDragEnd
+  order, stage, onView, onDispatch, onUndo, onDragStart, onDragEnd
 }: {
   order: Order; stage: DeliveryStage
-  onView: () => void; onDispatch?: () => void
+  onView: () => void; onDispatch?: () => void; onUndo?: () => void
   onDragStart: () => void; onDragEnd: () => void
 }) {
   const days = daysUntil(order.prazoEntrega)
@@ -1318,9 +1318,13 @@ function DeliveryCard({
           </button>
         )}
         {stage === 'Despachados' && (
-          <div className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg bg-emerald-50 text-emerald-700">
-            <Check size={12} /> Entregue
-          </div>
+          <button
+            onClick={onUndo}
+            title="Desfazer despacho"
+            className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+          >
+            <ArrowRight size={11} className="rotate-180" /> Desfazer
+          </button>
         )}
         <button onClick={onView} className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-navy-900 transition-colors" title="Ver detalhes">
           <Eye size={13} />
@@ -1611,6 +1615,18 @@ export default function Production() {
     const dbId = getDbId(order.id)
     if (dbId) despacharPedido(dbId, transportadora, rastreio)
     showToast(`Pedido #${order.id} despachado com sucesso!`)
+  }
+
+  const undoDispatch = (order: Order) => {
+    setBoard(prev => ({
+      ...prev,
+      'Despachados': prev['Despachados'].filter(o => o.id !== order.id),
+      'Prontos para Envio': [{ ...order, dataDespacho: undefined, status: 'OK' }, ...prev['Prontos para Envio']],
+    }))
+    // Supabase sync: reverter etapa
+    const dbId = getDbId(order.id)
+    if (dbId) movePedidoEtapa(dbId, 'Prontos para Envio')
+    showToast(`Pedido #${order.id} revertido para Prontos para Envio`)
   }
 
   const addOrder = async (order: Order) => {
@@ -1913,6 +1929,7 @@ export default function Production() {
                     onDragEnd={() => setDragging(null)}
                     onView={() => setDetail({ order, stage })}
                     onDispatch={stage === 'Prontos para Envio' ? () => setDispatchModal(order) : undefined}
+                    onUndo={stage === 'Despachados' ? () => undoDispatch(order) : undefined}
                   />
                 ))}
                 {board[stage].length === 0 && (
