@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Clock, CheckCircle, Upload, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
-  RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database
+  RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database, ChevronDown
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder } from '../magazord'
@@ -1356,6 +1356,61 @@ function DeliveryCard({
       </div>
     </motion.div>
   )
+function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDetail, setDispatchModal, undoDispatch, dispatchAll }: any) {
+  const [isOpen, setIsOpen] = useState(false)
+  
+  return (
+    <div className="mb-4 bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div 
+        className="flex items-center gap-2 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Truck size={14} className="text-gray-400 shrink-0" />
+        <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wide flex-1 truncate">
+          {carrier}
+        </span>
+        <span className="text-[10px] font-bold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
+          {orders.length}
+        </span>
+        {critical > 0 && stage === 'Prontos para Envio' && (
+          <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <AlertTriangle size={8} /> {critical}
+          </span>
+        )}
+        {stage === 'Prontos para Envio' && orders.length > 0 && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); dispatchAll(carrier, orders); }}
+            title="Despachar todos os pedidos desta transportadora"
+            className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+          >
+            <Send size={10} /> Despachar Todos
+          </button>
+        )}
+        <ChevronDown size={14} className={`text-gray-400 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180':''}`} />
+      </div>
+      
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-gray-50/50">
+            <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 mt-1">
+              {orders.map((order: any) => (
+                <DeliveryCard
+                  key={order.id}
+                  order={order}
+                  stage={stage}
+                  onDragStart={() => setDragging({ order, from: stage })}
+                  onDragEnd={() => setDragging(null)}
+                  onView={() => setDetail({ order, stage })}
+                  onDispatch={stage === 'Prontos para Envio' ? () => setDispatchModal(order) : undefined}
+                  onUndo={stage === 'Despachados' ? () => undoDispatch(order) : undefined}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -1727,6 +1782,36 @@ export default function Production() {
     if (dbId) despacharPedido(dbId, transportadora, rastreio)
     showToast(`Pedido #${order.id} despachado com sucesso!`)
   }
+  const dispatchAll = async (carrier: string, carrierOrders: Order[]) => {
+    if (!window.confirm(`Tem certeza que deseja despachar todos os ${carrierOrders.length} pedidos da transportadora "${carrier}"?`)) return
+    
+    const now = new Date().toLocaleDateString('pt-BR') + ' às ' +
+      new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+    const ids = new Set(carrierOrders.map(o => o.id))
+    const dispatched = carrierOrders.map(o => ({
+      ...o,
+      transportadora: carrier,
+      dataDespacho: now,
+      status: 'OK' as const,
+      rastreio: o.rastreio || ''
+    }))
+
+    setBoard(prev => ({
+      ...prev,
+      'Prontos para Envio': prev['Prontos para Envio'].filter(o => !ids.has(o.id)),
+      'Despachados': [...dispatched, ...prev['Despachados']],
+    }))
+
+    carrierOrders.forEach(order => {
+      const rastreio = order.rastreio || ''
+      if (order.magazordId) updateOrderSituacao(order.magazordId, 7, { codigoRastreio: rastreio, transportadora: carrier })
+      const dbId = getDbId(order.id)
+      if (dbId) despacharPedido(dbId, carrier, rastreio)
+    })
+
+    showToast(`${carrierOrders.length} pedidos de ${carrier} despachados!`)
+  }
 
   const undoDispatch = (order: Order) => {
     setBoard(prev => ({
@@ -1781,7 +1866,7 @@ export default function Production() {
   return (
     <div className="p-6 flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Produção PCP</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -1790,7 +1875,7 @@ export default function Production() {
               : `Expedição — ${totalProntos} prontos · ${totalDespach} despachados`}
           </p>
         </div>
-        <div className="flex gap-2 items-center flex-wrap justify-end">
+        <div className="flex gap-2 items-center flex-wrap justify-start md:justify-end">
           {/* Supabase DB status */}
           {isSupabaseConfigured() && (
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
@@ -2096,38 +2181,18 @@ export default function Production() {
                   return sorted.map(([carrier, orders]) => {
                     const critical = orders.filter(o => (daysUntil(o.prazoEntrega) ?? 99) <= 1).length
                     return (
-                      <div key={carrier} className="mb-4">
-                        {/* Carrier header */}
-                        <div className="flex items-center gap-2 mb-2 px-0.5">
-                          <Truck size={12} className="text-gray-400 shrink-0" />
-                          <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wide flex-1 truncate">
-                            {carrier}
-                          </span>
-                          <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
-                            {orders.length}
-                          </span>
-                          {critical > 0 && stage === 'Prontos para Envio' && (
-                            <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                              <AlertTriangle size={8} /> {critical}
-                            </span>
-                          )}
-                        </div>
-                        {/* Cards */}
-                        <div className="space-y-2">
-                          {orders.map(order => (
-                            <DeliveryCard
-                              key={order.id}
-                              order={order}
-                              stage={stage}
-                              onDragStart={() => setDragging({ order, from: stage })}
-                              onDragEnd={() => setDragging(null)}
-                              onView={() => setDetail({ order, stage })}
-                              onDispatch={stage === 'Prontos para Envio' ? () => setDispatchModal(order) : undefined}
-                              onUndo={stage === 'Despachados' ? () => undoDispatch(order) : undefined}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                      <CarrierAccordion
+                        key={carrier}
+                        carrier={carrier}
+                        orders={orders}
+                        stage={stage}
+                        critical={critical}
+                        setDragging={setDragging}
+                        setDetail={setDetail}
+                        setDispatchModal={setDispatchModal}
+                        undoDispatch={undoDispatch}
+                        dispatchAll={dispatchAll}
+                      />
                     )
                   })
                 })()}

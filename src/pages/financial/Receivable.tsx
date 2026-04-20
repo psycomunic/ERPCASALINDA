@@ -57,13 +57,13 @@ export default function Receivable() {
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      <div className="border-b border-gray-100 px-6 py-5 flex items-center justify-between shrink-0 bg-white">
+      <div className="border-b border-gray-100 px-6 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 bg-white">
         <div>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">Contas a Receber</h1>
           <p className="text-xs text-gray-400 mt-1 uppercase font-medium tracking-wider">Gestão de Faturamentos e Receitas</p>
         </div>
-        <div className="flex gap-4 text-right items-center">
-          <div>
+        <div className="flex flex-wrap gap-4 text-right items-center w-full md:w-auto justify-start md:justify-end">
+          <div className="text-left md:text-right">
             <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mb-0.5">Total Recebido</p>
             <p className="text-base font-bold text-emerald-700 leading-none">R$ {totalRecebido.toLocaleString('pt-BR', { minimumFractionDigits:2 })}</p>
           </div>
@@ -89,7 +89,8 @@ export default function Receivable() {
             <button className="btn-secondary text-xs"><Filter size={14} /> Filtros</button>
           </div>
 
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-sm min-w-[800px]">
             <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-widest">
               <tr>
                 <th className="py-3 px-4 w-32">Vencimento</th>
@@ -148,6 +149,7 @@ export default function Receivable() {
               {entries.length === 0 && <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-xs">Nenhum recebimento encontrado.</td></tr>}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

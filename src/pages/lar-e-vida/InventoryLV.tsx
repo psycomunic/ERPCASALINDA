@@ -230,7 +230,8 @@ export default function InventoryLV() {
               </button>
             </div>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[600px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="th">Produto</th>
@@ -260,6 +261,7 @@ export default function InventoryLV() {
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

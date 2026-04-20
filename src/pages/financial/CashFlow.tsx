@@ -45,7 +45,7 @@ export default function CashFlow() {
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      <div className="border-b border-gray-100 px-6 py-5 flex items-center justify-between shrink-0 bg-white">
+      <div className="border-b border-gray-100 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 bg-white">
         <div>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">Fluxo de Caixa</h1>
           <p className="text-xs text-gray-400 mt-1 uppercase font-medium tracking-wider">Projeção e Realizado (Diário)</p>
@@ -58,7 +58,7 @@ export default function CashFlow() {
 
       <div className="flex-1 p-6 overflow-y-auto w-full max-w-5xl mx-auto space-y-6">
         
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="card p-5">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Entradas (Período)</p>
             <p className="text-2xl font-black text-emerald-600">{fmt(totals.e)}</p>
@@ -107,8 +107,8 @@ export default function CashFlow() {
           </div>
         </div>
 
-        <div className="card">
-          <table className="w-full text-left text-sm">
+        <div className="card overflow-x-auto w-full">
+          <table className="w-full text-left text-sm min-w-[800px]">
             <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-widest">
               <tr>
                 <th className="py-3 px-4">Data</th>

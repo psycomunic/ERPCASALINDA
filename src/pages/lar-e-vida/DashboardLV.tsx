@@ -77,7 +77,7 @@ export default function DashboardLV() {
   return (
     <div className="p-6 space-y-5">
       {/* Page title */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
@@ -87,7 +87,7 @@ export default function DashboardLV() {
           </div>
           <p className="text-sm text-gray-500">Painel executivo de decoração e utilidades para o lar.</p>
         </div>
-        <div className="flex gap-2 relative">
+        <div className="flex flex-wrap gap-2 relative">
           <div className="relative">
             <button onClick={() => setShowPeriodo(v => !v)} className="btn-secondary">
               <Clock size={14} /> {periodo} <ChevronDown size={12} />
@@ -111,7 +111,7 @@ export default function DashboardLV() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: 'FATURAMENTO MENSAL',  value: fmt(faturamento),        tag: 'Este mês',    tagColor: 'text-amber-700 bg-amber-100',   icon: TrendingUp,    iconBg: '#fef3c7', iconColor: '#d97706',  onClick: () => navigate('/lar-e-vida/financial') },
           { label: 'PEDIDOS NO MÊS',      value: String(totalPedidos),    tag: 'Registrados', tagColor: 'text-stone-700 bg-stone-100',   icon: ShoppingCart,  iconBg: '#f5f5f4', iconColor: '#78716c',  onClick: () => navigate('/lar-e-vida/production') },
@@ -138,9 +138,9 @@ export default function DashboardLV() {
       </div>
 
       {/* Chart + Quick Actions */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Categorias chart */}
-        <div className="card p-5 xl:col-span-2">
+        <div className="card p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-semibold text-gray-800">Pedidos por Categoria</h2>

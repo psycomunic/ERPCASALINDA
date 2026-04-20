@@ -221,7 +221,7 @@ export default function Partners() {
 
   return (
     <div className="p-6 space-y-5" onClick={() => setShowFilter(false)}>
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Parceiros</h1>
           <p className="text-sm text-gray-500 mt-0.5">Gestão de fornecedores, prestadores de serviço e parceiros estratégicos da Casa Linda.</p>
@@ -230,7 +230,7 @@ export default function Partners() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total de Parceiros', value: partners.length,                        onClick: () => setTipoFilter('TODOS') },
           { label: 'Parceiros Ativos',   value: partners.filter(p => p.ativo).length,   onClick: () => setTipoFilter('TODOS') },
@@ -244,8 +244,8 @@ export default function Partners() {
       </div>
 
       {/* Search & filter */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+        <div className="flex-1 flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 w-full">
           <Search size={14} className="text-gray-400" />
           <input
             className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none flex-1"
@@ -255,10 +255,10 @@ export default function Partners() {
           />
           {search && <button onClick={() => setSearch('')}><X size={14} className="text-gray-400 hover:text-gray-700" /></button>}
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <button
             onClick={e => { e.stopPropagation(); setShowFilter(v => !v) }}
-            className="btn-secondary text-xs py-2"
+            className="btn-secondary text-xs py-2 w-full sm:w-auto justify-center"
           >
             <Filter size={12} /> {tipoFilter} <ChevronDown size={11} />
           </button>

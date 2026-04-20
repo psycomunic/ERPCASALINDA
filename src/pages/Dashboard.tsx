@@ -172,7 +172,7 @@ function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress 
   return (
     <div className="card p-5">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
             <Truck size={20} className="text-indigo-600" />
@@ -182,7 +182,7 @@ function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress 
             <p className="text-xs text-gray-400">Custo de frete por transportadora — <span className="font-semibold text-indigo-500">{periodoLabel}</span></p>
           </div>
         </div>
-        <div className="flex items-center gap-3 ml-auto flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto flex-wrap">
           <div className="text-right">
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Gasto c/ Fretes</p>
             <p className="text-lg font-black text-indigo-600">{fmt(totalFreteGeral)}</p>
@@ -275,8 +275,8 @@ function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress 
           <p className="text-xs text-gray-300 text-center max-w-xs">Clique em <strong>"Sincronizar Fretes"</strong> para buscar os dados na Magazord.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="overflow-hidden">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Proporção Custo Bruto (R$)</p>
             <ResponsiveContainer width="100%" height={Math.max(180, stats.slice(0,6).length * 38)}>
               <BarChart data={stats.slice(0, 6)} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
@@ -493,12 +493,12 @@ export default function Dashboard() {
   return (
     <div className="p-6 space-y-5">
       {/* Page title */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard Executivo</h1>
           <p className="text-sm text-gray-500 mt-0.5">Bem-vindo à central de inteligência da Casa Linda.</p>
         </div>
-        <div className="flex gap-2 relative">
+        <div className="flex flex-wrap gap-2 relative">
           <div className="relative">
             <button
               onClick={() => setShowPeriodo(v => !v)}
@@ -534,7 +534,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards (Clean SaaS Design) */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
           { label: 'FATURAMENTO TOTAL',      value: fmt(faturamentoMensal),      icon: TrendingUp,     onClick: () => navigate('/financial') },
           { label: 'TOTAL DE PEDIDOS',       value: String(pedidosAtrasados),    icon: Receipt,        onClick: () => navigate('/production') },
@@ -558,8 +558,8 @@ export default function Dashboard() {
       </div>
 
       {/* Chart + Quick Actions */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 xl:col-span-2 flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">Desempenho de Vendas</h2>

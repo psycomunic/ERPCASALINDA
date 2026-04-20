@@ -197,8 +197,8 @@ export default function Patrimonio() {
               {search ? <><X size={12} /> Limpar</> : <><span>⚙</span> Filtros</>}
             </button>
           </div>
-          <div className="card overflow-hidden">
-            <table className="w-full">
+          <div className="card overflow-x-auto w-full">
+            <table className="w-full min-w-[600px] text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="th">Ativo / Tag</th>

@@ -276,11 +276,11 @@ function Topbar() {
   const markAllRead = () => setNotifs(prev => prev.map(n => ({ ...n, read: true })))
 
   return (
-    <header className="h-12 bg-white border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 relative z-20">
+    <header className="h-12 bg-white border-b border-gray-200 flex items-center px-4 pl-14 lg:pl-4 gap-4 shrink-0 relative z-20">
       {/* Page + Tabs */}
-      <div className="flex items-center gap-0 flex-1 h-full">
-        <span className="text-sm text-gray-400 mr-4 font-medium shrink-0">{section}</span>
-        <div className="flex items-center h-full">
+      <div className="flex items-center gap-0 flex-1 h-full min-w-0">
+        <span className="text-sm text-gray-400 mr-4 font-medium shrink-0 hidden md:block">{section}</span>
+        <div className="flex items-center h-full overflow-x-auto whitespace-nowrap scrollbar-hide w-full">
           {tabs.map(tab => (
             <button
               key={tab}

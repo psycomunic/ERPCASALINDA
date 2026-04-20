@@ -40,12 +40,12 @@ export default function Dre() {
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      <div className="border-b border-gray-100 px-6 py-5 flex items-center justify-between shrink-0 bg-white">
+      <div className="border-b border-gray-100 px-6 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 bg-white">
         <div>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">DRE Gerencial</h1>
           <p className="text-xs text-gray-400 mt-1 uppercase font-medium tracking-wider">Demonstração do Resultado do Exercício</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <button className="btn-secondary"><Filter size={14} /> Período: Outubro 26</button>
           <button className="btn-secondary"><Download size={14} /> Exportar</button>
           <button className="btn-secondary"><Printer size={14} /> Imprimir</button>
@@ -59,7 +59,8 @@ export default function Dre() {
             <span className="font-bold text-gray-700">Competência Analítica — Consolidado</span>
           </div>
 
-          <table className="w-full text-left">
+          <div className="overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[600px]">
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="py-3 px-4 text-xs font-bold text-gray-400 uppercase tracking-widest w-2/3">Estrutura DRE</th>
@@ -113,6 +114,7 @@ export default function Dre() {
 
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>

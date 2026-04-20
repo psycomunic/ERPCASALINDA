@@ -709,7 +709,7 @@ export default function Reports() {
       </div>
 
       {/* Stats quick view */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Lançamentos no período', value: filteredTxs.length, sub: `${filteredTxs.filter(t=>t.tipo==='entrada').length} entradas · ${filteredTxs.filter(t=>t.tipo==='saida').length} saídas`, icon: DollarSign, color: 'text-blue-600 bg-blue-50' },
           { label: 'Pedidos Ativos',         value: ORDERS.length,      sub: `${ORDERS.filter(o=>o.status==='Atrasado').length} atrasados`, icon: Factory, color: 'text-orange-600 bg-orange-50' },

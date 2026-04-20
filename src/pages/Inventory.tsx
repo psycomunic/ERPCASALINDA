@@ -164,7 +164,8 @@ export default function Inventory() {
             </div>
             <button className="btn-ghost text-xs" onClick={handleAtualizar}><RefreshCw size={12} /> Atualizar</button>
           </div>
-          <table className="w-full">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[600px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="th">Material</th>
@@ -194,6 +195,7 @@ export default function Inventory() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Movement Log */}

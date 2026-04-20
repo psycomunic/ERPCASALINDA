@@ -1279,7 +1279,7 @@ export default function ProductionLV() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100 shadow-inner">
+            <div className="flex flex-wrap items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100 shadow-inner w-full md:w-auto justify-center">
               {[
                 { id: 'geral', label: 'Visão Geral', icon: <ClipboardList size={14} /> },
                 { id: 'cross', label: 'Cross-Docking', icon: <Truck size={14} /> },
@@ -1440,8 +1440,8 @@ export default function ProductionLV() {
                 onDrop={e => handleDrop(e, stage)}
               >
                 <div className="px-3 py-2.5 border-b border-gray-200 shrink-0 bg-white/80">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-4 py-3 bg-white">
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                       <span className={`w-2 h-2 rounded-full ${STAGE_DOT[stage]}`} />
                       <span className="text-xs font-semibold text-gray-700">{stage}</span>
                     </div>

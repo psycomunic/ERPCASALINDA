@@ -157,14 +157,14 @@ export default function DashboardFinanceiro() {
     <div className="p-6 space-y-5" onClick={() => setShowPeriodo(false)}>
       
       {/* Filters & Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">Visão Financeira</h1>
           <p className="text-xs text-gray-400 mt-1 uppercase font-medium tracking-wider">Desempenho e Indicadores</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <div className="relative">
-            <button onClick={e => { e.stopPropagation(); setShowPeriodo(v => !v) }} className="btn-secondary text-xs py-1.5">
+            <button onClick={e => { e.stopPropagation(); setShowPeriodo(v => !v) }} className="btn-secondary text-xs py-1.5 w-full sm:w-auto justify-between">
               <Filter size={12} /> {filter} <ChevronDown size={11} />
             </button>
             <AnimatePresence>
@@ -301,9 +301,9 @@ export default function DashboardFinanceiro() {
 
       {/* FREQUÊNCIA DE TRANSPORTADORAS & CUSTO DE FRETE */}
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-5 border-b border-gray-100 pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 border-b border-gray-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
               <Truck size={20} className="text-indigo-600" />
             </div>
             <div>
@@ -311,7 +311,7 @@ export default function DashboardFinanceiro() {
               <p className="text-xs text-gray-400">Proporção do custo de frete sobre os pedidos faturados. Avalie as transportadoras mais caras.</p>
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4 w-full md:w-auto">
             <div className="text-right">
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Gasto c/ Fretes</p>
               <p className="text-lg font-black text-navy-600">{fmt(freightStats.totalFrete)}</p>
