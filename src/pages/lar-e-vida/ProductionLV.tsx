@@ -1401,25 +1401,7 @@ export default function ProductionLV() {
         </div>
       )}
 
-      {/* Empty state (Kanban) */}
-      {!loading && baseView !== 'geral' && totalAtivos === 0 && getActiveCols()['Pronto para Envio'].length === 0 && getActiveCols()['Despachados'].length === 0 && (
-        <div className="flex flex-col items-center justify-center flex-1 text-center py-20">
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)' }}>
-            <Sofa size={36} style={{ color: '#d97706' }} />
-          </div>
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Nenhum pedido aqui</h2>
-          <p className="text-sm text-gray-500 max-w-sm mb-6">
-            Não há pedidos em {baseView === 'quadros' ? 'produção de quadros' : 'cross-docking'} no momento.
-          </p>
-          <button
-            onClick={() => setNewModal(true)}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}
-          >
-            <Plus size={16} /> Novo Pedido
-          </button>
-        </div>
-      )}
+
 
       {/* Kanban */}
       {!loading && baseView !== 'geral' && activeStage === 'kanban' && (totalAtivos > 0 || true) && (
