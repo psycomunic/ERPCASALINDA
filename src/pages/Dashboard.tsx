@@ -327,7 +327,7 @@ function FreightByCarrier() {
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
                         <span className="text-xs font-bold text-gray-700 truncate max-w-[110px]">{s.nome}</span>
-                        <span className="text-[10px] text-gray-400">({s.totalPedidos} vol.)</span>
+                        <span className="text-[10px] text-gray-400">({s.totalPedidos} ped.)</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] font-mono text-gray-500">R$ {s.totalFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
