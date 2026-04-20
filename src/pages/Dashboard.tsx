@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts'
 import { fetchPedidos } from '../services/pedidos'
+import { fetchPendingOrders, magazordToOrder } from '../magazord'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 const cashflow: any[] = []
@@ -68,14 +69,31 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
   const [totalPedidosValor, setTotalPedidosValor] = useState(0)
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) { setLoading(false); return }
+    Promise.all([
+      fetchPedidos().catch(() => []), 
+      fetchPendingOrders().catch(() => [])
+    ]).then(([pedidosSupa, pedidosMag]) => {
+      
+      // Mesclar live data do Magazord para injetar nomes e fretes "ausentes" localmente
+      const combined = [...pedidosSupa]
+      pedidosMag.forEach(mag => {
+         const mapped = magazordToOrder(mag)
+         const existing = combined.find(x => String(x.id) === String(mapped.id))
+         if (existing) {
+             existing.transportadora = existing.transportadora && existing.transportadora !== 'Sem transportadora' 
+                ? existing.transportadora 
+                : mapped.transportadora
+             existing.frete = existing.frete || mapped.frete
+         } else {
+             combined.push(mapped)
+         }
+      })
 
-    fetchPedidos().then(pedidos => {
       const map = new Map<string, { frete: number; valor: number; count: number; comFrete: number }>()
       const today = new Date()
 
-      pedidos.forEach(p => {
-        const d = new Date(p.created_at || new Date())
+      combined.forEach(p => {
+        const d = new Date(p.created_at || p.data || new Date())
         let keep = false
 
         if (periodo === 'Últimos 7 Dias') {
@@ -96,7 +114,9 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
 
         if (!keep) return
 
-        const trans = p.transportadora || 'Sem transportadora'
+        let trans = typeof p.transportadora === 'string' ? p.transportadora : 'Sem transportadora'
+        if (trans.trim() === '') trans = 'Sem transportadora'
+        
         const frete = parseFloat(p.frete as any) || 0
         const valor = parseFloat(p.valor as any) || 0
 

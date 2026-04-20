@@ -398,12 +398,12 @@ export function magazordToOrder(order: MagazordOrder): ERPOrder {
     status: 'Pendente',
     obs: order.observacao || item?.personalizado?.obs,
     endereco,
-    transportadora: e?.transportadora,
+    transportadora: e?.transportadora || order.transportadoraNome || order.rastreio?.transportadoraNome,
     prazoEntrega: safeDateStr(e?.prazo_entrega) || undefined,
     valor: order.valorTotal
       ? parseFloat(String(order.valorTotal))
       : order.valor_total || undefined,
-    frete: e?.frete,
+    frete: e?.frete ?? parseFloat(order.valorFrete || order.valor_frete || order.pedidoValorFrete || "0") || 0,
     fromMagazord: true,
   }
 }

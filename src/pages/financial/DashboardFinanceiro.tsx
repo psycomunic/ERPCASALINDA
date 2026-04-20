@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { getEntries, FinEntry } from '../../services/dbLocal'
 import { fetchPedidos } from '../../services/pedidos'
+import { fetchPendingOrders, magazordToOrder } from '../../magazord'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, Cell, PieChart, Pie } from 'recharts'
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -31,10 +32,26 @@ export default function DashboardFinanceiro() {
   const [loadingPedidos, setLoadingPedidos] = useState(true)
 
   useEffect(() => {
-    fetchPedidos().then(data => {
-      setPedidos(data || [])
+    Promise.all([
+      fetchPedidos().catch(() => []), 
+      fetchPendingOrders().catch(() => [])
+    ]).then(([pedidosSupa, pedidosMag]) => {
+      const combined = [...pedidosSupa]
+      pedidosMag.forEach(mag => {
+         const mapped = magazordToOrder(mag)
+         const existing = combined.find(x => String(x.id) === String(mapped.id))
+         if (existing) {
+             existing.transportadora = existing.transportadora && existing.transportadora !== 'Sem transportadora' 
+                ? existing.transportadora 
+                : mapped.transportadora
+             existing.frete = existing.frete || mapped.frete
+         } else {
+             combined.push(mapped)
+         }
+      })
+      setPedidos(combined)
       setLoadingPedidos(false)
-    })
+    }).catch(() => setLoadingPedidos(false))
   }, [])
 
   // Filtragem Dinâmica por Período
@@ -126,7 +143,9 @@ export default function DashboardFinanceiro() {
 
        if (!keep) return
 
-       const trans = p.transportadora || 'Sem transportadora'
+       let trans = typeof p.transportadora === 'string' ? p.transportadora : 'Sem transportadora'
+       if (trans.trim() === '') trans = 'Sem transportadora'
+
        const frete = parseFloat(p.frete) || 0
        const valor = parseFloat(p.valor) || 0
 
