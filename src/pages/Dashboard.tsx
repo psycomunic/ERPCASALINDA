@@ -12,7 +12,7 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts'
 import { fetchPedidos, updatePedido } from '../services/pedidos'
-import { fetchOrdersForFreightAnalysis, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
+import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
 
 const cashflow: any[] = []
 
@@ -117,11 +117,18 @@ function FreightByCarrier() {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
-  // Fetch all orders once (last 180 days)
+  // Fetch progressivo: mostra dados rápidos primeiro, enriquece em background
   useEffect(() => {
-    fetchOrdersForFreightAnalysis(180)
+    // Fase rápida: dados da lista (sem chamadas individuais) — aparece imediatamente
+    fetchOrdersForKPIs(90)
       .then(orders => { setAllOrders(orders); setLoadingOrders(false) })
       .catch(() => setLoadingOrders(false))
+
+    // Fase enriquecida: busca nomes de transportadora via detalhe (30 pedidos max)
+    // Atualiza os dados em background sem bloquear a UI
+    fetchOrdersForFreightAnalysis(90)
+      .then(orders => { setAllOrders(orders) })
+      .catch(() => { /* mantém os dados rápidos */ })
   }, [])
 
   // Recompute stats whenever period or data changes
@@ -331,8 +338,8 @@ export default function Dashboard() {
   const [capacidade, setCapacidade] = useState(0)
 
   useEffect(() => {
-    // Usa a mesma base de dados da Magazord (status 4+7) para KPIs consistentes
-    fetchOrdersForFreightAnalysis(90).then(orders => {
+    // Usa fetchOrdersForKPIs (rápido, só lista) para não bloquear o carregamento
+    fetchOrdersForKPIs(90).then(orders => {
       const now = new Date()
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)

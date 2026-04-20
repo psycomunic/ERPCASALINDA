@@ -281,15 +281,81 @@ export interface FreightOrderData {
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
 const extractFrete = (o: any) => parseFloat(String(o.valorFreteTransportadora || o.valorFrete || o.pedidoValorFrete || o.entrega?.frete || 0)) || 0
 
+// ─── Cache simples (5 min) para evitar chamadas duplas no mesmo carregamento ──
+const _freightCache = new Map<string, { data: FreightOrderData[]; ts: number }>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+
+function getCached(key: string): FreightOrderData[] | null {
+  const c = _freightCache.get(key)
+  if (!c) return null
+  if (Date.now() - c.ts > CACHE_TTL) { _freightCache.delete(key); return null }
+  return c.data
+}
+function setCache(key: string, data: FreightOrderData[]) {
+  _freightCache.set(key, { data, ts: Date.now() })
+}
+
+/**
+ * Versão RÁPIDA — só usa o endpoint de lista (sem chamadas individuais).
+ * Ideal para KPIs do Dashboard onde frete exato não é necessário.
+ */
+export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]> {
+  const key = `kpis-${dias}`
+  const cached = getCached(key)
+  if (cached) return cached
+
+  if (!isMagazordConfigured()) return []
+
+  try {
+    const d = new Date()
+    d.setDate(d.getDate() - dias)
+    const dataInicial = d.toISOString().split('T')[0]
+    const allowedSituations = new Set([4, 5, 6, 7, 8, 23])
+    const PAGE_SIZE = 100
+    const allItems: any[] = []
+    let page = 1
+
+    while (true) {
+      const json = await mzFetch<MagazordOrdersResponse>(
+        `/site/pedido?dataPedidoInicial=${dataInicial}&limit=${PAGE_SIZE}&page=${page}&order=id&orderDirection=desc`
+      )
+      const items = (json?.data?.items ?? []) as any[]
+      allItems.push(...items)
+      if (items.length < PAGE_SIZE || page >= 20) break
+      page++
+    }
+
+    const filtered = allItems.filter(o => allowedSituations.has(o.pedidoSituacao ?? o.situacao ?? -1))
+    const toProcess = filtered.length > 0 ? filtered : allItems
+
+    const result: FreightOrderData[] = toProcess.map((o: any) => ({
+      codigo: String(o.codigo || o.id),
+      transportadora: extractTransportadora(o),
+      frete: extractFrete(o),
+      valor: parseFloat(String(o.valorTotal || 0)) || 0,
+      data: o.dataHora || o.data_pedido || new Date().toISOString(),
+      situacao: o.pedidoSituacao ?? o.situacao,
+    }))
+
+    setCache(key, result)
+    return result
+  } catch (err) {
+    console.error('[Magazord] fetchOrdersForKPIs falhou:', err)
+    return []
+  }
+}
+
+
 /**
  * Busca TODOS os pedidos dos últimos N dias com paginação completa.
- * Inclui status 4 (Aprovado) e 7 (Transporte/Faturado = em produção),
- * além dos demais status relevantes.
- * Estratégia dupla:
- *  1. Extrai transportadora/frete dos campos raiz da lista (sem chamada extra)
- *  2. Para os que ainda não têm transportadora, busca detalhe individual.
+ * Inclui status 4 (Aprovado) e 7 (Transporte/Faturado = em produção).
+ * Usa cache de 5min e limita a Fase 2 a 30 pedidos para não travar o painel.
  */
 export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightOrderData[]> {
+  const key = `freight-${dias}`
+  const cached = getCached(key)
+  if (cached) return cached
+
   if (!isMagazordConfigured()) {
     return MOCK_MAGAZORD_ORDERS.map(o => ({
       codigo: String((o as any).codigo || o.id),
@@ -345,13 +411,23 @@ export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightO
     }))
 
     const semTrans = phase1.filter(p => p.transportadora === 'Sem transportadora')
-    console.log(`[Freight] Fase 1: ${phase1.length} itens, ${semTrans.length} sem transportadora`)
 
-    if (semTrans.length === 0) return phase1
+    // Se já temos todos com transportadora, cacheia e retorna
+    if (semTrans.length === 0) {
+      setCache(key, phase1)
+      return phase1
+    }
 
-    // ── Fase 2: buscar detalhe para os sem transportadora ─────────────────────
+    // ── Fase 2: limita a 30 pedidos mais recentes sem transportadora ──────────
+    // Limitar evita centenas de chamadas simultâneas que travam o painel
+    const MAX_DETAIL = 30
+    const needsDetail = toProcess
+      .filter((o: any) => extractTransportadora(o) === 'Sem transportadora')
+      .slice(0, MAX_DETAIL)
+
+    console.log(`[Freight] Fase 2: enriquecendo ${needsDetail.length} de ${semTrans.length} pedidos sem transportadora`)
+
     const CONCURRENCY = 8
-    const needsDetail = toProcess.filter((o: any) => extractTransportadora(o) === 'Sem transportadora')
     const detailMap = new Map<string, { transportadora: string; frete: number }>()
 
     for (let i = 0; i < needsDetail.length; i += CONCURRENCY) {
@@ -370,8 +446,8 @@ export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightO
       }))
     }
 
-    // ── Mesclar ───────────────────────────────────────────────────────────────
-    return phase1.map(p => {
+    // ── Mesclar e retornar ────────────────────────────────────────────────────
+    const result = phase1.map(p => {
       const d = detailMap.get(p.codigo)
       if (!d) return p
       return {
@@ -380,6 +456,9 @@ export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightO
         frete: d.frete > 0 ? d.frete : p.frete,
       }
     })
+
+    setCache(key, result)
+    return result
 
   } catch (err) {
     console.error('[Magazord] fetchOrdersForFreightAnalysis falhou:', err)
