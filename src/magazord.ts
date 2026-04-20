@@ -735,8 +735,11 @@ export function magazordDetailedToOrder(data: any): any {
   // para você conseguir ler qual é o nome exato do campo que a Magazord está retornando.
   if (!nfEncontrada && data.arrayPedidoNota && data.arrayPedidoNota.length > 0) {
     nfEncontrada = "KEYS: " + Object.keys(data.arrayPedidoNota[0]).join(',');
-  } else if (!nfEncontrada && data.situacao == 6) {
-    nfEncontrada = "Err: NF não encontrada no JSON";
+  } else if (!nfEncontrada) {
+    const chavesPossiveis = Object.keys(data).filter(k => /nota|nf|fiscal|array/i.test(k));
+    nfEncontrada = chavesPossiveis.length > 0
+      ? `DBG: ` + chavesPossiveis.join(',')
+      : `DBG: Sem arrayPedidoNota`;
   }
 
   return {
