@@ -1211,7 +1211,18 @@ export default function Production() {
     if (dbId) {
       updatePedido(dbId, { etapa: 'Impressão', frete: order.frete })
     } else if (isSupabaseConfigured()) {
-      // First time persisting this Magazord order
+      // Enriquecer com dados detalhados (transportadora + frete real) antes de persistir
+      let enrichedTrans = order.transportadora
+      let enrichedFrete = order.frete
+      try {
+        const detail = await fetchOrderByCodigo(order.id)
+        if (detail) {
+          const rich = magazordDetailedToOrder(detail)
+          if (rich.transportadora) enrichedTrans = rich.transportadora
+          if (rich.frete != null && rich.frete > 0) enrichedFrete = rich.frete
+        }
+      } catch { /* silencia erros de detalhe */ }
+
       const created = await createPedido({
         numero:         order.id,
         magazord_id:    order.magazordId,
@@ -1226,10 +1237,10 @@ export default function Production() {
           ? order.prazoEntrega.split('/').reverse().join('-')
           : undefined,
         valor:          order.valor,
-        frete:          order.frete,
+        frete:          enrichedFrete,
         obs:            order.obs,
         endereco:       order.endereco,
-        transportadora: order.transportadora,
+        transportadora: enrichedTrans,
         from_magazord:  true,
       })
       if (created) dbIdMap.current.set(order.id, created.id)

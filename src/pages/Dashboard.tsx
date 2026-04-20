@@ -11,8 +11,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
 } from 'recharts'
-import { fetchPedidos } from '../services/pedidos'
-import { fetchOrdersForFreightAnalysis } from '../magazord'
+import { fetchPedidos, updatePedido } from '../services/pedidos'
+import { fetchOrdersForFreightAnalysis, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
 
 const cashflow: any[] = []
 
@@ -61,9 +61,50 @@ function ComingSoon({ label }: { label?: string }) {
 
 // ── Freight analytics component ───────────────────────────────────────────────
 
+/**
+ * Re-sincroniza pedidos do Supabase que ainda não têm transportadora/frete.
+ * Busca o detalhe de cada um na Magazord e atualiza o banco.
+ */
+async function syncMissingFreightData(): Promise<{ updated: number; failed: number }> {
+  const pedidos = await fetchPedidos()
+  const missing = pedidos.filter(p => !p.transportadora || !p.frete)
+  console.log(`[SyncFreight] ${missing.length} pedidos sem transportadora/frete`)
+
+  let updated = 0, failed = 0
+  const CONCURRENCY = 5
+
+  for (let i = 0; i < missing.length; i += CONCURRENCY) {
+    const batch = missing.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(async (pedido) => {
+      try {
+        const detail = await fetchOrderByCodigo(pedido.numero)
+        if (!detail) { failed++; return }
+
+        const rich = magazordDetailedToOrder(detail)
+        const toUpdate: any = {}
+        if (rich.transportadora && !pedido.transportadora) toUpdate.transportadora = rich.transportadora
+        if (rich.frete && rich.frete > 0 && !pedido.frete) toUpdate.frete = rich.frete
+
+        if (Object.keys(toUpdate).length > 0) {
+          const ok = await updatePedido(pedido.id, toUpdate)
+          if (ok) { updated++; console.log(`[SyncFreight] OK ${pedido.numero}: trans=${rich.transportadora} frete=${rich.frete}`) }
+          else failed++
+        }
+      } catch (err) {
+        console.warn(`[SyncFreight] Falha ${pedido.numero}:`, err)
+        failed++
+      }
+    }))
+  }
+
+  return { updated, failed }
+}
+
 function FreightByCarrier({ periodo }: { periodo: string }) {
   const [stats, setStats] = useState<CarrierStats[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [totalFreteGeral, setTotalFreteGeral] = useState(0)
   const [totalPedidosValor, setTotalPedidosValor] = useState(0)
 
@@ -144,7 +185,7 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
               <p className="text-xs text-gray-400">Proporção do custo de frete sobre os pedidos faturados. Avalie as transportadoras mais caras.</p>
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3 items-start">
             <div className="text-right">
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Gasto c/ Fretes</p>
               <p className="text-lg font-black text-navy-600">{fmt(totalFreteGeral)}</p>
@@ -157,13 +198,37 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
                 {totalPedidosValor > 0 ? ((totalFreteGeral / totalPedidosValor) * 100).toFixed(1) : 0}%
               </p>
             </div>
+            {/* Botão de re-sincronização */}
+            <button
+              onClick={async () => {
+                setSyncing(true)
+                setSyncMsg(null)
+                const result = await syncMissingFreightData()
+                setSyncing(false)
+                setSyncMsg(`Sincronizado: ${result.updated} atualizados. Recarregue a página.`)
+                setTimeout(() => setSyncMsg(null), 6000)
+              }}
+              disabled={syncing}
+              title="Sincronizar fretes e transportadoras ausentes da Magazord"
+              className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 transition disabled:opacity-50 whitespace-nowrap"
+            >
+              <Truck size={12} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar Fretes'}
+            </button>
           </div>
         </div>
+        {syncMsg && (
+          <div className="text-center text-xs text-indigo-600 font-bold bg-indigo-50 rounded-lg py-2 px-4 mb-4">{syncMsg}</div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-10 text-gray-400 text-sm">Buscando inteligência de fretes...</div>
         ) : stats.length === 0 ? (
-          <div className="flex items-center justify-center py-10 text-gray-400 text-sm">Nenhum custo de frete computado para este período.</div>
+          <div className="flex flex-col items-center justify-center py-10 gap-3">
+            <p className="text-gray-400 text-sm">Nenhum dado de frete encontrado para este período.</p>
+            <p className="text-xs text-gray-300 text-center max-w-xs">Clique em <strong>"Sincronizar Fretes"</strong> acima para buscar as transportadoras e custos diretamente da Magazord e salvar no banco.</p>
+          </div>
+
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
              {/* Chart View */}
