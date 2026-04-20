@@ -100,188 +100,216 @@ async function syncMissingFreightData(): Promise<{ updated: number; failed: numb
   return { updated, failed }
 }
 
-function FreightByCarrier({ periodo }: { periodo: string }) {
+// ── Freight period options ─────────────────────────────────────────────────────
+type FreightPeriodo = 'Este Mês' | '7 Dias' | '15 Dias' | '30 Dias' | '90 Dias' | 'Personalizado'
+const FREIGHT_PERIODOS: FreightPeriodo[] = ['Este Mês', '7 Dias', '15 Dias', '30 Dias', '90 Dias', 'Personalizado']
+
+function FreightByCarrier() {
+  const [fperiodo, setFPeriodo] = useState<FreightPeriodo>('Este Mês')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+
+  const [allOrders, setAllOrders] = useState<any[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(true)
   const [stats, setStats] = useState<CarrierStats[]>([])
-  const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
-  const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [totalFreteGeral, setTotalFreteGeral] = useState(0)
   const [totalPedidosValor, setTotalPedidosValor] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
+  // Fetch all orders once (last 180 days)
   useEffect(() => {
-    // Usa a função dedicada que busca pedidos + enriquece com detalhes reais
-    // (transportadoraNome + valorFreteTransportadora via arrayPedidoRastreio)
-    fetchOrdersForFreightAnalysis(90).then(orders => {
-      const map = new Map<string, { frete: number; valor: number; count: number }>()
-      const today = new Date()
+    fetchOrdersForFreightAnalysis(180)
+      .then(orders => { setAllOrders(orders); setLoadingOrders(false) })
+      .catch(() => setLoadingOrders(false))
+  }, [])
 
-      orders.forEach(p => {
-        const d = new Date(p.data || new Date())
-        let keep = false
+  // Recompute stats whenever period or data changes
+  useEffect(() => {
+    if (loadingOrders) return
+    const today = new Date(); today.setHours(23, 59, 59, 999)
+    const map = new Map<string, { frete: number; valor: number; count: number }>()
 
-        if (periodo === 'Últimos 7 Dias') {
-          keep = (today.getTime() - d.getTime()) <= 7 * 86400000
-        } else if (periodo === 'Últimos 30 Dias') {
-          keep = (today.getTime() - d.getTime()) <= 30 * 86400000
-        } else if (periodo === 'Este Mês') {
-          keep = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
-        } else if (periodo === 'Trimestre') {
-          const currentQuarter = Math.floor(today.getMonth() / 3)
-          const dQuarter = Math.floor(d.getMonth() / 3)
-          keep = currentQuarter === dQuarter && d.getFullYear() === today.getFullYear()
-        } else if (periodo === 'Ano') {
-          keep = d.getFullYear() === today.getFullYear()
-        } else {
-          keep = true
-        }
+    allOrders.forEach(p => {
+      const d = new Date(p.data || new Date())
+      let keep = false
+      if (fperiodo === 'Este Mês') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
+      } else if (fperiodo === '7 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
+      } else if (fperiodo === '15 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 15); keep = d >= s && d <= today
+      } else if (fperiodo === '30 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 30); keep = d >= s && d <= today
+      } else if (fperiodo === '90 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 90); keep = d >= s && d <= today
+      } else if (fperiodo === 'Personalizado' && customStart && customEnd) {
+        keep = d >= new Date(customStart + 'T00:00:00') && d <= new Date(customEnd + 'T23:59:59')
+      }
+      if (!keep) return
+      const trans = p.transportadora?.trim() || 'Sem transportadora'
+      const frete = p.frete || 0
+      const valor = p.valor || 0
+      if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0 })
+      const cur = map.get(trans)!
+      cur.count++; cur.valor += valor; cur.frete += frete
+    })
 
-        if (!keep) return
+    let totalF = 0, totalV = 0
+    const result: CarrierStats[] = []
+    map.forEach((v, nome) => {
+      totalF += v.frete; totalV += v.valor
+      const percFreteMedio = v.valor > 0 ? (v.frete / v.valor) * 100 : 0
+      result.push({ nome, totalFrete: v.frete, totalPedidos: v.count, totalValorPedidos: v.valor, qtdComFrete: v.count, percFreteMedio })
+    })
+    result.sort((a, b) => b.totalFrete - a.totalFrete)
+    setStats(result); setTotalFreteGeral(totalF); setTotalPedidosValor(totalV)
+  }, [allOrders, fperiodo, customStart, customEnd, loadingOrders])
 
-        const trans = p.transportadora?.trim() || 'Sem transportadora'
-        const frete = p.frete || 0
-        const valor = p.valor || 0
-
-        if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0 })
-        const cur = map.get(trans)!
-        cur.count++
-        cur.valor += valor
-        cur.frete += frete
-      })
-
-      let totalF = 0, totalV = 0
-      const result: CarrierStats[] = []
-
-      map.forEach((v, nome) => {
-        totalF += v.frete
-        totalV += v.valor
-        const percFreteMedio = v.valor > 0 ? (v.frete / v.valor) * 100 : 0
-        result.push({
-          nome,
-          totalFrete: v.frete,
-          totalPedidos: v.count,
-          totalValorPedidos: v.valor,
-          qtdComFrete: v.count,
-          percFreteMedio,
-        })
-      })
-
-      result.sort((a, b) => b.totalFrete - a.totalFrete)
-      setStats(result)
-      setTotalFreteGeral(totalF)
-      setTotalPedidosValor(totalV)
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [periodo])
+  const periodoLabel = fperiodo === 'Personalizado' && customStart && customEnd
+    ? `${customStart.split('-').reverse().join('/')} → ${customEnd.split('-').reverse().join('/')}`
+    : fperiodo
 
   return (
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-5 border-b border-gray-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-              <Truck size={20} className="text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="font-bold text-gray-800 text-lg">Inteligência de Fretes ({periodo})</h2>
-              <p className="text-xs text-gray-400">Proporção do custo de frete sobre os pedidos faturados. Avalie as transportadoras mais caras.</p>
-            </div>
+    <div className="card p-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
+            <Truck size={20} className="text-indigo-600" />
           </div>
-          <div className="flex gap-3 items-start">
-            <div className="text-right">
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Gasto c/ Fretes</p>
-              <p className="text-lg font-black text-navy-600">{fmt(totalFreteGeral)}</p>
-            </div>
-            <div className="text-right bg-gray-50 px-4 py-1.5 rounded-xl border border-gray-100 hidden md:block">
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Margem Comprometida</p>
-              <p className={`text-lg font-black ${
-                 (totalFreteGeral / (totalPedidosValor || 1)) * 100 > 15 ? 'text-red-600' : 'text-emerald-600'
-              }`}>
-                {totalPedidosValor > 0 ? ((totalFreteGeral / totalPedidosValor) * 100).toFixed(1) : 0}%
-              </p>
-            </div>
-            {/* Botão de re-sincronização */}
-            <button
-              onClick={async () => {
-                setSyncing(true)
-                setSyncMsg(null)
-                const result = await syncMissingFreightData()
-                setSyncing(false)
-                setSyncMsg(`Sincronizado: ${result.updated} atualizados. Recarregue a página.`)
-                setTimeout(() => setSyncMsg(null), 6000)
-              }}
-              disabled={syncing}
-              title="Sincronizar fretes e transportadoras ausentes da Magazord"
-              className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 transition disabled:opacity-50 whitespace-nowrap"
-            >
-              <Truck size={12} />
-              {syncing ? 'Sincronizando...' : 'Sincronizar Fretes'}
-            </button>
+          <div>
+            <h2 className="font-bold text-gray-800 text-lg">Inteligência de Fretes</h2>
+            <p className="text-xs text-gray-400">Custo de frete por transportadora — <span className="font-semibold text-indigo-500">{periodoLabel}</span></p>
           </div>
         </div>
-        {syncMsg && (
-          <div className="text-center text-xs text-indigo-600 font-bold bg-indigo-50 rounded-lg py-2 px-4 mb-4">{syncMsg}</div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center justify-center py-10 text-gray-400 text-sm">Buscando inteligência de fretes...</div>
-        ) : stats.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-3">
-            <p className="text-gray-400 text-sm">Nenhum dado de frete encontrado para este período.</p>
-            <p className="text-xs text-gray-300 text-center max-w-xs">Clique em <strong>"Sincronizar Fretes"</strong> acima para buscar as transportadoras e custos diretamente da Magazord e salvar no banco.</p>
+        <div className="flex items-center gap-3 ml-auto flex-wrap">
+          <div className="text-right">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Gasto c/ Fretes</p>
+            <p className="text-lg font-black text-indigo-600">{fmt(totalFreteGeral)}</p>
           </div>
-
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-             {/* Chart View */}
-             <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Proporção Custo Bruto (R$)</p>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={stats.slice(0, 6)} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                    <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
-                    <YAxis type="category" dataKey="nome" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
-                    <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString('pt-BR')}`, 'Gasto (R$)']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none' }} cursor={{ fill: '#f8fafc' }} />
-                    <Bar dataKey="totalFrete" radius={[0, 6, 6, 0]}>
-                      {stats.slice(0, 6).map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-             </div>
-
-             {/* Ranking List */}
-             <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Ranking: Taxa de Frete (Risco)</p>
-                <div className="space-y-3">
-                   {stats.slice(0, 7).map((s, i) => {
-                      const risco = s.percFreteMedio
-                      const color = CARRIER_COLORS[i % CARRIER_COLORS.length]
-                      const badgeClass = risco >= 20 ? 'bg-red-50 text-red-600 border border-red-100' : risco >= 10 ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                      
-                      return (
-                         <div key={s.nome} className="group">
-                            <div className="flex items-center justify-between mb-1.5">
-                               <div className="flex items-center gap-2">
-                                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
-                                  <span className="text-xs font-bold text-gray-700">{s.nome}</span>
-                                  <span className="text-[10px] text-gray-400 hidden sm:inline">({s.totalPedidos} volumes)</span>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                  <span className="text-[10px] font-mono text-gray-500">Gasto R$ {s.totalFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg w-[60px] text-center shadow-sm ${badgeClass}`}>
-                                      {risco.toFixed(1)}%
-                                  </span>
-                               </div>
-                            </div>
-                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                               <div className="h-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(100, risco)}%`, backgroundColor: color }} />
-                            </div>
-                         </div>
-                      )
-                   })}
-                </div>
-             </div>
+          <div className="text-right bg-gray-50 px-4 py-1.5 rounded-xl border border-gray-100">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Margem Comprometida</p>
+            <p className={`text-lg font-black ${ (totalFreteGeral / (totalPedidosValor || 1)) * 100 > 15 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {totalPedidosValor > 0 ? ((totalFreteGeral / totalPedidosValor) * 100).toFixed(1) : '0'}%
+            </p>
           </div>
-        )}
+          <button
+            onClick={async () => {
+              setSyncing(true); setSyncMsg(null)
+              const r = await syncMissingFreightData()
+              setSyncing(false)
+              setSyncMsg(`${r.updated} pedidos atualizados. Recarregue a página.`)
+              setTimeout(() => setSyncMsg(null), 6000)
+            }}
+            disabled={syncing}
+            title="Sincronizar fretes e transportadoras ausentes"
+            className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 transition disabled:opacity-50 whitespace-nowrap"
+          >
+            <Truck size={12} />
+            {syncing ? 'Sincronizando...' : 'Sincronizar Fretes'}
+          </button>
+        </div>
       </div>
+
+      {/* ── Filtro de Período ── */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-1">Período:</span>
+        {FREIGHT_PERIODOS.map(p => (
+          <button
+            key={p}
+            onClick={() => setFPeriodo(p)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+              fperiodo === p
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+            }`}
+          >
+            {p === '7 Dias' ? 'Últimos 7 Dias' : p === '15 Dias' ? 'Últimos 15 Dias' : p === '30 Dias' ? 'Últimos 30 Dias' : p === '90 Dias' ? 'Últimos 90 Dias' : p}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom date range */}
+      {fperiodo === 'Personalizado' && (
+        <div className="flex flex-wrap items-center gap-3 mb-5 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+          <span className="text-xs font-bold text-indigo-600">De:</span>
+          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+            className="text-xs border border-indigo-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <span className="text-xs font-bold text-indigo-600">Até:</span>
+          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+            className="text-xs border border-indigo-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          {customStart && customEnd && (
+            <span className="text-[10px] text-indigo-500 font-medium">
+              {Math.round((new Date(customEnd).getTime() - new Date(customStart).getTime()) / 86400000 + 1)} dias selecionados
+            </span>
+          )}
+        </div>
+      )}
+
+      {syncMsg && (
+        <div className="text-center text-xs text-indigo-600 font-bold bg-indigo-50 rounded-lg py-2 px-4 mb-4">{syncMsg}</div>
+      )}
+
+      {loadingOrders ? (
+        <div className="flex items-center justify-center py-12 gap-3 text-gray-400 text-sm">
+          <div className="w-5 h-5 rounded-full border-2 border-indigo-300 border-t-indigo-600 animate-spin" />
+          Carregando dados de fretes...
+        </div>
+      ) : stats.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-2">
+          <Truck size={28} className="text-gray-200" />
+          <p className="text-gray-400 text-sm">Nenhum dado para <strong>{periodoLabel}</strong>.</p>
+          <p className="text-xs text-gray-300 text-center max-w-xs">Clique em <strong>"Sincronizar Fretes"</strong> para buscar os dados na Magazord.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Proporção Custo Bruto (R$)</p>
+            <ResponsiveContainer width="100%" height={Math.max(180, stats.slice(0,6).length * 38)}>
+              <BarChart data={stats.slice(0, 6)} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="nome" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={85} />
+                <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Gasto']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="totalFrete" radius={[0, 6, 6, 0]}>
+                  {stats.slice(0, 6).map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Ranking: Taxa de Frete / Risco</p>
+            <div className="space-y-3">
+              {stats.slice(0, 8).map((s, i) => {
+                const risco = s.percFreteMedio
+                const color = CARRIER_COLORS[i % CARRIER_COLORS.length]
+                const badgeClass = risco >= 20 ? 'bg-red-50 text-red-600 border border-red-100' : risco >= 10 ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                return (
+                  <div key={s.nome}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                        <span className="text-xs font-bold text-gray-700 truncate max-w-[110px]">{s.nome}</span>
+                        <span className="text-[10px] text-gray-400">({s.totalPedidos} vol.)</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-mono text-gray-500">R$ {s.totalFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg w-[58px] text-center ${badgeClass}`}>{risco.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full transition-all duration-700" style={{ width: `${Math.min(100, risco * 3)}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -495,7 +523,7 @@ export default function Dashboard() {
       </div>
 
       {/* Freight analytics by carrier */}
-      <FreightByCarrier periodo={periodo} />
+      <FreightByCarrier />
 
       <AnimatePresence>
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
