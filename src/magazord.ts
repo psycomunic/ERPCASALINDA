@@ -722,6 +722,8 @@ export function magazordDetailedToOrder(data: any): any {
   // 2. Se não achou em arrays, tenta direto na raiz pelas chaves explícitas (não por numero genérico)
   if (!nfEncontrada) {
     nfEncontrada = 
+      rastreio.pedidoNotaFiscal?.[0]?.numero ||
+      rastreio.pedidoNotaFiscal?.[0]?.notaFiscalNumero ||
       data.notaFiscalNumero ||
       data.pedidoNotaFiscalNumero ||
       data.notaFiscal || 
