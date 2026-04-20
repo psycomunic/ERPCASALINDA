@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   TrendingUp, TrendingDown, DollarSign, Filter, Download, Printer, ChevronDown, 
-  PieChart as PieChartIcon, Activity 
+  PieChart as PieChartIcon, Activity, Truck 
 } from 'lucide-react'
 import { getEntries, FinEntry } from '../../services/dbLocal'
+import { fetchPedidos } from '../../services/pedidos'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, Cell, PieChart, Pie } from 'recharts'
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -26,6 +27,15 @@ export default function DashboardFinanceiro() {
   const [showPeriodo, setShowPeriodo] = useState(false)
   
   const entries = useMemo(() => getEntries(), [])
+  const [pedidos, setPedidos] = useState<any[]>([])
+  const [loadingPedidos, setLoadingPedidos] = useState(true)
+
+  useEffect(() => {
+    fetchPedidos().then(data => {
+      setPedidos(data || [])
+      setLoadingPedidos(false)
+    })
+  }, [])
 
   // Filtragem Dinâmica por Período
   const filteredEntries = useMemo(() => {
@@ -93,7 +103,56 @@ export default function DashboardFinanceiro() {
     }))
   }, [filteredEntries])
 
+  // --- ANÁLISE DE FRETE MENSAL ---
+  const freightStats = useMemo(() => {
+    const map = new Map<string, { frete: number; valor: number; count: number; comFrete: number }>()
+
+    pedidos.forEach(p => {
+       // Filter by same period
+       const d = new Date(p.created_at || new Date())
+       const today = new Date()
+       
+       let keep = false
+       if (filter === 'ESTE ANO') keep = d.getFullYear() === today.getFullYear()
+       else if (filter.includes('MÊS PASSADO')) {
+           const pastM = today.getMonth() === 0 ? 11 : today.getMonth() - 1
+           const pastY = today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear()
+           keep = d.getMonth() === pastM && d.getFullYear() === pastY
+       } else if (filter.includes('TUDO')) { keep = true }
+       else {
+           // Fallback default: Este mês
+           keep = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
+       }
+
+       if (!keep) return
+
+       const trans = p.transportadora || 'Sem transportadora'
+       const frete = parseFloat(p.frete) || 0
+       const valor = parseFloat(p.valor) || 0
+
+       if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0, comFrete: 0 })
+       const cur = map.get(trans)!
+       cur.count++
+       cur.valor += valor
+       if (frete > 0) { cur.frete += frete; cur.comFrete++ }
+    })
+
+    let totalFrete = 0, totalValor = 0
+    const statList: any[] = []
+
+    map.forEach((v, nome) => {
+       totalFrete += v.frete
+       totalValor += v.valor
+       const pctMedia = v.valor > 0 ? (v.frete / v.valor) * 100 : 0
+       statList.push({ nome, ...v, pctMedia })
+    })
+
+    statList.sort((a,b) => b.frete - a.frete)
+    return { stats: statList, totalFrete, totalValor }
+  }, [pedidos, filter])
+
   const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  const CARRIER_COLORS = ['#3b82f6', '#7c3aed', '#059669', '#d97706', '#dc2626', '#0891b2', '#9333ea', '#65a30d']
   const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#0ea5e9', '#6366f1', '#6b7280']
 
   return (
@@ -240,6 +299,92 @@ export default function DashboardFinanceiro() {
            </div>
         </div>
 
+      </div>
+
+      {/* FREQUÊNCIA DE TRANSPORTADORAS & CUSTO DE FRETE */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-5 border-b border-gray-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+              <Truck size={20} className="text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-800 text-lg">Inteligência de Fretes no Período</h2>
+              <p className="text-xs text-gray-400">Proporção do custo de frete sobre os pedidos faturados. Avalie as transportadoras mais caras.</p>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <div className="text-right">
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Gasto c/ Fretes</p>
+              <p className="text-lg font-black text-navy-600">{fmt(freightStats.totalFrete)}</p>
+            </div>
+            <div className="text-right bg-gray-50 px-4 py-1.5 rounded-xl border border-gray-100 hidden md:block">
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Margem Comprometida</p>
+              <p className={`text-lg font-black ${
+                 (freightStats.totalFrete / (freightStats.totalValor || 1)) * 100 > 15 ? 'text-red-600' : 'text-emerald-600'
+              }`}>
+                {freightStats.totalValor > 0 ? ((freightStats.totalFrete / freightStats.totalValor) * 100).toFixed(1) : 0}%
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {loadingPedidos ? (
+          <div className="flex items-center justify-center py-10 text-gray-400 text-sm">Buscando inteligência de fretes...</div>
+        ) : freightStats.stats.length === 0 ? (
+          <div className="flex items-center justify-center py-10 text-gray-400 text-sm">Nenhum custo de frete computado para o período selecionado.</div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+             {/* Chart View */}
+             <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Proporção Custo Bruto (R$)</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={freightStats.stats.slice(0, 6)} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                    <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                    <YAxis type="category" dataKey="nome" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
+                    <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString('pt-BR')}`, 'Gasto (R$)']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none' }} cursor={{ fill: '#f8fafc' }} />
+                    <Bar dataKey="frete" radius={[0, 6, 6, 0]}>
+                      {freightStats.stats.slice(0, 6).map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+             </div>
+
+             {/* Ranking List */}
+             <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Ranking: Taxa de Frete (Risco)</p>
+                <div className="space-y-3">
+                   {freightStats.stats.slice(0, 7).map((s, i) => {
+                      const risco = s.pctMedia
+                      const color = CARRIER_COLORS[i % CARRIER_COLORS.length]
+                      const badgeClass = risco >= 20 ? 'bg-red-50 text-red-600 border border-red-100' : risco >= 10 ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                      
+                      return (
+                         <div key={s.nome} className="group">
+                            <div className="flex items-center justify-between mb-1.5">
+                               <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                                  <span className="text-xs font-bold text-gray-700">{s.nome}</span>
+                                  <span className="text-[10px] text-gray-400 hidden sm:inline">({s.count} volumes)</span>
+                               </div>
+                               <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-mono text-gray-500">Gasto R$ {s.frete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg w-[60px] text-center shadow-sm ${badgeClass}`}>
+                                      {risco.toFixed(1)}%
+                                  </span>
+                               </div>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                               <div className="h-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(100, risco)}%`, backgroundColor: color }} />
+                            </div>
+                         </div>
+                      )
+                   })}
+                </div>
+             </div>
+          </div>
+        )}
       </div>
 
     </div>
