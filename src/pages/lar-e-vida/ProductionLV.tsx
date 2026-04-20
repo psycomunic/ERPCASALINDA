@@ -44,18 +44,25 @@ interface Order {
   frete?: number
 }
 
-type KanbanStage = 'Novos Pedidos' | 'Pedido ao Fornecedor' | 'Aguardando Chegada' | 'Recebido'
+type KanbanStage = 'Novos Pedidos' | 'Pedido ao Fornecedor' | 'Aguardando Chegada' | 'Recebido' | 'Impressão' | 'Corte Moldura' | 'Entelamento + Vidro' | 'Acabamento' | 'Embalagem'
 type DeliveryStage = 'Pronto para Envio' | 'Despachados'
 type Stage = KanbanStage | DeliveryStage
 
-const KANBAN_STAGES: KanbanStage[] = ['Novos Pedidos', 'Pedido ao Fornecedor', 'Aguardando Chegada', 'Recebido']
-const ALL_STAGES: Stage[] = [...KANBAN_STAGES, 'Pronto para Envio', 'Despachados']
+const CROSS_STAGES: KanbanStage[] = ['Novos Pedidos', 'Pedido ao Fornecedor', 'Aguardando Chegada', 'Recebido']
+const QUADROS_STAGES: KanbanStage[] = ['Novos Pedidos', 'Impressão', 'Corte Moldura', 'Entelamento + Vidro', 'Acabamento', 'Embalagem']
+
+const ALL_STAGES: Stage[] = [...Array.from(new Set([...CROSS_STAGES, ...QUADROS_STAGES])), 'Pronto para Envio', 'Despachados']
 
 const STAGE_DOT: Record<Stage, string> = {
   'Novos Pedidos':        'bg-amber-500',
   'Pedido ao Fornecedor': 'bg-blue-500',
   'Aguardando Chegada':   'bg-orange-500',
   'Recebido':             'bg-green-500',
+  'Impressão':           'bg-blue-500',
+  'Corte Moldura':       'bg-orange-500',
+  'Entelamento + Vidro': 'bg-green-500',
+  'Acabamento':          'bg-purple-500',
+  'Embalagem':           'bg-gray-400',
   'Pronto para Envio':    'bg-yellow-500',
   'Despachados':          'bg-emerald-500',
 }
@@ -65,11 +72,16 @@ const STAGE_BG: Partial<Record<Stage, string>> = {
   'Pedido ao Fornecedor': 'bg-blue-50 border border-blue-200',
   'Aguardando Chegada':   'bg-orange-50 border border-orange-200',
   'Recebido':             'bg-green-50 border border-green-200',
+  'Impressão':           'bg-blue-50 border border-blue-200',
+  'Corte Moldura':       'bg-orange-50 border border-orange-200',
+  'Entelamento + Vidro': 'bg-green-50 border border-green-200',
+  'Acabamento':          'bg-purple-50 border border-purple-200',
+  'Embalagem':           'bg-gray-50 border border-gray-200',
   'Pronto para Envio':    'bg-yellow-50 border border-yellow-200',
   'Despachados':          'bg-emerald-50 border border-emerald-200',
 }
 
-const CATEGORIAS_LV = ['Tapete', 'Quadro', 'Cama / Mesa / Banho', 'Almofada', 'Vaso', 'Cortina', 'Espelho', 'Outro']
+const CATEGORIAS_LV = ['Quadro', 'Espelho', 'Tapete', 'Jogo de Cama', 'Jogo de Colcha', 'Itens de Decoração', 'Cortina', 'Travesseiro', 'Edredom', 'Pillowtop', 'Outro']
 const CANAIS = ['Site', 'Mercado Livre', 'Shopee', 'Amazon', 'Magazine Luiza', 'Balcão']
 const CANAL_ICON: Record<string, string> = {
   'Site': '🌐', 'Mercado Livre': '🛒', 'Shopee': '🟠', 'Amazon': '📦',
@@ -78,7 +90,8 @@ const CANAL_ICON: Record<string, string> = {
 
 const INITIAL: Record<Stage, Order[]> = {
   'Novos Pedidos': [], 'Pedido ao Fornecedor': [], 'Aguardando Chegada': [],
-  'Recebido': [], 'Pronto para Envio': [], 'Despachados': [],
+  'Recebido': [], 'Impressão': [], 'Corte Moldura': [], 'Entelamento + Vidro': [],
+  'Acabamento': [], 'Embalagem': [], 'Pronto para Envio': [], 'Despachados': [],
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -800,15 +813,16 @@ function DetailModal({ order, stage, onClose, onConclude, onUpdate }: {
                 </div>
               )}
 
-              {/* Fluxo Cross-Docking */}
+              {/* Fluxo */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📦 Fluxo Cross-Docking</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📦 {order.categoria === 'Quadro' ? 'Fluxo de Produção' : 'Fluxo Cross-Docking'}</p>
                 <div className="space-y-1.5 relative">
                   <div className="absolute left-[17px] top-4 bottom-4 w-px bg-gray-200" />
-                  {ALL_STAGES.map((s, i) => {
-                    const currentIdx = ALL_STAGES.indexOf(stage)
+                  {(order.categoria === 'Quadro' ? [...QUADROS_STAGES, 'Pronto para Envio', 'Despachados'] : [...CROSS_STAGES, 'Pronto para Envio', 'Despachados']).map((s, i) => {
+                    const stageArray = order.categoria === 'Quadro' ? [...QUADROS_STAGES, 'Pronto para Envio', 'Despachados'] : [...CROSS_STAGES, 'Pronto para Envio', 'Despachados']
+                    const currentIdx = stageArray.indexOf(stage)
                     const isDone = i < currentIdx; const isCurrent = i === currentIdx
-                    const icons: Record<string, string> = { 'Novos Pedidos':'🛒','Pedido ao Fornecedor':'📋','Aguardando Chegada':'🕐','Recebido':'📥','Pronto para Envio':'📦','Despachados':'🚚' }
+                    const icons: Record<string, string> = { 'Novos Pedidos':'🛒','Pedido ao Fornecedor':'📋','Aguardando Chegada':'🕐','Recebido':'📥', 'Impressão':'🖨️','Corte Moldura':'🪚','Entelamento + Vidro':'🖼️','Acabamento':'✨','Embalagem':'📦', 'Pronto para Envio':'📦','Despachados':'🚚' }
                     return (
                       <div key={s} className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all relative ${
                         isDone ? 'bg-emerald-50 border border-emerald-100 text-emerald-700' :
@@ -1050,8 +1064,10 @@ function DispatchModal({ order, onClose, onDispatch }: {
 export default function ProductionLV() {
   const [columns, setColumns] = useState<Record<Stage, Order[]>>({
     'Novos Pedidos': [], 'Pedido ao Fornecedor': [], 'Aguardando Chegada': [],
-    'Recebido': [], 'Pronto para Envio': [], 'Despachados': [],
+    'Recebido': [], 'Impressão': [], 'Corte Moldura': [], 'Entelamento + Vidro': [],
+    'Acabamento': [], 'Embalagem': [], 'Pronto para Envio': [], 'Despachados': [],
   })
+  const [baseView, setBaseView] = useState<'geral' | 'cross' | 'quadros'>('geral')
   const [activeStage, setActiveStage] = useState<'kanban' | 'delivery' | 'dispatched'>('kanban')
   const [viewModal, setViewModal] = useState<{ order: Order; stage: Stage } | null>(null)
   const [dispatchModal, setDispatchModal] = useState<Order | null>(null)
@@ -1067,11 +1083,11 @@ export default function ProductionLV() {
   const loadOrders = useCallback(async () => {
     setLoading(true)
     const pedidos = await fetchPedidosLV()
-    // Bug fix: NUNCA use { ...INITIAL } pois é cópia rasa — os arrays ficam como referência
-    // compartilhada e são mutados a cada loadOrders, causando duplicação
+    // Bug fix: NUNCA use { ...INITIAL } pois é cópia rasa
     const newCols: Record<Stage, Order[]> = {
       'Novos Pedidos': [], 'Pedido ao Fornecedor': [], 'Aguardando Chegada': [],
-      'Recebido': [], 'Pronto para Envio': [], 'Despachados': [],
+      'Recebido': [], 'Impressão': [], 'Corte Moldura': [], 'Entelamento + Vidro': [],
+      'Acabamento': [], 'Embalagem': [], 'Pronto para Envio': [], 'Despachados': [],
     }
 
     pedidos.forEach(p => {
@@ -1178,10 +1194,14 @@ export default function ProductionLV() {
   }
 
   const handleAdvance = async (order: Order, stage: Stage) => {
-    const idx = ALL_STAGES.indexOf(stage)
-    if (idx < 0 || idx >= ALL_STAGES.length - 1) return
+    const activeStagesArray = isQuadros(order)
+      ? [...QUADROS_STAGES, 'Pronto para Envio', 'Despachados']
+      : [...CROSS_STAGES, 'Pronto para Envio', 'Despachados']
+      
+    const idx = activeStagesArray.indexOf(stage)
+    if (idx < 0 || idx >= activeStagesArray.length - 1) return
 
-    const next: Stage = ALL_STAGES[idx + 1]
+    const next: Stage = activeStagesArray[idx + 1] as Stage
     if (next === 'Despachados') { setDispatchModal(order); return }
 
     await movePedidoLVEtapa(order.id, next)
@@ -1207,7 +1227,7 @@ export default function ProductionLV() {
     if (!orderId || fromStage === targetStage) { setDragOver(null); return }
 
     if (targetStage === 'Despachados') {
-      const order = columns[fromStage]?.find(o => o.id === orderId)
+      const order = getActiveCols()[fromStage]?.find(o => o.id === orderId)
       if (order) setDispatchModal(order)
       setDragOver(null)
       return
@@ -1219,108 +1239,193 @@ export default function ProductionLV() {
     showToast(`Pedido movido para "${targetStage}"!`)
   }
 
-  const totalAtivos = KANBAN_STAGES.reduce((sum, s) => sum + columns[s].length, 0)
-  const totalAtrasados = Object.values(columns).flat().filter(o => o.status === 'Atrasado').length
+  const isQuadros = (o: Order) => o.categoria === 'Quadro'
+
+  const columnsCross: Record<Stage, Order[]> = {} as any
+  const columnsQuadros: Record<Stage, Order[]> = {} as any
+  const allOrdersList: Order[] = []
+
+  ALL_STAGES.forEach(s => {
+    columnsCross[s] = []
+    columnsQuadros[s] = []
+    columns[s].forEach(o => {
+      allOrdersList.push(o)
+      if (isQuadros(o)) columnsQuadros[s].push(o)
+      else columnsCross[s].push(o)
+    })
+  })
+
+  allOrdersList.sort((a, b) => new Date(b.data + ' ' + b.hora).getTime() - new Date(a.data + ' ' + a.hora).getTime())
+
+  const getActiveCols = () => baseView === 'quadros' ? columnsQuadros : columnsCross
+  const getActiveStages = () => baseView === 'quadros' ? QUADROS_STAGES : CROSS_STAGES
+
+  const totalAtivos = getActiveStages().reduce((sum, s) => sum + getActiveCols()[s].length, 0)
+  const totalAtrasados = Object.values(getActiveCols()).flat().filter(o => o.status === 'Atrasado').length
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="shrink-0 px-5 pt-5 pb-3 bg-white border-b border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
-              <Sofa size={18} className="text-white" />
+      <div className="shrink-0 bg-white border-b border-gray-200">
+        <div className="px-5 pt-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
+                  <Sofa size={18} className="text-white" />
+                </div>
+                <h1 className="text-lg font-bold text-gray-900">Produção PCP</h1>
+              </div>
+              <div className="flex gap-6 border-l border-gray-200 pl-6 h-6 items-center">
+                <button onClick={() => setBaseView('geral')} className={`text-sm font-semibold transition-colors ${baseView === 'geral' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}>Visão Geral</button>
+                <button onClick={() => setBaseView('cross')} className={`text-sm font-semibold transition-colors ${baseView === 'cross' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}>Cross-Docking (Revenda)</button>
+                <button onClick={() => setBaseView('quadros')} className={`text-sm font-semibold transition-colors ${baseView === 'quadros' ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}>Produção Quadros</button>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">Cross-Docking PCP — Lar e Vida</h1>
-              <p className="text-xs text-gray-400">Acompanhe o fluxo do pedido ao fornecedor até a entrega ao cliente</p>
+            <div className="flex items-center gap-2">
+              {loading && <RefreshCw size={15} className="text-amber-500 animate-spin" />}
+              <button onClick={() => loadOrders()} className="btn-secondary text-xs" title="Atualizar">
+                <RefreshCw size={13} />
+              </button>
+              <button
+                onClick={() => setNewModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-colors"
+                style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}
+              >
+                <Plus size={14} /> Novo Pedido
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {loading && <RefreshCw size={15} className="text-amber-500 animate-spin" />}
-            <button onClick={() => loadOrders()} className="btn-secondary text-xs" title="Atualizar">
-              <RefreshCw size={13} />
-            </button>
-            <button
-              onClick={() => setNewModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-colors"
-              style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}
-            >
-              <Plus size={14} /> Novo Pedido
-            </button>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
-          <span className="flex items-center gap-1.5">
-            <ClipboardList size={13} className="text-amber-500" />
-            <strong className="text-gray-800">{totalAtivos}</strong> em andamento
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Package size={13} className="text-orange-500" />
-            <strong className="text-gray-800">{columns['Aguardando Chegada'].length}</strong> aguardando fornecedor
-          </span>
-          <span className="flex items-center gap-1.5">
-            <CheckCircle size={13} className="text-emerald-500" />
-            <strong className="text-gray-800">{columns['Pronto para Envio'].length}</strong> prontos p/ envio
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Truck size={13} className="text-blue-500" />
-            <strong className="text-gray-800">{columns['Despachados'].length}</strong> despachados
-          </span>
-          {totalAtrasados > 0 && (
-            <span className="flex items-center gap-1.5 text-red-600">
-              <AlertTriangle size={13} />
-              <strong>{totalAtrasados}</strong> atrasado{totalAtrasados > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
+        {/* Kanban specific sub-header (only when not in geral view) */}
+        {baseView !== 'geral' && (
+          <div className="px-5 pb-3 flex flex-col gap-3">
+            {/* Stats */}
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1.5">
+                <ClipboardList size={13} className="text-amber-500" />
+                <strong className="text-gray-800">{totalAtivos}</strong> em andamento
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle size={13} className="text-emerald-500" />
+                <strong className="text-gray-800">{getActiveCols()['Pronto para Envio'].length}</strong> prontos p/ envio
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Truck size={13} className="text-blue-500" />
+                <strong className="text-gray-800">{getActiveCols()['Despachados'].length}</strong> despachados
+              </span>
+              {totalAtrasados > 0 && (
+                <span className="flex items-center gap-1.5 text-red-600">
+                  <AlertTriangle size={13} />
+                  <strong>{totalAtrasados}</strong> atrasado{totalAtrasados > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
 
-        {/* Stage Toggle */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-          {[
-            { key: 'kanban',    label: 'Kanban' },
-            { key: 'delivery',  label: 'Envio' },
-            { key: 'dispatched',label: 'Despachados' },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveStage(tab.key as any)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeStage === tab.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+            {/* Stage Toggle */}
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+              {[
+                { key: 'kanban',    label: 'Kanban' },
+                { key: 'delivery',  label: 'Envio' },
+                { key: 'dispatched',label: 'Despachados' },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveStage(tab.key as any)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeStage === tab.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Empty state */}
-      {!loading && totalAtivos === 0 && columns['Pronto para Envio'].length === 0 && columns['Despachados'].length === 0 && (
+      {/* Visão Geral (Table) */}
+      {!loading && baseView === 'geral' && (
+        <div className="flex-1 overflow-y-auto p-5">
+           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+             <table className="w-full text-left">
+               <thead className="bg-gray-50 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                 <tr>
+                   <th className="px-5 py-4 whitespace-nowrap">Pedido</th>
+                   <th className="px-5 py-4 whitespace-nowrap">Cliente</th>
+                   <th className="px-5 py-4 whitespace-nowrap">Produto</th>
+                   <th className="px-5 py-4 whitespace-nowrap">Categoria</th>
+                   <th className="px-5 py-4 whitespace-nowrap">Prazo</th>
+                   <th className="px-5 py-4 whitespace-nowrap text-center">Status / Etapa</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-100">
+                 {allOrdersList.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-10 text-center text-gray-400 text-sm">
+                        Nenhum pedido encontrado.
+                      </td>
+                    </tr>
+                 ) : allOrdersList.map(o => {
+                    const isQ = isQuadros(o)
+                    const etapaStr = o.status === 'OK' ? 'Concluído' : 'Em andamento'
+                    return (
+                      <tr key={o.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => setViewModal({ order: o, stage: o.status === 'OK' ? 'Despachados' : 'Novos Pedidos' })}>
+                        <td className="px-5 py-4">
+                          <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded">#{o.id.slice(-6)}</span>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <p className="text-sm font-semibold text-gray-900">{o.cliente}</p>
+                          <p className="text-[10px] text-gray-500">{o.data}</p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-sm font-semibold text-gray-800 mb-0.5">{o.produto}</p>
+                          <p className="text-xs text-gray-500 truncate max-w-xs">{o.sku || 'Sem SKU'}</p>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className={`text-[10px] uppercase font-bold tracking-wide px-2 py-1 rounded-md ${isQ ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                            {o.categoria || 'Não def.'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <PrazoTag prazo={o.prazoEntrega} />
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                           <span className={`inline-block w-2.5 h-2.5 rounded-full ${o.status === 'Atrasado' ? 'bg-red-500' : o.status === 'OK' ? 'bg-emerald-500' : 'bg-yellow-500'}`} title={o.status}></span>
+                        </td>
+                      </tr>
+                    )
+                 })}
+               </tbody>
+             </table>
+           </div>
+        </div>
+      )}
+
+      {/* Empty state (Kanban) */}
+      {!loading && baseView !== 'geral' && totalAtivos === 0 && getActiveCols()['Pronto para Envio'].length === 0 && getActiveCols()['Despachados'].length === 0 && (
         <div className="flex flex-col items-center justify-center flex-1 text-center py-20">
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)' }}>
             <Sofa size={36} style={{ color: '#d97706' }} />
           </div>
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Nenhum pedido ainda</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">Nenhum pedido aqui</h2>
           <p className="text-sm text-gray-500 max-w-sm mb-6">
-            Adicione o primeiro pedido da Lar e Vida. O sistema vai acompanhar todo o
-            fluxo de <strong>cross-docking</strong>: do pedido ao fornecedor até a entrega ao cliente.
+            Não há pedidos em {baseView === 'quadros' ? 'produção de quadros' : 'cross-docking'} no momento.
           </p>
           <button
             onClick={() => setNewModal(true)}
             className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold"
             style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}
           >
-            <Plus size={16} /> Adicionar Primeiro Pedido
+            <Plus size={16} /> Novo Pedido
           </button>
         </div>
       )}
 
       {/* Kanban */}
-      {!loading && activeStage === 'kanban' && (totalAtivos > 0 || true) && (
+      {!loading && baseView !== 'geral' && activeStage === 'kanban' && (totalAtivos > 0 || true) && (
         <div className="flex-1 overflow-x-auto">
           <div className="flex gap-4 p-5 h-full min-w-max">
-            {KANBAN_STAGES.map(stage => (
+            {getActiveStages().map(stage => (
               <div
                 key={stage}
                 className={`kanban-col flex flex-col w-64 shrink-0 rounded-2xl overflow-hidden h-full transition-colors ${
@@ -1337,19 +1442,19 @@ export default function ProductionLV() {
                       <span className="text-xs font-semibold text-gray-700">{stage}</span>
                     </div>
                     <span className="text-xs font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                      {columns[stage].length}
+                      {getActiveCols()[stage].length}
                     </span>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                  {columns[stage].length === 0 ? (
+                  {getActiveCols()[stage].length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center text-gray-400">
                       <Package size={24} className="mb-2 opacity-30" />
                       <p className="text-xs">Nenhum pedido aqui</p>
                       <p className="text-[10px]">Arraste ou adicione um novo</p>
                     </div>
                   ) : (
-                    columns[stage].map(order => (
+                    getActiveCols()[stage].map(order => (
                       <OrderCard
                         key={order.id}
                         order={order}
@@ -1372,7 +1477,7 @@ export default function ProductionLV() {
       )}
 
       {/* Prontos para Envio */}
-      {!loading && activeStage === 'delivery' && (
+      {!loading && baseView !== 'geral' && activeStage === 'delivery' && (
         <div className="flex-1 overflow-y-auto p-5">
           <div
             className={`rounded-2xl overflow-hidden min-h-[200px] transition-colors ${
@@ -1387,16 +1492,16 @@ export default function ProductionLV() {
                 <span className="w-2 h-2 rounded-full bg-yellow-500" />
                 <span className="text-sm font-semibold text-gray-700">Pronto para Envio</span>
               </div>
-              <span className="text-sm font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{columns['Pronto para Envio'].length}</span>
+              <span className="text-sm font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{getActiveCols()['Pronto para Envio'].length}</span>
             </div>
             <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {columns['Pronto para Envio'].length === 0 ? (
+              {getActiveCols()['Pronto para Envio'].length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400">
                   <Truck size={32} className="mb-2 opacity-30" />
                   <p className="text-sm">Nenhum pedido pronto para envio</p>
                 </div>
               ) : (
-                columns['Pronto para Envio'].map(order => (
+                getActiveCols()['Pronto para Envio'].map(order => (
                   <OrderCard key={order.id} order={order} onView={() => setViewModal({ order, stage: 'Pronto para Envio' })}
                     dragging={false} onDragStart={() => {}} onDragEnd={() => {}} />
                 ))
@@ -1407,7 +1512,7 @@ export default function ProductionLV() {
       )}
 
       {/* Despachados */}
-      {!loading && activeStage === 'dispatched' && (
+      {!loading && baseView !== 'geral' && activeStage === 'dispatched' && (
         <div className="flex-1 overflow-y-auto p-5">
           <div className="rounded-2xl overflow-hidden bg-emerald-50 border border-emerald-200 min-h-[200px]">
             <div className="px-4 py-3 border-b border-emerald-200 bg-white/80 flex items-center justify-between">
@@ -1415,16 +1520,16 @@ export default function ProductionLV() {
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span className="text-sm font-semibold text-gray-700">Despachados</span>
               </div>
-              <span className="text-sm font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{columns['Despachados'].length}</span>
+              <span className="text-sm font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">{getActiveCols()['Despachados'].length}</span>
             </div>
             <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {columns['Despachados'].length === 0 ? (
+              {getActiveCols()['Despachados'].length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400">
                   <CheckCircle size={32} className="mb-2 opacity-30" />
                   <p className="text-sm">Nenhum pedido despachado ainda</p>
                 </div>
               ) : (
-                columns['Despachados'].map(order => (
+                getActiveCols()['Despachados'].map(order => (
                   <OrderCard key={order.id} order={order} onView={() => setViewModal({ order, stage: 'Despachados' })}
                     dragging={false} onDragStart={() => {}} onDragEnd={() => {}} />
                 ))
