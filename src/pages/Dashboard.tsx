@@ -105,47 +105,16 @@ async function syncMissingFreightData(): Promise<{ updated: number; failed: numb
 type FreightPeriodo = 'Este Mês' | '7 Dias' | '15 Dias' | '30 Dias' | '90 Dias' | 'Personalizado'
 const FREIGHT_PERIODOS: FreightPeriodo[] = ['Este Mês', '7 Dias', '15 Dias', '30 Dias', '90 Dias', 'Personalizado']
 
-function FreightByCarrier() {
+function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress }: { allOrders: any[], loadingOrders: boolean, enriching: boolean, enrichProgress: number }) {
   const [fperiodo, setFPeriodo] = useState<FreightPeriodo>('Este Mês')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
 
-  const [allOrders, setAllOrders] = useState<any[]>([])
-  const [loadingOrders, setLoadingOrders] = useState(true)
   const [stats, setStats] = useState<CarrierStats[]>([])
   const [totalFreteGeral, setTotalFreteGeral] = useState(0)
   const [totalPedidosValor, setTotalPedidosValor] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
-
-  const [enriching, setEnriching] = useState(false)
-  const [enrichProgress, setEnrichProgress] = useState(0)
-
-  // Fetch progressivo: mostra todos os 287 pedidos imediatamente, depois enriquece
-  useEffect(() => {
-    // Fase 1 rápida: todos os pedidos via paginação (sem chamadas individuais)
-    fetchOrdersForKPIs(90)
-      .then(orders => {
-        setAllOrders(orders)
-        setLoadingOrders(false)
-
-        // Fase 2 progressiva: enriquece TODOS com transportadora real, atualizando gráfico a cada lote
-        const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0)
-        if (needsEnrich.length === 0) return
-
-        setEnriching(true)
-        let done = 0
-        enrichOrdersWithCarriers(orders, (enriched) => {
-          done += 12
-          setEnrichProgress(Math.min(100, Math.round((done / needsEnrich.length) * 100)))
-          setAllOrders(enriched)
-        }).then(() => {
-          setEnriching(false)
-          setEnrichProgress(100)
-        }).catch(() => setEnriching(false))
-      })
-      .catch(() => setLoadingOrders(false))
-  }, [])
 
   // Recompute stats whenever period or data changes
   useEffect(() => {
@@ -373,79 +342,90 @@ export default function Dashboard() {
   const [pedidosAndamento, setPedidosAndamento] = useState(0)
   const [capacidade, setCapacidade] = useState(0)
 
+  // Shared Order State (to sync Freight progressive fetch with KPIs)
+  const [allOrders, setAllOrders] = useState<any[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(true)
+  const [enriching, setEnriching] = useState(false)
+  const [enrichProgress, setEnrichProgress] = useState(0)
+
   // Daily Sales Metric
   const [dailySales, setDailySales] = useState<{ date: string; valor: number }[]>([])
 
   useEffect(() => {
-    // Usa fetchOrdersForKPIs (rápido, só lista) para não bloquear o carregamento
+    // Fase 1: Fetch global apenas com lista
     fetchOrdersForKPIs(90).then(orders => {
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+      setAllOrders(orders)
+      setLoadingOrders(false)
 
-      // Pedidos deste mês (status 4 = Aprovado, 7 = Faturado/Transporte)
-      const pedidosMes = orders.filter(p => {
-        const d = new Date(p.data || new Date())
-        return d >= startOfMonth && d <= endOfMonth
-      })
+      // Fase 2: Enriquece os itens globalmente para corrigir a Qtd (volumes) no KPI também
+      const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0)
+      if (needsEnrich.length === 0) return
 
-      const fat = pedidosMes.reduce((acc, p) => acc + (p.valor || 0), 0)
-      const totalPedMes = pedidosMes.length
-      const ticket = totalPedMes > 0 ? fat / totalPedMes : 0
-
-      // Pedidos em andamento = status 4+5 DESTE MÊS (aprovados, ainda em produção)
-      const andamento = pedidosMes.filter(p => [4, 5].includes(p.situacao ?? 0)).length
-
-      // Faturados deste mês = status 7 (faturado = produziu e emitiu NF)
-      const faturados = pedidosMes.filter(p => p.situacao === 7).reduce((acc, p) => acc + (p.quantidade || 1), 0)
-
-      // Total ativos deste mês (todos os status relevantes)
-      const totalAtivosMes = pedidosMes.length
-
-      setFaturamentoMensal(fat)
-      setTicketMedio(ticket)
-      setQuadrosProduzidos(faturados)
-      setPedidosAtrasados(0)
-      setPedidosAndamento(totalAtivosMes) // Total de pedidos do mês
-      // Capacidade: pedidos em produção ativa (4+5) vs total do mês
-      const cap = totalAtivosMes > 0 ? Math.round((andamento / totalAtivosMes) * 100) : 0
-      setCapacidade(Math.min(cap, 100))
-
-      // Aggregating daily sales
-      const salesMap = new Map<string, number>()
-      for (let i = 1; i <= now.getDate(); i++) {
-        salesMap.set(String(i).padStart(2, '0'), 0)
-      }
-      pedidosMes.forEach(p => {
-        const d = new Date(p.data || new Date())
-        const day = String(d.getDate()).padStart(2, '0')
-        if (salesMap.has(day)) salesMap.set(day, (salesMap.get(day) || 0) + (p.valor || 0))
-      })
-      const salesArr = Array.from(salesMap.entries()).map(([k, v]) => ({ date: k, valor: v }))
-      setDailySales(salesArr)
+      setEnriching(true)
+      let done = 0
+      enrichOrdersWithCarriers(orders, (enriched) => {
+        done += 12
+        setEnrichProgress(Math.min(100, Math.round((done / needsEnrich.length) * 100)))
+        setAllOrders(enriched)
+      }).then(() => {
+        setEnriching(false)
+        setEnrichProgress(100)
+      }).catch(() => setEnriching(false))
 
     }).catch(() => {
-      // Fallback: usa Supabase se Magazord falhar
-      fetchPedidos().then(pedidos => {
-        const now = new Date()
-        let fat = 0, qtdProd = 0, totalPedMes = 0, atrasados = 0, andamento = 0
-        for (const p of pedidos) {
-          const isFinished = p.etapa === 'Prontos para Envio' || p.etapa === 'Despachados'
-          if (!isFinished) andamento++
-          if (p.status === 'Atrasado') atrasados++
-          const dt = new Date(p.created_at)
-          if (dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()) {
-            fat += (p.valor || 0); totalPedMes++
-            if (isFinished) qtdProd += ((p as any).quantidade || 1)
-          }
-        }
-        setFaturamentoMensal(fat); setPedidosAtrasados(atrasados); setQuadrosProduzidos(qtdProd)
-        setTicketMedio(totalPedMes > 0 ? fat / totalPedMes : 0)
-        setPedidosAndamento(andamento)
-        setCapacidade(Math.min(Math.round((andamento / 50) * 100), 100))
-      })
+      setLoadingOrders(false)
     })
   }, [])
+
+  // KPI calculations based on allOrders updates
+  useEffect(() => {
+    if (loadingOrders || allOrders.length === 0) return
+
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+
+    // Pedidos deste mês (status 4 = Aprovado, 7 = Faturado/Transporte)
+    const pedidosMes = allOrders.filter(p => {
+      const d = new Date(p.data || new Date())
+      return d >= startOfMonth && d <= endOfMonth
+    })
+
+    const fat = pedidosMes.reduce((acc, p) => acc + (p.valor || 0), 0)
+    const totalPedMes = pedidosMes.length
+    const ticket = totalPedMes > 0 ? fat / totalPedMes : 0
+
+    // Pedidos em andamento = status 4+5
+    const andamento = pedidosMes.filter(p => [4, 5].includes(p.situacao ?? 0)).length
+
+    // Quadros Produzidos - Modificado para Volumes de Venda (todos do mês, extraindo do background fetch)
+    const faturados = pedidosMes.reduce((acc, p) => acc + (p.quantidade || 1), 0)
+
+    const totalAtivosMes = pedidosMes.length
+
+    setFaturamentoMensal(fat)
+    setTicketMedio(ticket)
+    setQuadrosProduzidos(faturados)
+    setPedidosAtrasados(0)
+    setPedidosAndamento(totalAtivosMes) 
+    
+    const cap = totalAtivosMes > 0 ? Math.round((andamento / totalAtivosMes) * 100) : 0
+    setCapacidade(Math.min(cap, 100))
+
+    // Aggregating daily sales
+    const salesMap = new Map<string, number>()
+    for (let i = 1; i <= now.getDate(); i++) {
+      salesMap.set(String(i).padStart(2, '0'), 0)
+    }
+    pedidosMes.forEach(p => {
+      const d = new Date(p.data || new Date())
+      const day = String(d.getDate()).padStart(2, '0')
+      if (salesMap.has(day)) salesMap.set(day, (salesMap.get(day) || 0) + (p.valor || 0))
+    })
+    const salesArr = Array.from(salesMap.entries()).map(([k, v]) => ({ date: k, valor: v }))
+    setDailySales(salesArr)
+
+  }, [allOrders, loadingOrders])
 
 
   const showToast = (msg: string) => {
@@ -518,7 +498,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: 'FATURAMENTO MENSAL',     value: fmt(faturamentoMensal),      tag: 'Este mês',       tagColor: 'text-emerald-700 bg-emerald-100',  icon: TrendingUp,    iconColor: 'text-emerald-500',   onClick: () => navigate('/financial') },
-          { label: 'QUADROS PRODUZIDOS(MÊS)',value: String(quadrosProduzidos),   tag: 'Concluídos',tagColor: 'text-blue-700 bg-blue-100',  icon: ShoppingCart,  iconColor: 'text-blue-500',   onClick: () => navigate('/production') },
+          { label: 'VOLUMES DE VENDA (QUADROS)',value: String(quadrosProduzidos),   tag: 'Ativos',tagColor: 'text-blue-700 bg-blue-100',  icon: ShoppingCart,  iconColor: 'text-blue-500',   onClick: () => navigate('/production') },
           { label: 'PEDIDOS ATRASADOS',      value: String(pedidosAtrasados),         tag: pedidosAtrasados > 0 ? 'Atenção' : 'Aprovado', tagColor: pedidosAtrasados > 0 ? 'text-red-700 bg-red-100' : 'text-emerald-700 bg-emerald-100',  icon: AlertTriangle, iconColor: pedidosAtrasados > 0 ? 'text-red-500' : 'text-emerald-500',   onClick: () => navigate('/production') },
           { label: 'TICKET MÉDIO (MÊS)',     value: fmt(ticketMedio),      tag: 'Por pedido',       tagColor: 'text-purple-700 bg-purple-100',  icon: TrendingDown,  iconColor: 'text-purple-500',   onClick: () => navigate('/financial') },
         ].map((k, i) => (
@@ -637,7 +617,7 @@ export default function Dashboard() {
       </div>
 
       {/* Freight analytics by carrier */}
-      <FreightByCarrier />
+      <FreightByCarrier allOrders={allOrders} loadingOrders={loadingOrders} enriching={enriching} enrichProgress={enrichProgress} />
 
       <AnimatePresence>
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
