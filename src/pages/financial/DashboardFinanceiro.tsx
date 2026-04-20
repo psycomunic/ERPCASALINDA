@@ -5,8 +5,7 @@ import {
   PieChart as PieChartIcon, Activity, Truck 
 } from 'lucide-react'
 import { getEntries, FinEntry } from '../../services/dbLocal'
-import { fetchPedidos } from '../../services/pedidos'
-import { fetchPendingOrders, magazordToOrder } from '../../magazord'
+import { fetchOrdersForFreightAnalysis, FreightOrderData } from '../../magazord'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, Cell, PieChart, Pie } from 'recharts'
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -28,30 +27,14 @@ export default function DashboardFinanceiro() {
   const [showPeriodo, setShowPeriodo] = useState(false)
   
   const entries = useMemo(() => getEntries(), [])
-  const [pedidos, setPedidos] = useState<any[]>([])
+  const [pedidos, setPedidos] = useState<FreightOrderData[]>([])
   const [loadingPedidos, setLoadingPedidos] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      fetchPedidos().catch(() => []), 
-      fetchPendingOrders().catch(() => [])
-    ]).then(([pedidosSupa, pedidosMag]) => {
-      const combined = [...pedidosSupa]
-      pedidosMag.forEach(mag => {
-         const mapped = magazordToOrder(mag)
-         const existing = combined.find(x => String(x.id) === String(mapped.id))
-         if (existing) {
-             existing.transportadora = existing.transportadora && existing.transportadora !== 'Sem transportadora' 
-                ? existing.transportadora 
-                : mapped.transportadora
-             existing.frete = existing.frete || mapped.frete
-         } else {
-             combined.push(mapped)
-         }
-      })
-      setPedidos(combined)
-      setLoadingPedidos(false)
-    }).catch(() => setLoadingPedidos(false))
+    // Busca pedidos + detalhe de cada (transportadoraNome + valorFreteTransportadora)
+    fetchOrdersForFreightAnalysis(90)
+      .then(data => { setPedidos(data); setLoadingPedidos(false) })
+      .catch(() => setLoadingPedidos(false))
   }, [])
 
   // Filtragem Dinâmica por Período
@@ -120,40 +103,36 @@ export default function DashboardFinanceiro() {
     }))
   }, [filteredEntries])
 
-  // --- ANÁLISE DE FRETE MENSAL ---
+  // --- ANÁLISE DE FRETE ---
   const freightStats = useMemo(() => {
-    const map = new Map<string, { frete: number; valor: number; count: number; comFrete: number }>()
+    const map = new Map<string, { frete: number; valor: number; count: number }>()
+    const today = new Date()
 
     pedidos.forEach(p => {
-       // Filter by same period
-       const d = new Date(p.created_at || new Date())
-       const today = new Date()
-       
+       const d = new Date(p.data || new Date())
        let keep = false
+
        if (filter === 'ESTE ANO') keep = d.getFullYear() === today.getFullYear()
        else if (filter.includes('MÊS PASSADO')) {
            const pastM = today.getMonth() === 0 ? 11 : today.getMonth() - 1
            const pastY = today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear()
            keep = d.getMonth() === pastM && d.getFullYear() === pastY
-       } else if (filter.includes('TUDO')) { keep = true }
+       } else if (filter === 'TUDO') { keep = true }
        else {
-           // Fallback default: Este mês
            keep = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
        }
 
        if (!keep) return
 
-       let trans = typeof p.transportadora === 'string' ? p.transportadora : 'Sem transportadora'
-       if (trans.trim() === '') trans = 'Sem transportadora'
+       const trans = p.transportadora?.trim() || 'Sem transportadora'
+       const frete = p.frete || 0
+       const valor = p.valor || 0
 
-       const frete = parseFloat(p.frete) || 0
-       const valor = parseFloat(p.valor) || 0
-
-       if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0, comFrete: 0 })
+       if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0 })
        const cur = map.get(trans)!
        cur.count++
        cur.valor += valor
-       if (frete > 0) { cur.frete += frete; cur.comFrete++ }
+       cur.frete += frete
     })
 
     let totalFrete = 0, totalValor = 0

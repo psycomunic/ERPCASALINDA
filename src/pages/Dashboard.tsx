@@ -12,8 +12,7 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts'
 import { fetchPedidos } from '../services/pedidos'
-import { fetchPendingOrders, magazordToOrder } from '../magazord'
-import { isSupabaseConfigured } from '../lib/supabase'
+import { fetchOrdersForFreightAnalysis } from '../magazord'
 
 const cashflow: any[] = []
 
@@ -69,31 +68,14 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
   const [totalPedidosValor, setTotalPedidosValor] = useState(0)
 
   useEffect(() => {
-    Promise.all([
-      fetchPedidos().catch(() => []), 
-      fetchPendingOrders().catch(() => [])
-    ]).then(([pedidosSupa, pedidosMag]) => {
-      
-      // Mesclar live data do Magazord para injetar nomes e fretes "ausentes" localmente
-      const combined = [...pedidosSupa]
-      pedidosMag.forEach(mag => {
-         const mapped = magazordToOrder(mag)
-         const existing = combined.find(x => String(x.id) === String(mapped.id))
-         if (existing) {
-             existing.transportadora = existing.transportadora && existing.transportadora !== 'Sem transportadora' 
-                ? existing.transportadora 
-                : mapped.transportadora
-             existing.frete = existing.frete || mapped.frete
-         } else {
-             combined.push(mapped)
-         }
-      })
-
-      const map = new Map<string, { frete: number; valor: number; count: number; comFrete: number }>()
+    // Usa a função dedicada que busca pedidos + enriquece com detalhes reais
+    // (transportadoraNome + valorFreteTransportadora via arrayPedidoRastreio)
+    fetchOrdersForFreightAnalysis(90).then(orders => {
+      const map = new Map<string, { frete: number; valor: number; count: number }>()
       const today = new Date()
 
-      combined.forEach(p => {
-        const d = new Date(p.created_at || p.data || new Date())
+      orders.forEach(p => {
+        const d = new Date(p.data || new Date())
         let keep = false
 
         if (periodo === 'Últimos 7 Dias') {
@@ -114,17 +96,15 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
 
         if (!keep) return
 
-        let trans = typeof p.transportadora === 'string' ? p.transportadora : 'Sem transportadora'
-        if (trans.trim() === '') trans = 'Sem transportadora'
-        
-        const frete = parseFloat(p.frete as any) || 0
-        const valor = parseFloat(p.valor as any) || 0
+        const trans = p.transportadora?.trim() || 'Sem transportadora'
+        const frete = p.frete || 0
+        const valor = p.valor || 0
 
-        if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0, comFrete: 0 })
+        if (!map.has(trans)) map.set(trans, { frete: 0, valor: 0, count: 0 })
         const cur = map.get(trans)!
         cur.count++
         cur.valor += valor
-        if (frete > 0) { cur.frete += frete; cur.comFrete++ }
+        cur.frete += frete
       })
 
       let totalF = 0, totalV = 0
@@ -139,7 +119,7 @@ function FreightByCarrier({ periodo }: { periodo: string }) {
           totalFrete: v.frete,
           totalPedidos: v.count,
           totalValorPedidos: v.valor,
-          qtdComFrete: v.comFrete,
+          qtdComFrete: v.count,
           percFreteMedio,
         })
       })

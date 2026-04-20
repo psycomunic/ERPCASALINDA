@@ -267,6 +267,108 @@ export async function fetchOrderByCodigo(codigo: string): Promise<any | null> {
   }
 }
 
+// ─── Shape for freight analytics ──────────────────────────────────────────────
+
+export interface FreightOrderData {
+  codigo: string
+  transportadora: string
+  frete: number
+  valor: number
+  data: string
+}
+
+/**
+ * Busca pedidos dos últimos N dias (padrão: 90) e enriquece cada um com
+ * o nome da transportadora e custo real de frete (valorFreteTransportadora)
+ * vindo do endpoint individual /site/pedido/{codigo}.
+ * Executa em paralelo com concorrência limitada para não sobrecarregar a API.
+ */
+export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightOrderData[]> {
+  if (!isMagazordConfigured()) {
+    // Retorna mock data com fretes realistas
+    return MOCK_MAGAZORD_ORDERS.map(o => ({
+      codigo: String(o.codigo || o.id),
+      transportadora: o.entrega?.transportadora || 'Sem transportadora',
+      frete: o.entrega?.frete || 0,
+      valor: o.valor_total || 0,
+      data: o.data_pedido || new Date().toISOString(),
+    }))
+  }
+
+  try {
+    // 1. Buscar lista de pedidos dos últimos N dias (todas as situações pagas)
+    const d = new Date()
+    d.setDate(d.getDate() - dias)
+    const dataInicial =d.toISOString().split('T')[0]
+
+    const json = await mzFetch<MagazordOrdersResponse>(
+      `/site/pedido?dataPedidoInicial=${dataInicial}&limit=200&order=id&orderDirection=desc`
+    )
+    const items = json?.data?.items ?? []
+
+    // Filtrar apenas pedidos pagos/faturados
+    const allowedSituations = [4, 5, 6, 7, 8, 23]
+    const filtered = items.filter(o => allowedSituations.includes(o.pedidoSituacao ?? 0))
+
+    if (filtered.length === 0) return []
+
+    // 2. Buscar detalhes de cada pedido em paralelo (máx 10 simultâneos)
+    const results: FreightOrderData[] = []
+    const CONCURRENCY = 10
+
+    for (let i = 0; i < filtered.length; i += CONCURRENCY) {
+      const batch = filtered.slice(i, i + CONCURRENCY)
+      const batchResults = await Promise.all(
+        batch.map(async (order) => {
+          const codigo = String(order.codigo || order.id)
+          try {
+            const detail = await mzFetch<{ status: string; data: any }>(`/site/pedido/${codigo}`)
+            const data = detail?.data
+
+            if (!data) return null
+
+            const rastreio = data.arrayPedidoRastreio?.[0] || {}
+
+            // Custo real do frete para a empresa
+            const freteStr = rastreio.valorFreteTransportadora || rastreio.valorFrete || data.valorFrete || '0'
+            const frete = parseFloat(String(freteStr)) || 0
+
+            const transportadora = rastreio.transportadoraNome 
+              || data.transportadoraNome 
+              || order.transportadoraNome
+              || 'Sem transportadora'
+
+            const valor = parseFloat(String(data.valorTotal || order.valorTotal || 0)) || 0
+
+            return {
+              codigo,
+              transportadora: transportadora.trim() || 'Sem transportadora',
+              frete,
+              valor,
+              data: order.dataHora || order.data_pedido || new Date().toISOString(),
+            } as FreightOrderData
+          } catch {
+            // Se falhar o detalhe, usa o que tiver na lista
+            return {
+              codigo,
+              transportadora: (order as any).transportadoraNome || 'Sem transportadora',
+              frete: parseFloat(String((order as any).valorFrete || 0)) || 0,
+              valor: parseFloat(String((order as any).valorTotal || 0)) || 0,
+              data: order.dataHora || order.data_pedido || new Date().toISOString(),
+            } as FreightOrderData
+          }
+        })
+      )
+      batchResults.forEach(r => { if (r) results.push(r) })
+    }
+
+    return results
+  } catch (err) {
+    console.error('[Magazord] fetchOrdersForFreightAnalysis falhou:', err)
+    return []
+  }
+}
+
 /**
  * Atualiza a situação do pedido na Magazord.
  * situacaoCode: 5=Aprovado e Integrado, 7=Transporte, 8=Entregue
