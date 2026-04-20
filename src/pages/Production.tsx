@@ -2053,27 +2053,66 @@ export default function Production() {
                 </div>
               )}
 
-              <div className="flex-1 px-3 pb-3 space-y-2 overflow-y-auto">
-                {board[stage].map(order => (
-                  <DeliveryCard
-                    key={order.id}
-                    order={order}
-                    stage={stage}
-                    onDragStart={() => setDragging({ order, from: stage })}
-                    onDragEnd={() => setDragging(null)}
-                    onView={() => setDetail({ order, stage })}
-                    onDispatch={stage === 'Prontos para Envio' ? () => setDispatchModal(order) : undefined}
-                    onUndo={stage === 'Despachados' ? () => undoDispatch(order) : undefined}
-                  />
-                ))}
-                {board[stage].length === 0 && (
-                  <div className="h-32 flex flex-col items-center justify-center text-gray-400 text-xs border-2 border-dashed rounded-xl"
+              <div className="flex-1 px-3 pb-3 overflow-y-auto">
+                {board[stage].length === 0 ? (
+                  <div className="h-32 flex flex-col items-center justify-center text-gray-400 text-xs border-2 border-dashed rounded-xl mt-2"
                     style={{ borderColor: stage === 'Prontos para Envio' ? '#fde68a' : '#6ee7b7' }}>
                     {stage === 'Prontos para Envio'
                       ? <><ClipboardList size={20} className="text-yellow-300 mb-2" />Nenhum pedido pronto ainda</>
                       : <><Truck size={20} className="text-emerald-200 mb-2" />Nenhum pedido despachado</>}
                   </div>
-                )}
+                ) : (() => {
+                  // Agrupar por transportadora
+                  const groups: Record<string, Order[]> = {}
+                  for (const order of board[stage]) {
+                    const key = order.transportadora?.trim() || 'Sem transportadora'
+                    if (!groups[key]) groups[key] = []
+                    groups[key].push(order)
+                  }
+                  // Ordenar: transportadoras com mais pedidos primeiro, "Sem transportadora" por último
+                  const sorted = Object.entries(groups).sort(([a, ao], [b, bo]) => {
+                    if (a === 'Sem transportadora') return 1
+                    if (b === 'Sem transportadora') return -1
+                    return bo.length - ao.length
+                  })
+                  return sorted.map(([carrier, orders]) => {
+                    const critical = orders.filter(o => (daysUntil(o.prazoEntrega) ?? 99) <= 1).length
+                    return (
+                      <div key={carrier} className="mb-4">
+                        {/* Carrier header */}
+                        <div className="flex items-center gap-2 mb-2 px-0.5">
+                          <Truck size={12} className="text-gray-400 shrink-0" />
+                          <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wide flex-1 truncate">
+                            {carrier}
+                          </span>
+                          <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+                            {orders.length}
+                          </span>
+                          {critical > 0 && stage === 'Prontos para Envio' && (
+                            <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                              <AlertTriangle size={8} /> {critical}
+                            </span>
+                          )}
+                        </div>
+                        {/* Cards */}
+                        <div className="space-y-2">
+                          {orders.map(order => (
+                            <DeliveryCard
+                              key={order.id}
+                              order={order}
+                              stage={stage}
+                              onDragStart={() => setDragging({ order, from: stage })}
+                              onDragEnd={() => setDragging(null)}
+                              onView={() => setDetail({ order, stage })}
+                              onDispatch={stage === 'Prontos para Envio' ? () => setDispatchModal(order) : undefined}
+                              onUndo={stage === 'Despachados' ? () => undoDispatch(order) : undefined}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             </div>
           ))}
