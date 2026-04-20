@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Factory, DollarSign, Package,
   Building2, Users, Settings, LogOut, Plus,
   Search, Bell, ChevronDown, Menu, X, Check, FileText, Grid,
-  Sofa, ChevronRight
+  Sofa, ChevronRight, ChevronLeft
 } from 'lucide-react'
 import { LayoutProvider, useLayout } from '../contexts/LayoutContext'
 import { fetchPedidos } from '../services/pedidos'
@@ -56,7 +56,7 @@ const ALL_ROUTES = [...NAV_CL, ...NAV_LV, { to: '/settings', label: 'Configuraç
 
 type StoreId = 'casa-linda' | 'lar-e-vida'
 
-function Sidebar({ onClose }: { onClose?: () => void }) {
+function Sidebar({ onClose, isCollapsed, onToggle }: { onClose?: () => void, isCollapsed?: boolean, onToggle?: () => void }) {
   const navigate   = useNavigate()
   const location   = useLocation()
   const [showStorePicker, setShowStorePicker] = useState(false)
@@ -74,11 +74,23 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200 w-44">
+    <div className={`relative flex flex-col h-full bg-white border-r border-gray-200 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-44'}`}>
+      {/* Collapse Toggle */}
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          className="absolute -right-3 top-5 bg-white border border-gray-200 rounded-full p-1 text-gray-400 hover:text-gray-700 hover:shadow-md z-50 hidden lg:block transition-transform duration-300"
+          title={isCollapsed ? 'Expandir Menu' : 'Recolher Menu'}
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+      )}
+
       {/* Store Selector */}
       <div
-        className="relative flex items-center gap-2 px-3 py-3 border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50 transition-colors"
+        className={`relative flex items-center gap-2 px-3 py-3 border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50 transition-colors ${isCollapsed ? 'justify-center' : ''}`}
         onClick={() => setShowStorePicker(v => !v)}
+        title={isCollapsed ? (isLV ? 'Lar e Vida' : 'Casa Linda') : undefined}
       >
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -91,11 +103,15 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             ? <Sofa size={15} className="text-white" />
             : <Building2 size={15} className="text-white" />}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-bold text-gray-900 text-xs leading-tight">{isLV ? 'Lar e Vida' : 'Casa Linda'}</p>
-          <p className="text-gray-400 text-[9px] uppercase tracking-widest leading-tight">Decorações</p>
-        </div>
-        <ChevronDown size={12} className="text-gray-400 shrink-0" />
+        {!isCollapsed && (
+          <>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-gray-900 text-xs leading-tight">{isLV ? 'Lar e Vida' : 'Casa Linda'}</p>
+              <p className="text-gray-400 text-[9px] uppercase tracking-widest leading-tight">Decorações</p>
+            </div>
+            <ChevronDown size={12} className="text-gray-400 shrink-0" />
+          </>
+        )}
         {onClose && (
           <button onClick={e => { e.stopPropagation(); onClose() }} className="ml-auto text-gray-400 hover:text-gray-700 lg:hidden">
             <X size={18} />
@@ -141,7 +157,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Active store badge */}
-      {isLV && (
+      {isLV && !isCollapsed && (
         <div className="mx-3 mt-2 rounded-lg px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-center" style={{ background: '#fef3c7', color: '#b45309' }}>
           Lar e Vida Ativo
         </div>
@@ -157,40 +173,49 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             else navigate('/production')
             onClose?.()
           }}
-          className="w-full justify-center text-xs py-2 flex items-center gap-1.5 rounded-xl font-semibold text-white transition-colors"
+          className={`w-full flex items-center justify-center gap-1.5 rounded-xl font-semibold text-white transition-colors overflow-hidden ${isCollapsed ? 'py-3' : 'py-2 text-xs'}`}
           style={{ background: isLV ? 'linear-gradient(135deg, #b45309, #d97706)' : '#0f172a' }}
+          title={isCollapsed ? "Novo Registro" : undefined}
         >
-          <Plus size={14} /> Novo Registro
+          <Plus size={isCollapsed ? 16 : 14} className="shrink-0" />
+          {!isCollapsed && <span>Novo Registro</span>}
         </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto mt-1">
+      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto mt-1 overflow-x-hidden">
         {activeNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             onClick={onClose}
+            title={isCollapsed ? label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 ${isActive ? (isLV ? 'bg-amber-50 text-amber-800 font-semibold' : 'nav-active') : 'nav-idle'}`
+              `flex items-center gap-2.5 rounded-lg text-xs font-medium transition-colors duration-150 relative group ${
+                isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
+              } ${isActive ? (isLV ? 'bg-amber-50 text-amber-800 font-semibold' : 'nav-active') : 'nav-idle'}`
             }
           >
-            <Icon size={15} />
-            {label}
+            <Icon size={isCollapsed ? 18 : 15} className="shrink-0" />
+            {!isCollapsed && <span className="truncate">{label}</span>}
           </NavLink>
         ))}
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-gray-100 px-2 py-3 space-y-0.5">
+      <div className="border-t border-gray-100 px-2 py-3 space-y-0.5 overflow-x-hidden">
         <NavLink
           to="/settings"
           onClick={onClose}
+          title={isCollapsed ? "Configurações" : undefined}
           className={({ isActive }) =>
-            `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors mt-2 ${isActive ? 'nav-active' : 'nav-idle'}`
+            `flex items-center gap-2.5 rounded-lg text-xs font-medium transition-colors ${
+              isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
+            } ${isActive ? 'nav-active' : 'nav-idle'}`
           }
         >
-          <Settings size={15} /> Configurações
+          <Settings size={isCollapsed ? 18 : 15} className="shrink-0" /> 
+          {!isCollapsed && <span className="truncate">Configurações</span>}
         </NavLink>
         <button
           onClick={() => {
@@ -198,9 +223,13 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
               window.location.href = '/'
             }
           }}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium nav-idle w-full text-left hover:text-red-600"
+          title={isCollapsed ? "Sair" : undefined}
+          className={`flex items-center gap-2.5 rounded-lg text-xs font-medium nav-idle w-full text-left hover:text-red-600 ${
+            isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
+          }`}
         >
-          <LogOut size={15} /> Sair
+          <LogOut size={isCollapsed ? 18 : 15} className="shrink-0" /> 
+          {!isCollapsed && <span className="truncate">Sair</span>}
         </button>
       </div>
     </div>
@@ -422,6 +451,11 @@ function Topbar() {
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  
+  // Use mobileOpen state for collapsing on desktop as well to share the boolean
+  // On mobile it means "is menu open". On desktop we will use it as "is menu collapsed".
+  // Actually, let's keep them separate to prevent bugs when resizing
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const location = useLocation()
 
   return (
@@ -446,14 +480,14 @@ export default function AppLayout() {
               initial={{ x: -200 }} animate={{ x: 0 }} exit={{ x: -200 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             >
-              <Sidebar onClose={() => setMobileOpen(false)} />
+              <Sidebar onClose={() => setMobileOpen(false)} isCollapsed={false} />
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Desktop sidebar */}
-        <div className="hidden lg:block shrink-0">
-          <Sidebar />
+        <div className="hidden lg:block shrink-0 relative z-30 transition-all duration-300" style={{ width: isCollapsed ? '4rem' : '11rem' }}>
+          <Sidebar isCollapsed={isCollapsed} onToggle={() => setIsCollapsed(!isCollapsed)} />
         </div>
 
         {/* Main */}
