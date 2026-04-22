@@ -536,6 +536,7 @@ interface ERPOrder {
   valor?: number
   frete?: number
   fromMagazord?: boolean
+  notaFiscal?: string
 }
 
 /**

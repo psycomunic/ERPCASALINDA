@@ -1356,6 +1356,8 @@ function DeliveryCard({
       </div>
     </motion.div>
   )
+}
+
 function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDetail, setDispatchModal, undoDispatch, dispatchAll }: any) {
   const [isOpen, setIsOpen] = useState(false)
   
