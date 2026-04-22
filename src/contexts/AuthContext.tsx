@@ -4,7 +4,7 @@
  * Login único para Casa Linda e Lar e Vida (mesma empresa, 2 lojas).
  */
 import {
-  createContext, useContext, useEffect, useState, useCallback,
+  createContext, useContext, useEffect, useState, useCallback, useRef,
   type ReactNode,
 } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
@@ -24,7 +24,7 @@ export type Module =
   | 'reports'
   | 'settings'
   | 'catalogo'
-  | 'users'   // admin panel
+  | 'users'
 
 export interface UserProfile {
   id: string
@@ -66,61 +66,94 @@ const Ctx = createContext<AuthCtx>({
   refreshProfile: async () => {},
 })
 
+// ─── Helper: fetch profile with timeout ───────────────────────────────────────
+
+async function fetchProfileSafe(userId: string): Promise<UserProfile | null> {
+  if (!isSupabaseConfigured()) return null
+  try {
+    // Race against a 4-second timeout
+    const result = await Promise.race([
+      supabase
+        .from('user_profiles' as any)
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('profile fetch timeout')), 4000)
+      ),
+    ]) as { data: unknown; error: unknown }
+
+    if (result.data) return result.data as UserProfile
+    if (result.error) console.warn('[Auth] fetchProfile:', (result.error as any).message)
+  } catch (e) {
+    console.warn('[Auth] fetchProfile failed:', (e as Error).message)
+  }
+  return null
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user,    setUser]    = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  // Prevent duplicate profile fetches (getSession + onAuthStateChange can fire together)
+  const fetchingRef = useRef(false)
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    if (!isSupabaseConfigured()) return
-
-    // Retry up to 2 times (RLS / network transient failures)
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const { data, error } = await supabase
-        .from('user_profiles' as any)
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle()
-
-      if (!error && data) {
-        setProfile(data as unknown as UserProfile)
-        return
-      }
-      if (error) {
-        console.warn(`[Auth] fetchProfile attempt ${attempt}:`, error.message)
-        if (attempt < 2) await new Promise(r => setTimeout(r, 600))
-      }
-    }
-    console.error('[Auth] Could not load profile after 2 attempts — login will still proceed')
+  const loadProfile = useCallback(async (u: User) => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
+    const p = await fetchProfileSafe(u.id)
+    setProfile(p)
+    fetchingRef.current = false
   }, [])
 
   const refreshProfile = useCallback(async () => {
-    if (user) await fetchProfile(user.id)
-  }, [user, fetchProfile])
+    if (user) {
+      fetchingRef.current = false // allow re-fetch
+      await loadProfile(user)
+    }
+  }, [user, loadProfile])
 
-  // ── Bootstrap session ──
+  // ── Bootstrap: check for existing session ──
   useEffect(() => {
     if (!isSupabaseConfigured()) { setLoading(false); return }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) await fetchProfile(session.user.id)
+    // Hard safety net: never stay on loading screen more than 6 seconds
+    const safetyTimer = setTimeout(() => {
+      console.warn('[Auth] Safety timeout hit — forcing loading=false')
+      setLoading(false)
+    }, 6000)
+
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) console.warn('[Auth] getSession error:', error.message)
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) await loadProfile(currentUser)
+      clearTimeout(safetyTimer)
+      setLoading(false)
+    }).catch(err => {
+      console.error('[Auth] getSession threw:', err)
+      clearTimeout(safetyTimer)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) {
+        await loadProfile(currentUser)
       } else {
         setProfile(null)
+        fetchingRef.current = false
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [fetchProfile])
+    return () => {
+      clearTimeout(safetyTimer)
+      subscription.unsubscribe()
+    }
+  }, [loadProfile])
 
   // ── SignIn ──
   const signIn = useCallback(async (email: string, password: string) => {
@@ -142,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
+    fetchingRef.current = false
   }, [])
 
   // ── Permission check ──
