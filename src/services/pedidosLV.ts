@@ -68,12 +68,12 @@ export async function createPedidoLV(pedido: PedidoInsert): Promise<Pedido | nul
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-export async function updatePedidoLV(id: string, updates: PedidoUpdate): Promise<boolean> {
+export async function updatePedidoLV(id: string, updates: PedidoUpdate | Record<string, unknown>): Promise<boolean> {
   if (!isSupabaseConfigured()) return false
 
   const { error } = await supabase
     .from('pedidos')
-    .update(updates)
+    .update(updates as PedidoUpdate)
     .eq('id', id)
     .eq('store_id' as any, STORE_ID)
 

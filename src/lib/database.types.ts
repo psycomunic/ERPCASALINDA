@@ -38,6 +38,18 @@ export interface Database {
           from_magazord: boolean
           created_at: string
           updated_at: string
+          // ─── Lar e Vida extras ─────────────────────────
+          store_id: string | null
+          sku: string | null
+          foto_url: string | null
+          nome_fornecedor: string | null
+          codigo_fornecedor: string | null
+          tamanho: string | null
+          cor: string | null
+          categoria: string | null
+          quantidade: number | null
+          cliente_email: string | null
+          cliente_telefone: string | null
         }
         Relationships: any[]
 
@@ -63,6 +75,18 @@ export interface Database {
           data_prevista?: string | null
           hora_prevista?: string | null
           from_magazord?: boolean
+          // ─── Lar e Vida extras ─────────────────────────
+          store_id?: string | null
+          sku?: string | null
+          foto_url?: string | null
+          nome_fornecedor?: string | null
+          codigo_fornecedor?: string | null
+          tamanho?: string | null
+          cor?: string | null
+          categoria?: string | null
+          quantidade?: number | null
+          cliente_email?: string | null
+          cliente_telefone?: string | null
         }
         Update: {
           numero?: string
@@ -86,6 +110,18 @@ export interface Database {
           data_prevista?: string | null
           hora_prevista?: string | null
           from_magazord?: boolean
+          // ─── Lar e Vida extras ─────────────────────────
+          store_id?: string | null
+          sku?: string | null
+          foto_url?: string | null
+          nome_fornecedor?: string | null
+          codigo_fornecedor?: string | null
+          tamanho?: string | null
+          cor?: string | null
+          categoria?: string | null
+          quantidade?: number | null
+          cliente_email?: string | null
+          cliente_telefone?: string | null
         }
       }
       financeiro_lancamentos: {

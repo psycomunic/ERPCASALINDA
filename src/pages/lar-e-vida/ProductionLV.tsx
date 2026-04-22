@@ -1098,15 +1098,17 @@ export default function ProductionLV() {
       newCols[stage].push({
         id: p.id,
         cliente: p.cliente,
+        clienteEmail: p.cliente_email || undefined,
+        clienteTelefone: p.cliente_telefone || undefined,
         produto: p.produto,
-        categoria: (p as any).categoria || undefined,
-        tamanho: (p as any).tamanho || undefined,
-        cor: (p as any).cor || undefined,
-        quantidade: (p as any).quantidade || undefined,
-        sku: (p as any).sku || undefined,
-        fotoUrl: (p as any).foto_url || undefined,
-        nomeFornecedor: (p as any).nome_fornecedor || undefined,
-        codigoFornecedor: (p as any).codigo_fornecedor || undefined,
+        categoria: p.categoria || undefined,
+        tamanho: p.tamanho || undefined,
+        cor: p.cor || undefined,
+        quantidade: p.quantidade || undefined,
+        sku: p.sku || undefined,
+        fotoUrl: p.foto_url || undefined,
+        nomeFornecedor: p.nome_fornecedor || undefined,
+        codigoFornecedor: p.codigo_fornecedor || undefined,
         canal: p.canal || undefined,
         data: dateStr,
         hora: timeStr,
@@ -1136,6 +1138,8 @@ export default function ProductionLV() {
     const inserted = await createPedidoLV({
       numero: `LV-${num}`,
       cliente: data.cliente,
+      cliente_email: data.clienteEmail || null,
+      cliente_telefone: data.clienteTelefone || null,
       produto: data.produto,
       canal: data.canal || null,
       obs: data.obs || null,
@@ -1147,11 +1151,14 @@ export default function ProductionLV() {
       etapa: 'Novos Pedidos',
       status: calcStatus(data.prazoEntrega),
       from_magazord: false,
-      // Campos novos (casted como any até atualizar o tipo do banco)
-      ...{ sku: data.sku || null } as any,
-      ...{ foto_url: data.fotoUrl || null } as any,
-      ...{ nome_fornecedor: data.nomeFornecedor || null } as any,
-      ...{ codigo_fornecedor: data.codigoFornecedor || null } as any,
+      sku: data.sku || null,
+      foto_url: data.fotoUrl || null,
+      nome_fornecedor: data.nomeFornecedor || null,
+      codigo_fornecedor: data.codigoFornecedor || null,
+      tamanho: data.tamanho || null,
+      cor: data.cor || null,
+      categoria: data.categoria || null,
+      quantidade: data.quantidade || null,
     })
     if (inserted) {
       await loadOrders()
@@ -1164,8 +1171,10 @@ export default function ProductionLV() {
     if (!viewModal) return
     const { id } = viewModal.order
 
-    const payload: any = {}
+    const payload: Record<string, unknown> = {}
     if ('cliente' in updates) payload.cliente = updates.cliente
+    if ('clienteEmail' in updates) payload.cliente_email = updates.clienteEmail || null
+    if ('clienteTelefone' in updates) payload.cliente_telefone = updates.clienteTelefone || null
     if ('produto' in updates) payload.produto = updates.produto
     if ('canal' in updates) payload.canal = updates.canal || null
     if ('obs' in updates) payload.obs = updates.obs || null
