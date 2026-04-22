@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (fetchingRef.current) return
     fetchingRef.current = true
     const p = await fetchProfileSafe(u.id)
-    setProfile(p)
+    if (p) setProfile(p) // Only update if we got a valid profile; keep existing on failure
     fetchingRef.current = false
   }, [])
 
@@ -138,14 +138,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null
-      setUser(currentUser)
-      if (currentUser) {
-        await loadProfile(currentUser)
-      } else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only clear profile/user on explicit sign out
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
         setProfile(null)
         fetchingRef.current = false
+        return
+      }
+
+      const currentUser = session?.user ?? null
+      if (!currentUser) return
+
+      setUser(currentUser)
+
+      // On token refresh or new sign-in, try to reload profile
+      // but KEEP the existing profile if the fetch fails
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        fetchingRef.current = false // allow re-fetch on these important events
+        await loadProfile(currentUser)
       }
     })
 
