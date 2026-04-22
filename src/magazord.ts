@@ -236,10 +236,11 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
     const items = json?.data?.items ?? []
     
     const results: MagazordOrder[] = items
-      .filter(o => allowedSituations.includes(o.pedidoSituacao ?? 0))
+      // V2 API may use 'pedidoSituacao' or 'situacao' depending on the endpoint version
+      .filter(o => allowedSituations.includes(o.pedidoSituacao ?? o.situacao ?? 0))
       .map(o => ({
         ...o,
-        status: situacaoLabel(o.pedidoSituacao ?? 0),
+        status: situacaoLabel(o.pedidoSituacao ?? o.situacao ?? 0),
       }))
     return results
   } catch (err) {
