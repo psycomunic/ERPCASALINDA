@@ -1101,9 +1101,16 @@ export default function ProductionLV() {
     const pedidos = await fetchPedidosLV()
     const newCols: Record<Stage, LVOrder[]> = Object.fromEntries(ALL_STAGES.map(s => [s, []])) as unknown as Record<Stage, LVOrder[]>
 
+    let maxNum = 0
     pedidos.forEach(p => {
-      const stage = (p.etapa as Stage) || 'Novos Pedidos'
-      if (!ALL_STAGES.includes(stage)) return
+      // Compute next sequential number from existing LV-XXXXXX numbers
+      const match = (p.numero ?? '').match(/LV-(\d+)/)
+      if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10))
+
+      // Map to a valid stage, fallback to 'Novos Pedidos'
+      let stage = (p.etapa as Stage)
+      if (!ALL_STAGES.includes(stage)) stage = 'Novos Pedidos'
+
       const dateStr = new Date(p.created_at).toLocaleDateString('pt-BR')
       const timeStr = new Date(p.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       newCols[stage].push({
@@ -1133,8 +1140,10 @@ export default function ProductionLV() {
         valor: p.valor || undefined,
         frete: p.frete || undefined,
       })
-      nextId.current = Math.max(nextId.current, 1)
     })
+
+    // Set nextId to one above the highest LV number found
+    nextId.current = maxNum + 1
 
     setBoard(newCols)
     setLoading(false)
