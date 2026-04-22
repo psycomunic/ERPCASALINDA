@@ -5,35 +5,33 @@ import {
   LayoutDashboard, Factory, DollarSign, Package,
   Building2, Users, Settings, LogOut, Plus,
   Search, Bell, ChevronDown, Menu, X, Check, FileText, Grid,
-  Sofa, ChevronRight, ChevronLeft
+  Sofa, ChevronRight, ChevronLeft, Shield
 } from 'lucide-react'
 import { LayoutProvider, useLayout } from '../contexts/LayoutContext'
+import { useAuth } from '../contexts/AuthContext'
 import { fetchPedidos } from '../services/pedidos'
 
 // ── Casa Linda Navigation ────────────────────────────────────────────────────
 const NAV_CL = [
-  { to: '/dashboard',  label: 'Dashboard',       icon: LayoutDashboard },
-  { to: '/production', label: 'Produção (PCP)',   icon: Factory },
-  { to: '/financial',  label: 'Financeiro',       icon: DollarSign },
-  { to: '/inventory',  label: 'Almoxarifado',     icon: Package },
-  { to: '/patrimonio', label: 'Patrimônio',       icon: Building2 },
-  { to: '/partners',   label: 'Parceiros',        icon: Users },
-  { to: '/reports',    label: 'Relatórios',       icon: FileText },
-  { to: '/catalogo',   label: 'Catálogo',          icon: Grid },
-]
+  { to: '/dashboard',  label: 'Dashboard',       icon: LayoutDashboard, module: 'dashboard'  },
+  { to: '/production', label: 'Produção (PCP)',   icon: Factory,         module: 'production' },
+  { to: '/financial',  label: 'Financeiro',       icon: DollarSign,      module: 'financial'  },
+  { to: '/inventory',  label: 'Almoxarifado',     icon: Package,         module: 'inventory'  },
+  { to: '/patrimonio', label: 'Patrimônio',       icon: Building2,       module: 'patrimonio' },
+  { to: '/partners',   label: 'Parceiros',        icon: Users,           module: 'partners'   },
+  { to: '/reports',    label: 'Relatórios',       icon: FileText,        module: 'reports'    },
+  { to: '/catalogo',   label: 'Catálogo',         icon: Grid,            module: 'catalogo'   },
+] as const
 
 // ── Lar e Vida Navigation ─────────────────────────────────────────────────────
 const NAV_LV = [
-  { to: '/lar-e-vida/dashboard',  label: 'Dashboard',     icon: LayoutDashboard },
-  { to: '/lar-e-vida/production', label: 'Produção (PCP)', icon: Factory },
-  { to: '/lar-e-vida/financial',  label: 'Financeiro',    icon: DollarSign },
-  { to: '/lar-e-vida/inventory',  label: 'Almoxarifado',  icon: Package },
-  { to: '/partners',              label: 'Parceiros',     icon: Users },
-  { to: '/reports',               label: 'Relatórios',    icon: FileText },
-]
-
-// Legacy alias used by ALL_ROUTES search (always shows all routes)
-const NAV = NAV_CL
+  { to: '/lar-e-vida/dashboard',  label: 'Dashboard',     icon: LayoutDashboard, module: 'dashboard'  },
+  { to: '/lar-e-vida/production', label: 'Produção (PCP)', icon: Factory,        module: 'production' },
+  { to: '/lar-e-vida/financial',  label: 'Financeiro',    icon: DollarSign,      module: 'financial'  },
+  { to: '/lar-e-vida/inventory',  label: 'Almoxarifado',  icon: Package,         module: 'inventory'  },
+  { to: '/partners',              label: 'Parceiros',     icon: Users,           module: 'partners'   },
+  { to: '/reports',               label: 'Relatórios',    icon: FileText,        module: 'reports'    },
+] as const
 
 const SECTION_LABELS: Record<string, string> = {
   '/dashboard':  'Dashboard',
@@ -45,6 +43,7 @@ const SECTION_LABELS: Record<string, string> = {
   '/settings':   'Configurações',
   '/reports':    'Relatórios',
   '/catalogo':   'Catálogo de Produtos',
+  '/admin/users':'Gestão de Usuários',
   '/lar-e-vida/dashboard':  'Lar e Vida — Dashboard',
   '/lar-e-vida/production': 'Lar e Vida — Produção PCP',
   '/lar-e-vida/financial':  'Lar e Vida — Financeiro',
@@ -52,19 +51,21 @@ const SECTION_LABELS: Record<string, string> = {
 }
 
 
-const ALL_ROUTES = [...NAV_CL, ...NAV_LV, { to: '/settings', label: 'Configurações', icon: Settings }]
+const ALL_ROUTES = [...NAV_CL, ...NAV_LV, { to: '/settings', label: 'Configurações', icon: Settings, module: 'settings' }]
 
 type StoreId = 'casa-linda' | 'lar-e-vida'
 
 function Sidebar({ onClose, isCollapsed, onToggle }: { onClose?: () => void, isCollapsed?: boolean, onToggle?: () => void }) {
   const navigate   = useNavigate()
   const location   = useLocation()
+  const { can, isAdmin, profile, signOut } = useAuth()
   const [showStorePicker, setShowStorePicker] = useState(false)
 
   // Detect active store from URL
   const isLV = location.pathname.startsWith('/lar-e-vida')
   const activeStore: StoreId = isLV ? 'lar-e-vida' : 'casa-linda'
-  const activeNav = isLV ? NAV_LV : NAV_CL
+  // Filter nav items by permission
+  const activeNav = (isLV ? NAV_LV : NAV_CL).filter(item => can(item.module as any))
 
   const handleSwitchStore = (store: StoreId) => {
     setShowStorePicker(false)
@@ -204,23 +205,40 @@ function Sidebar({ onClose, isCollapsed, onToggle }: { onClose?: () => void, isC
 
       {/* Bottom */}
       <div className="border-t border-gray-100 px-2 py-3 space-y-0.5 overflow-x-hidden">
-        <NavLink
-          to="/settings"
-          onClick={onClose}
-          title={isCollapsed ? "Configurações" : undefined}
-          className={({ isActive }) =>
-            `flex items-center gap-2.5 rounded-lg text-xs font-medium transition-colors ${
-              isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
-            } ${isActive ? 'nav-active' : 'nav-idle'}`
-          }
-        >
-          <Settings size={isCollapsed ? 18 : 15} className="shrink-0" /> 
-          {!isCollapsed && <span className="truncate">Configurações</span>}
-        </NavLink>
+        {can('settings') && (
+          <NavLink
+            to="/settings"
+            onClick={onClose}
+            title={isCollapsed ? "Configurações" : undefined}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 rounded-lg text-xs font-medium transition-colors ${
+                isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
+              } ${isActive ? 'nav-active' : 'nav-idle'}`
+            }
+          >
+            <Settings size={isCollapsed ? 18 : 15} className="shrink-0" />
+            {!isCollapsed && <span className="truncate">Configurações</span>}
+          </NavLink>
+        )}
+        {isAdmin && (
+          <NavLink
+            to="/admin/users"
+            onClick={onClose}
+            title={isCollapsed ? "Usuários" : undefined}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 rounded-lg text-xs font-medium transition-colors ${
+                isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
+              } ${isActive ? 'nav-active' : 'nav-idle'}`
+            }
+          >
+            <Shield size={isCollapsed ? 18 : 15} className="shrink-0" />
+            {!isCollapsed && <span className="truncate">Usuários</span>}
+          </NavLink>
+        )}
         <button
-          onClick={() => {
+          onClick={async () => {
             if (window.confirm('Tem certeza que deseja sair do sistema?')) {
-              window.location.href = '/'
+              await signOut()
             }
           }}
           title={isCollapsed ? "Sair" : undefined}
@@ -228,7 +246,7 @@ function Sidebar({ onClose, isCollapsed, onToggle }: { onClose?: () => void, isC
             isCollapsed ? 'justify-center py-3' : 'px-3 py-2'
           }`}
         >
-          <LogOut size={isCollapsed ? 18 : 15} className="shrink-0" /> 
+          <LogOut size={isCollapsed ? 18 : 15} className="shrink-0" />
           {!isCollapsed && <span className="truncate">Sair</span>}
         </button>
       </div>
@@ -240,6 +258,7 @@ function Topbar() {
   const location   = useLocation()
   const navigate   = useNavigate()
   const { tabs, activeTab, setActiveTab } = useLayout()
+  const { profile, signOut } = useAuth()
   const section    = SECTION_LABELS[location.pathname] ?? ''
 
   const [showNotifs, setShowNotifs] = useState(false)
@@ -411,10 +430,18 @@ function Topbar() {
             className="flex items-center gap-2 cursor-pointer select-none hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
             onClick={() => setShowUser(v => !v)}
           >
-            <div className="w-7 h-7 rounded-full bg-navy-900 flex items-center justify-center text-white font-bold text-xs shrink-0">A</div>
+            <div className="w-7 h-7 rounded-full bg-navy-900 flex items-center justify-center text-white font-bold text-xs shrink-0">
+              {profile?.nome ? profile.nome.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'A'}
+            </div>
             <div className="hidden md:block leading-tight">
-              <p className="text-xs font-semibold text-gray-800">Admin</p>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Gestor de Fábrica</p>
+              <p className="text-xs font-semibold text-gray-800">{profile?.nome ?? 'Usuário'}</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">
+                {profile?.role === 'admin' ? 'Administrador' :
+                 profile?.role === 'gerente' ? 'Gerente' :
+                 profile?.role === 'producao' ? 'Produção' :
+                 profile?.role === 'financeiro' ? 'Financeiro' :
+                 profile?.role === 'almoxarifado' ? 'Almoxarifado' : 'Usuário'}
+              </p>
             </div>
             <ChevronDown size={12} className="text-gray-400 hidden md:block" />
           </div>
@@ -424,18 +451,18 @@ function Topbar() {
                 <div className="fixed inset-0 z-20" onClick={() => setShowUser(false)} />
                 <motion.div
                   initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                  className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-30 w-48 overflow-hidden"
+                  className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-30 w-52 overflow-hidden"
                 >
                   <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-800">Admin</p>
-                    <p className="text-xs text-gray-400">admin@casalinda.com.br</p>
+                    <p className="text-sm font-semibold text-gray-800">{profile?.nome ?? 'Usuário'}</p>
+                    <p className="text-xs text-gray-400">{profile?.email ?? ''}</p>
                   </div>
                   <button onClick={() => { navigate('/settings'); setShowUser(false) }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
                     <Settings size={14} /> Configurações
                   </button>
                   <button
-                    onClick={() => { if (window.confirm('Tem certeza que deseja sair?')) window.location.href = '/' }}
+                    onClick={async () => { setShowUser(false); await signOut() }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100">
                     <LogOut size={14} /> Sair
                   </button>
