@@ -19,16 +19,21 @@ export default function Login() {
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
-  // Redirect authenticated users to their first permitted page
+  // Redirect when authenticated — don't wait for profile (may be slow due to RLS)
   useEffect(() => {
-    if (authLoading || !user || !profile) return
+    if (authLoading || !user) return
+
     const from = (location.state as any)?.from?.pathname
     if (from && from !== '/login') { navigate(from, { replace: true }); return }
-    // Redirect by role
-    if (can('dashboard'))  { navigate('/dashboard',  { replace: true }); return }
-    if (can('production')) { navigate('/production', { replace: true }); return }
-    if (can('financial'))  { navigate('/financial',  { replace: true }); return }
-    if (can('inventory'))  { navigate('/inventory',  { replace: true }); return }
+
+    // If profile loaded, use role-aware redirect; otherwise default to dashboard
+    if (profile) {
+      if (can('dashboard'))  { navigate('/dashboard',  { replace: true }); return }
+      if (can('production')) { navigate('/production', { replace: true }); return }
+      if (can('financial'))  { navigate('/financial',  { replace: true }); return }
+      if (can('inventory'))  { navigate('/inventory',  { replace: true }); return }
+    }
+    // Profile not yet loaded or no specific permission match — go to dashboard
     navigate('/dashboard', { replace: true })
   }, [user, profile, authLoading, navigate, location, can])
 

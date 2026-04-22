@@ -75,16 +75,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string) => {
     if (!isSupabaseConfigured()) return
-    const { data, error } = await supabase
-      .from('user_profiles' as any)
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (error) {
-      console.warn('[Auth] Could not fetch profile:', error.message)
-      return
+
+    // Retry up to 2 times (RLS / network transient failures)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const { data, error } = await supabase
+        .from('user_profiles' as any)
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (!error && data) {
+        setProfile(data as unknown as UserProfile)
+        return
+      }
+      if (error) {
+        console.warn(`[Auth] fetchProfile attempt ${attempt}:`, error.message)
+        if (attempt < 2) await new Promise(r => setTimeout(r, 600))
+      }
     }
-    setProfile(data as unknown as UserProfile)
+    console.error('[Auth] Could not load profile after 2 attempts — login will still proceed')
   }, [])
 
   const refreshProfile = useCallback(async () => {
