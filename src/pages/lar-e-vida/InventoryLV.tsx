@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Download, Plus, Filter, ArrowUpCircle, ArrowDownCircle, RefreshCw,
@@ -18,6 +18,13 @@ interface Item {
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
 
+function formatTimestamp(date = new Date()): string {
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+
 const CATEGORIAS = ['Tapete', 'Quadro', 'Cama/Mesa/Banho', 'Almofada', 'Vaso/Decoração', 'Outro']
 
 const STATUS_BADGE: Record<string, string> = { NORMAL: 'badge-normal', CRÍTICO: 'badge-critico', ATENÇÃO: 'badge-atencao' }
@@ -35,9 +42,19 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
   )
 }
 
+const ITEMS_KEY     = 'lv_inventory_items_v1'
+const MOVEMENTS_KEY = 'lv_inventory_movements_v1'
+
+function loadFromStorage<T>(key: string): T[] {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
 export default function InventoryLV() {
-  const [items, setItems]         = useState<Item[]>([])
-  const [movements, setMovements] = useState<Movement[]>([])
+  const [items, setItems]         = useState<Item[]>(() => loadFromStorage<Item>(ITEMS_KEY))
+  const [movements, setMovements] = useState<Movement[]>(() => loadFromStorage<Movement>(MOVEMENTS_KEY))
   const [modal, setModal]         = useState(false)
   const [showAll, setShowAll]     = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
@@ -52,6 +69,15 @@ export default function InventoryLV() {
   const [newItemForm, setNewItemForm] = useState({
     ref: '', nome: '', categoria: CATEGORIAS[0], unidade: 'un', atual: '', minimo: ''
   })
+
+  // Persiste items e movimentações sempre que mudarem
+  useEffect(() => {
+    localStorage.setItem(ITEMS_KEY, JSON.stringify(items))
+  }, [items])
+
+  useEffect(() => {
+    localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(movements))
+  }, [movements])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const criticos = items.filter(i => i.status === 'CRÍTICO').length
@@ -85,6 +111,12 @@ export default function InventoryLV() {
       unidade: newItemForm.unidade, atual, minimo, status,
     }
     setItems(prev => [...prev, item])
+    setMovements(prev => [{
+      tipo: 'ajuste',
+      desc: `Item cadastrado: ${newItemForm.nome}`,
+      sub: `Categoria: ${newItemForm.categoria} · Qtd inicial: ${atual} ${newItemForm.unidade}`,
+      time: formatTimestamp(),
+    }, ...prev])
     setNewItemModal(false)
     setNewItemForm({ ref: '', nome: '', categoria: CATEGORIAS[0], unidade: 'un', atual: '', minimo: '' })
     showToast('Item adicionado ao inventário!')
@@ -105,7 +137,7 @@ export default function InventoryLV() {
         tipo: 'entrada',
         desc: `Entrada de ${qty} ${item.unidade} de ${item.nome}`,
         sub: `NF ${form.nf || 'S/N'} · ${form.fornecedor || 'Fornecedor não informado'}`,
-        time: 'AGORA MESMO',
+        time: formatTimestamp(),
       }, ...prev])
     }
     setModal(false)

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Clock, CheckCircle, Upload, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
-  RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database, ChevronDown
+  RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database, ChevronDown,
+  Search
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder } from '../magazord'
@@ -1415,6 +1416,144 @@ function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDe
   )
 }
 
+// ─── Search Modal ─────────────────────────────────────────────────────────────
+
+function SearchModal({ board, onClose, onView }: {
+  board: Record<Stage, Order[]>
+  onClose: () => void
+  onView: (order: Order, stage: Stage) => void
+}) {
+  const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const q = query.trim().toLowerCase()
+
+  // Flatten all orders with their stage
+  const allOrders: { order: Order; stage: Stage }[] = ALL_STAGES.flatMap(stage =>
+    board[stage].map(order => ({ order, stage }))
+  )
+
+  const results = q.length < 1 ? [] : allOrders.filter(({ order }) => {
+    return (
+      order.id.toLowerCase().includes(q) ||
+      (order.notaFiscal ?? '').toLowerCase().includes(q) ||
+      order.cliente.toLowerCase().includes(q) ||
+      order.produto.toLowerCase().includes(q) ||
+      (order.itens ?? []).some(it => it.produto.toLowerCase().includes(q))
+    )
+  })
+
+  const STAGE_COLOR: Partial<Record<Stage, string>> = {
+    'Novos Pedidos':       'bg-violet-100 text-violet-700',
+    'Impressão':           'bg-blue-100 text-blue-700',
+    'Corte Moldura':       'bg-orange-100 text-orange-700',
+    'Entelamento + Vidro': 'bg-green-100 text-green-700',
+    'Acabamento':          'bg-purple-100 text-purple-700',
+    'Revisão':             'bg-rose-100 text-rose-700',
+    'Embalagem':           'bg-gray-100 text-gray-700',
+    'Prontos para Envio':  'bg-yellow-100 text-yellow-700',
+    'Despachados':         'bg-emerald-100 text-emerald-700',
+  }
+
+  return (
+    <motion.div
+      className="modal-overlay"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="modal"
+        style={{ maxWidth: 580, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+        initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Search input */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+            <Search size={16} className="text-gray-400 shrink-0" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar por NF, nº do pedido, cliente ou produto…"
+              className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2 pl-1">
+            Pesquisa em todas as etapas — produção e expedição
+          </p>
+        </div>
+
+        {/* Results */}
+        <div className="overflow-y-auto flex-1">
+          {q.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+              <Search size={32} className="mb-3 opacity-30" />
+              <p className="text-sm font-medium">Digite para buscar pedidos</p>
+              <p className="text-xs mt-1 opacity-70">NF · Nº do pedido · Cliente · Produto</p>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+              <Package size={32} className="mb-3 opacity-30" />
+              <p className="text-sm font-medium">Nenhum pedido encontrado</p>
+              <p className="text-xs mt-1 opacity-70">Tente buscar por outro termo</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              <p className="px-5 py-2 text-[11px] text-gray-400 font-semibold uppercase tracking-wider">
+                {results.length} resultado{results.length !== 1 ? 's' : ''}
+              </p>
+              {results.map(({ order, stage }) => (
+                <div
+                  key={`${order.id}-${stage}`}
+                  className="flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group cursor-pointer"
+                  onClick={() => { onView(order, stage); onClose() }}
+                >
+                  {/* Stage dot */}
+                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${STAGE_DOT[stage] ?? 'bg-gray-300'}`} />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-gray-900">#{order.id}</span>
+                      {order.notaFiscal && (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                          <ClipboardList size={8} /> NF {order.notaFiscal}
+                        </span>
+                      )}
+                      {order.fromMagazord && (
+                        <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">MAGAZORD</span>
+                      )}
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[stage] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {stage}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-gray-800 mt-0.5 truncate">{order.cliente}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{order.produto}</p>
+                    {order.prazoEntrega && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">Prazo: {order.prazoEntrega}</p>
+                    )}
+                  </div>
+
+                  <button className="shrink-0 p-1.5 rounded-lg border border-gray-200 text-gray-400 group-hover:text-navy-900 group-hover:border-blue-200 group-hover:bg-blue-50 transition-all">
+                    <Eye size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 type ViewMode = 'kanban' | 'delivery'
@@ -1428,6 +1567,7 @@ export default function Production() {
   const [dispatchModal, setDispatchModal] = useState<Order | null>(null)
   const [reviewModal, setReviewModal] = useState<Order | null>(null)
   const [toast, setToast]           = useState<string | null>(null)
+  const [searchModal, setSearchModal] = useState(false)
   const [filter, setFilter]         = useState<'todos' | 'atrasado' | 'pendente'>('todos')
   const [view, setView]             = useState<ViewMode>('kanban')
   const [dbLoading, setDbLoading]   = useState(false)
@@ -2247,16 +2387,38 @@ export default function Production() {
         </div>
       )}
 
-      {/* FAB */}
-      <button
+      {/* FABs */}
+      {/* Search FAB */}
+      <motion.button
+        onClick={() => setSearchModal(true)}
+        className="fixed bottom-6 right-24 z-20 flex items-center gap-2 bg-white border-2 border-blue-200 text-blue-700 font-semibold text-sm px-4 py-3 rounded-full shadow-lg hover:shadow-xl hover:bg-blue-50 transition-all"
+        title="Buscar Pedido"
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.97 }}
+      >
+        <Search size={17} />
+        <span className="hidden sm:inline">Buscar Pedido</span>
+      </motion.button>
+
+      {/* New Order FAB */}
+      <motion.button
         onClick={() => setNewModal(true)}
         className="fixed bottom-6 right-6 w-12 h-12 bg-navy-900 hover:bg-blue-900 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-20"
         title="Novo Pedido"
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.95 }}
       >
         <Plus size={22} />
-      </button>
+      </motion.button>
 
       <AnimatePresence>
+        {searchModal && (
+          <SearchModal
+            board={board}
+            onClose={() => setSearchModal(false)}
+            onView={(order, stage) => { setDetail({ order, stage }); setSearchModal(false) }}
+          />
+        )}
         {newModal && <NewOrderModal onClose={() => setNewModal(false)} onSave={addOrder} />}
         {detail && (
           <DetailModal
