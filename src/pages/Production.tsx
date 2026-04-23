@@ -1418,6 +1418,12 @@ function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDe
 
 // ─── Search Modal ─────────────────────────────────────────────────────────────
 
+// Helper: converte qualquer valor para string minúscula sem crashar
+function safeStr(v: unknown): string {
+  if (v == null) return ''
+  return String(v).toLowerCase()
+}
+
 function SearchModal({ board, onClose, onView }: {
   board: Record<Stage, Order[]>
   onClose: () => void
@@ -1430,20 +1436,26 @@ function SearchModal({ board, onClose, onView }: {
 
   const q = query.trim().toLowerCase()
 
-  // Flatten all orders with their stage — usa ?? [] como defesa contra stages ausentes
-  const allOrders: { order: Order; stage: Stage }[] = ALL_STAGES.flatMap(stage =>
-    (board[stage] ?? []).map(order => ({ order, stage }))
-  )
-
-  const results = q.length < 1 ? [] : allOrders.filter(({ order }) => {
-    return (
-      order.id.toLowerCase().includes(q) ||
-      (order.notaFiscal ?? '').toLowerCase().includes(q) ||
-      order.cliente.toLowerCase().includes(q) ||
-      order.produto.toLowerCase().includes(q) ||
-      (order.itens ?? []).some(it => it.produto.toLowerCase().includes(q))
+  // Flatten all orders — defesa total contra stages/campos undefined/null/number
+  let allOrders: { order: Order; stage: Stage }[] = []
+  try {
+    allOrders = ALL_STAGES.flatMap(stage =>
+      (board[stage] ?? [])
+        .filter(o => o != null)                // descarta entradas nulas
+        .map(order => ({ order, stage }))
     )
-  })
+  } catch { allOrders = [] }
+
+  let results: { order: Order; stage: Stage }[] = []
+  try {
+    results = q.length < 1 ? [] : allOrders.filter(({ order }) =>
+      safeStr(order.id).includes(q) ||
+      safeStr(order.notaFiscal).includes(q) ||
+      safeStr(order.cliente).includes(q) ||
+      safeStr(order.produto).includes(q) ||
+      (order.itens ?? []).some(it => safeStr(it?.produto).includes(q))
+    )
+  } catch { results = [] }
 
   const STAGE_COLOR: Partial<Record<Stage, string>> = {
     'Novos Pedidos':       'bg-violet-100 text-violet-700',
