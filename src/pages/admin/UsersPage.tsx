@@ -49,7 +49,7 @@ function RoleBadge({ role }: { role: Role }) {
 // ─── Role Selector ────────────────────────────────────────────────────────────
 
 function RoleSelect({ value, onChange, disabled }: { value: Role; onChange: (r: Role) => void; disabled?: boolean }) {
-  const roles: Role[] = ['admin', 'gerente', 'producao', 'financeiro', 'almoxarifado']
+  const roles: Role[] = ['admin', 'gerente', 'producao', 'impressao', 'financeiro', 'almoxarifado']
   return (
     <div className="relative inline-block">
       <select
@@ -147,6 +147,7 @@ function InviteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
               <option value="admin">👑 Administrador — acesso total</option>
               <option value="gerente">🏢 Gerente — tudo exceto config. avançadas</option>
               <option value="producao">🏭 Produção — somente PCP / Kanban</option>
+              <option value="impressao">🖨️ Impressão — produção + OK exclusivo na Impressão</option>
               <option value="financeiro">💰 Financeiro — Dashboard + Financeiro</option>
               <option value="almoxarifado">📦 Almoxarifado — Estoque + Patrimônio</option>
             </select>
@@ -225,7 +226,7 @@ export default function UsersPage() {
 
   const getInitials = (nome: string) => nome.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()
   const getAvatarColor = (role: Role) => ({
-    admin: '#7c3aed', gerente: '#1d4ed8', producao: '#b45309', financeiro: '#059669', almoxarifado: '#374151'
+    admin: '#7c3aed', gerente: '#1d4ed8', producao: '#b45309', impressao: '#2563eb', financeiro: '#059669', almoxarifado: '#374151'
   })[role]
 
   return (
@@ -250,7 +251,7 @@ export default function UsersPage() {
 
       {/* Role summary */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        {(['admin','gerente','producao','financeiro','almoxarifado'] as Role[]).map(role => {
+        {(['admin','gerente','producao','impressao','financeiro','almoxarifado'] as Role[]).map(role => {
           const count = users.filter(u => u.role === role).length
           return (
             <div key={role} className="card p-3 text-center">
@@ -341,13 +342,14 @@ export default function UsersPage() {
       <div className="mt-6 card p-4">
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Referência de Permissões</p>
         <div className="space-y-2">
-          {(['admin','gerente','producao','financeiro','almoxarifado'] as Role[]).map(role => (
+          {(['admin','gerente','producao','impressao','financeiro','almoxarifado'] as Role[]).map(role => (
             <div key={role} className="flex items-center gap-3">
               <RoleBadge role={role} />
               <p className="text-xs text-gray-500 flex-1">
                 {role === 'admin' && 'Acesso total a todas as áreas, incluindo gestão de usuários'}
                 {role === 'gerente' && 'Dashboard, Produção, Financeiro, Almoxarifado, Patrimônio, Parceiros, Relatórios'}
                 {role === 'producao' && 'Somente painel de Produção (PCP) — Casa Linda e Lar e Vida'}
+                {role === 'impressao' && 'Produção + permissão exclusiva de confirmar OK na etapa Impressão'}
                 {role === 'financeiro' && 'Dashboard e módulo Financeiro completo'}
                 {role === 'almoxarifado' && 'Almoxarifado e Patrimônio'}
               </p>

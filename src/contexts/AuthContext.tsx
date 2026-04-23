@@ -12,7 +12,7 @@ import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type Role = 'admin' | 'gerente' | 'producao' | 'financeiro' | 'almoxarifado'
+export type Role = 'admin' | 'gerente' | 'producao' | 'impressao' | 'financeiro' | 'almoxarifado'
 
 export type Module =
   | 'dashboard'
@@ -42,6 +42,7 @@ const ROLE_MODULES: Record<Role, Module[]> = {
   admin:        ['dashboard','production','financial','inventory','patrimonio','partners','reports','settings','catalogo','users'],
   gerente:      ['dashboard','production','financial','inventory','patrimonio','partners','reports','catalogo'],
   producao:     ['production'],
+  impressao:    ['production'],
   financeiro:   ['dashboard','financial'],
   almoxarifado: ['inventory','patrimonio'],
 }
@@ -214,6 +215,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin:        '👑 Administrador',
   gerente:      '🏢 Gerente',
   producao:     '🏭 Produção',
+  impressao:    '🖨️ Impressão',
   financeiro:   '💰 Financeiro',
   almoxarifado: '📦 Almoxarifado',
 }
@@ -222,6 +224,7 @@ export const ROLE_COLORS: Record<Role, string> = {
   admin:        'bg-purple-100 text-purple-800 border-purple-200',
   gerente:      'bg-blue-100 text-blue-800 border-blue-200',
   producao:     'bg-amber-100 text-amber-800 border-amber-200',
+  impressao:    'bg-blue-100 text-blue-900 border-blue-300',
   financeiro:   'bg-green-100 text-green-800 border-green-200',
   almoxarifado: 'bg-gray-100 text-gray-700 border-gray-200',
 }

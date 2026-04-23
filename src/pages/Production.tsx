@@ -12,6 +12,7 @@ import {
   fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2019,6 +2020,11 @@ export default function Production() {
     return orders
   }
 
+  const { profile } = useAuth()
+
+  // Permissão especial: só 'impressao' e 'admin' avançam pedidos da etapa Impressão
+  const canConcludeImpressao = profile?.role === 'impressao' || profile?.role === 'admin'
+
   const novosCount  = board['Novos Pedidos'].length
   const totalKanban = KANBAN_STAGES.flatMap(s => board[s]).length
   const totalProntos = board['Prontos para Envio'].length
@@ -2235,21 +2241,32 @@ export default function Production() {
                             </div>
                           )}
                           <div className="flex gap-1.5 mt-2">
-                            <button
-                              onClick={() => conclude(stage, order.id)}
-                              className={`flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors`}
-                              style={
-                                stage === 'Embalagem' ? { background: '#d97706' } :
-                                stage === 'Revisão'   ? { background: '#e11d48' } :
-                                { background: '#1e3a8a' }
-                              }
-                            >
-                              {stage === 'Embalagem'
-                                ? <><ClipboardList size={13} /> Pronto p/ Envio</>
-                                : stage === 'Revisão'
-                                ? <><CheckCircle size={13} /> Iniciar Revisão</>
-                                : <><CheckCircle size={13} /> OK / CONCLUÍDO</>}
-                            </button>
+                            {/* Botão de concluir — Impressão exige role impressao ou admin */}
+                            {stage === 'Impressão' && !canConcludeImpressao ? (
+                              <div
+                                className="flex-1 flex items-center justify-center gap-1.5 text-gray-400 text-xs font-semibold py-1.5 rounded-lg bg-gray-100 border border-gray-200 cursor-not-allowed select-none"
+                                title="Somente o operador de Impressão ou Admin pode concluir esta etapa"
+                              >
+                                🔒 Restrito
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => conclude(stage, order.id)}
+                                className={`flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors`}
+                                style={
+                                  stage === 'Embalagem' ? { background: '#d97706' } :
+                                  stage === 'Revisão'   ? { background: '#e11d48' } :
+                                  stage === 'Impressão' ? { background: '#2563eb' } :
+                                  { background: '#1e3a8a' }
+                                }
+                              >
+                                {stage === 'Embalagem'
+                                  ? <><ClipboardList size={13} /> Pronto p/ Envio</>
+                                  : stage === 'Revisão'
+                                  ? <><CheckCircle size={13} /> Iniciar Revisão</>
+                                  : <><CheckCircle size={13} /> OK / CONCLUÍDO</>}
+                              </button>
+                            )}
                             {stage === 'Embalagem' && (
                               <button onClick={() => showToast('Upload de comprovante — funcionalidade em breve')} className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-navy-900 transition-colors" title="Upload comprovante">
                                 <Upload size={13} />
