@@ -1430,9 +1430,9 @@ function SearchModal({ board, onClose, onView }: {
 
   const q = query.trim().toLowerCase()
 
-  // Flatten all orders with their stage
+  // Flatten all orders with their stage — usa ?? [] como defesa contra stages ausentes
   const allOrders: { order: Order; stage: Stage }[] = ALL_STAGES.flatMap(stage =>
-    board[stage].map(order => ({ order, stage }))
+    (board[stage] ?? []).map(order => ({ order, stage }))
   )
 
   const results = q.length < 1 ? [] : allOrders.filter(({ order }) => {
@@ -1632,9 +1632,16 @@ export default function Production() {
       setDbConnected(true)
       setDbLoading(false)
     }).catch(() => {
-      // Fallback local storage
+      // Fallback local storage — merge with INITIAL to guarantee all stages exist
       const saved = localStorage.getItem('erp_board_backup')
-      if (saved) setBoard(JSON.parse(saved))
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved)
+          // Always spread INITIAL first so new stages that didn't exist in old
+          // backups are present as empty arrays instead of undefined
+          setBoard({ ...INITIAL, ...parsed })
+        } catch { /* backup corrompido, ignora */ }
+      }
       setDbLoading(false)
     })
   }, [])
