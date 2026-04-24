@@ -1666,10 +1666,12 @@ export default function Production() {
 
   // Maps display-id → Supabase UUID (needed for syncing mutations)
   const dbIdMap = useRef<Map<string, string>>(new Map())
-  const enrichCache = useRef<Record<string, any>>(() => {
-    try { return JSON.parse(localStorage.getItem('erp_enrich_cache') || '{}') }
-    catch { return {} }
-  }())
+  const enrichCache = useRef<Record<string, any>>(
+    (() => {
+      try { return JSON.parse(localStorage.getItem('erp_enrich_cache') || '{}') }
+      catch { return {} }
+    })()
+  )
 
   // ── Magazord sync state ──
   const [syncing, setSyncing]       = useState(false)
@@ -1810,7 +1812,7 @@ export default function Production() {
           const newCacheData = {
             imagemUrl:    imgUrl ?? enrichCache.current[order.id]?.imagemUrl,
             itens:        imgItens ?? enrichCache.current[order.id]?.itens,
-            produto:      rich.produto && rich.produto !== o.produto ? rich.produto : undefined,
+            produto:      rich.produto && rich.produto !== order.produto ? rich.produto : undefined,
             prazoEntrega: rich.prazoEntrega ?? enrichCache.current[order.id]?.prazoEntrega,
             notaFiscal:   (rich as any).notaFiscal ?? enrichCache.current[order.id]?.notaFiscal,
           }

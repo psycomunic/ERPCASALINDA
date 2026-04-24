@@ -23,7 +23,7 @@ export async function fetchTransacoes(f: FinFilters = {}): Promise<Transacao[]> 
 
   if (f.tipo) query = query.eq('tipo', f.tipo)
   if (f.loja && f.loja !== 'Todas') query = query.eq('loja', f.loja)
-  if (f.situacao && f.situacao !== 'Todas') query = query.eq('situacao', f.situacao.toLowerCase())
+  if (f.situacao && f.situacao !== 'Todas') query = query.eq('situacao', f.situacao.toLowerCase() as any)
   if (f.planoContas && f.planoContas !== 'Todos') query = query.eq('plano_contas', f.planoContas)
   if (f.fornecedor) query = query.ilike('fornecedor', `%${f.fornecedor}%`)
   if (f.dataInicio) query = query.gte('data_vencimento', f.dataInicio)

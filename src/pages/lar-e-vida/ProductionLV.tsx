@@ -1095,8 +1095,16 @@ export default function ProductionLV() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
+  const loadOrders = useCallback(() => {
+    setLoading(true)
+    fetchPedidosLV().then(res => {
+      processFetchedRowsLV(res)
+      setLoading(false)
+    })
+  }, [])
+
   // ── Load from Supabase ──
-  const processFetchedRowsLV = useCallback((pedidos: LVOrder[]) => {
+  const processFetchedRowsLV = useCallback((pedidos: any[]) => {
     const newCols: Record<Stage, LVOrder[]> = Object.fromEntries(ALL_STAGES.map(s => [s, []])) as unknown as Record<Stage, LVOrder[]>
 
     let maxNum = 0
@@ -1148,8 +1156,7 @@ export default function ProductionLV() {
   }, [])
 
   useEffect(() => {
-    setLoading(true)
-    fetchPedidosLV().then(processFetchedRowsLV)
+    loadOrders()
 
     const sub = subscribePedidosLV(processFetchedRowsLV as any)
     return () => sub.unsubscribe()
