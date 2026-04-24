@@ -1313,7 +1313,7 @@ export default function ProductionLV() {
 
   // ── Render ──
   return (
-    <div className="p-6 flex flex-col h-full">
+    <div className="p-4 md:p-6 flex flex-col h-full bg-gray-50/50" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
         <div>
@@ -1364,13 +1364,13 @@ export default function ProductionLV() {
 
       {/* ── KANBAN VIEW ── */}
       {view === 'kanban' && (
-        <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+        <div className="flex gap-4 overflow-x-auto pb-4 flex-1 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           {KANBAN_STAGES.map(stage => {
             const isNew = stage === 'Novos Pedidos'
             const orders = filterOrders(board[stage])
             return (
               <div key={stage}
-                className={`flex-shrink-0 w-64 rounded-xl flex flex-col transition-all ${isNew ? 'bg-amber-50 border-2 border-amber-200' : `bg-gray-100 ${dragging && dragging.from !== stage ? 'ring-2 ring-amber-200 ring-offset-1' : ''}`}`}
+                className={`flex-shrink-0 w-80 md:w-64 max-w-[85vw] snap-center md:snap-align-none rounded-xl flex flex-col transition-all border shadow-sm ${isNew ? 'bg-amber-50/80 border-amber-200' : `bg-gray-100/80 border-gray-200 ${dragging && dragging.from !== stage ? 'ring-2 ring-amber-200 ring-offset-1' : ''}`}`}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => onDrop(stage, e)}
               >
