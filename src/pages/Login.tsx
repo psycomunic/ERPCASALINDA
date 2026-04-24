@@ -46,8 +46,12 @@ export default function Login() {
     if (isRecovering) {
       if (!email.trim()) { setError('Preencha seu e-mail para recuperar a senha.'); return }
       setError(''); setSuccess(''); setLoading(true)
+      const appOrigin =
+        (window.location.origin && window.location.origin !== 'null')
+          ? window.location.origin
+          : (import.meta.env.VITE_APP_URL ?? 'http://localhost:5173')
       const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: window.location.origin + '/dashboard',
+        redirectTo: appOrigin + '/dashboard',
       })
       setLoading(false)
       if (err) {
