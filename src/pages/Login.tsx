@@ -5,8 +5,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Eye, EyeOff, LogIn, AlertCircle, Building2, Sofa, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, LogIn, AlertCircle, Building2, Sofa, Loader2, Check } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -18,6 +19,8 @@ export default function Login() {
   const [showPw,   setShowPw]   = useState(false)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
+  const [success,  setSuccess]  = useState('')
+  const [isRecovering, setIsRecovering] = useState(false)
 
   // Redirect when authenticated — don't wait for profile (may be slow due to RLS)
   useEffect(() => {
@@ -39,9 +42,25 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (isRecovering) {
+      if (!email.trim()) { setError('Preencha seu e-mail para recuperar a senha.'); return }
+      setError(''); setSuccess(''); setLoading(true)
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: window.location.origin + '/dashboard',
+      })
+      setLoading(false)
+      if (err) {
+        setError(err.message)
+      } else {
+        setSuccess('Link de recuperação enviado! Verifique sua caixa de entrada e spam. Ao clicar no link, você entrará no sistema automaticamente e poderá trocar a senha no menu superior.')
+        setIsRecovering(false)
+      }
+      return
+    }
+
     if (!email.trim() || !password) { setError('Preencha e-mail e senha.'); return }
-    setError('')
-    setLoading(true)
+    setError(''); setSuccess(''); setLoading(true)
     const { error: err } = await signIn(email.trim().toLowerCase(), password)
     setLoading(false)
     if (err) setError(err)
@@ -110,28 +129,52 @@ export default function Login() {
             </div>
 
             {/* Password */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                Senha
-              </label>
-              <div className="relative">
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setError('') }}
-                  placeholder="••••••••"
-                  className="w-full rounded-xl border border-white/10 bg-white/5 text-white placeholder-gray-500 px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all backdrop-blur-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+            <AnimatePresence>
+              {!isRecovering && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
                 >
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2 mt-4">
+                    Senha
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPw ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); setError('') }}
+                      placeholder="••••••••"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 text-white placeholder-gray-500 px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all backdrop-blur-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Success */}
+            <AnimatePresence>
+              {success && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 mt-4 overflow-hidden"
+                >
+                  <Check size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="text-sm text-emerald-300 leading-snug">{success}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Error */}
             <AnimatePresence>
@@ -140,7 +183,7 @@ export default function Login() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3"
+                  className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mt-4 overflow-hidden"
                 >
                   <AlertCircle size={14} className="text-red-400 shrink-0" />
                   <p className="text-sm text-red-300">{error}</p>
@@ -148,23 +191,34 @@ export default function Login() {
               )}
             </AnimatePresence>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading || !email || !password}
-              className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: loading || !email || !password
-                  ? 'rgba(99,102,241,0.4)'
-                  : 'linear-gradient(135deg, #4f46e5, #6366f1)',
-                boxShadow: !loading && email && password ? '0 8px 24px rgba(99,102,241,0.4)' : 'none',
-                color: 'white',
-              }}
-            >
-              {loading
-                ? <><Loader2 size={16} className="animate-spin" /> Entrando...</>
-                : <><LogIn size={16} /> Entrar no Sistema</>}
-            </button>
+            {/* Actions */}
+            <div className="pt-2 flex flex-col gap-3">
+              <button
+                type="submit"
+                disabled={loading || !email || (!isRecovering && !password)}
+                className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  background: loading || !email || (!isRecovering && !password)
+                    ? 'rgba(99,102,241,0.4)'
+                    : 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                  boxShadow: !loading && email && (isRecovering || password) ? '0 8px 24px rgba(99,102,241,0.4)' : 'none',
+                  color: 'white',
+                }}
+              >
+                {loading
+                  ? <><Loader2 size={16} className="animate-spin" /> {isRecovering ? 'Enviando...' : 'Entrando...'}</>
+                  : <>{isRecovering ? <><LogIn size={16} /> Enviar Link de Acesso</> : <><LogIn size={16} /> Entrar no Sistema</>}</>
+                }
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setIsRecovering(!isRecovering); setError(''); setSuccess('') }}
+                className="text-xs text-gray-400 hover:text-white transition-colors"
+              >
+                {isRecovering ? 'Voltar para o login' : 'Esqueci minha senha'}
+              </button>
+            </div>
           </form>
 
           {/* Footer */}

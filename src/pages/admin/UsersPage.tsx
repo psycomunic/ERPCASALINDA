@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Plus, RefreshCw, Check, X, Mail, Shield,
-  ToggleLeft, ToggleRight, ChevronDown, Send, Eye, EyeOff
+  ToggleLeft, ToggleRight, ChevronDown, Send, Eye, EyeOff, Key
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth, type UserProfile, type Role, ROLE_LABELS, ROLE_COLORS } from '../../contexts/AuthContext'
@@ -171,6 +171,93 @@ function InviteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   )
 }
 
+// ─── Reset Password Modal ──────────────────────────────────────────────────────
+
+function ResetPasswordModal({ userProfile, onClose, onSaved }: { userProfile: UserProfile; onClose: () => void; onSaved: () => void }) {
+  const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    if (!password || password.length < 6) {
+      setError('A senha provisória deve ter no mínimo 6 caracteres.')
+      return
+    }
+    
+    setSaving(true)
+    setError('')
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sessão expirada. Por favor, faça login novamente.')
+
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ userId: userProfile.id, newPassword: password })
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro ao redefinir a senha.')
+      
+      onSaved()
+      onClose()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <motion.div className="modal-overlay z-50 fixed inset-0 bg-black/40 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center"><Key size={16} className="text-amber-700" /></div>
+            <div>
+              <h3 className="font-bold text-gray-900 leading-tight">Redefinir Senha</h3>
+              <p className="text-[10px] text-gray-500">{userProfile.nome}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-gray-600 mb-2">
+            Crie uma senha provisória para este usuário. Ele poderá acessar o sistema e alterá-la depois no próprio perfil.
+          </p>
+          <div>
+            <label className="text-xs text-gray-500 font-semibold mb-1 block">Nova Senha Provisória</label>
+            <div className="relative">
+              <input className="input pr-10" type={showPw ? 'text' : 'password'} placeholder="Ex: mudar123" value={password} onChange={e => setPassword(e.target.value)} />
+              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-600 flex items-center gap-2">
+              <X size={12} className="shrink-0" /> {error}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 p-4 border-t border-gray-100">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+          <button onClick={handleSave} disabled={saving || !password}
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white text-sm font-semibold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 transition-colors">
+            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
+            Confirmar Reset
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function UsersPage() {
@@ -178,6 +265,7 @@ export default function UsersPage() {
   const [users, setUsers]       = useState<UserProfile[]>([])
   const [loading, setLoading]   = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [resetUser, setResetUser] = useState<UserProfile | null>(null)
   const [saving, setSaving]     = useState<string | null>(null)
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
@@ -313,17 +401,26 @@ export default function UsersPage() {
                       ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Ativo</span>
                       : <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-400"><span className="w-1.5 h-1.5 rounded-full bg-gray-300 inline-block" />Inativo</span>}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => handleToggleAtivo(user)}
-                      disabled={saving === user.id || user.id === me?.id}
-                      title={user.ativo ? 'Desativar acesso' : 'Reativar acesso'}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-400 hover:text-gray-700"
-                    >
-                      {saving === user.id
-                        ? <RefreshCw size={13} className="animate-spin" />
-                        : user.ativo ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
-                    </button>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setResetUser(user)}
+                        title="Redefinir senha (Admin)"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-gray-400 hover:text-amber-600"
+                      >
+                        <Key size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleAtivo(user)}
+                        disabled={saving === user.id || user.id === me?.id}
+                        title={user.ativo ? 'Desativar acesso' : 'Reativar acesso'}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-400 hover:text-gray-700"
+                      >
+                        {saving === user.id
+                          ? <RefreshCw size={13} className="animate-spin" />
+                          : user.ativo ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+                      </button>
+                    </div>
                   </td>
                 </motion.tr>
               ))}
@@ -360,6 +457,13 @@ export default function UsersPage() {
 
       <AnimatePresence>
         {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} onSaved={loadUsers} />}
+        {resetUser && (
+          <ResetPasswordModal 
+            userProfile={resetUser} 
+            onClose={() => setResetUser(null)} 
+            onSaved={() => showToast(`Senha de ${resetUser.nome} redefinida com sucesso!`)} 
+          />
+        )}
         {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       </AnimatePresence>
     </div>
