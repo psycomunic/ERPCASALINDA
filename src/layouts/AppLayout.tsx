@@ -345,7 +345,7 @@ function Topbar() {
   const location   = useLocation()
   const navigate   = useNavigate()
   const { tabs, activeTab, setActiveTab } = useLayout()
-  const { profile, signOut } = useAuth()
+  const { can, profile, signOut } = useAuth()
   const section    = SECTION_LABELS[location.pathname] ?? ''
 
   const [showNotifs, setShowNotifs] = useState(false)
