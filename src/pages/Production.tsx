@@ -472,6 +472,8 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
       .finally(() => setDetailLoading(false))
   }, [initialOrder.fromMagazord, initialOrder.id])
 
+  const [fullImage, setFullImage] = useState<string | null>(null)
+
   const isDelivery = stage === 'Prontos para Envio' || stage === 'Despachados'
   const isMagazord = stage === 'Novos Pedidos'
   const days = daysUntil(order.prazoEntrega)
@@ -553,7 +555,7 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
             {/* Product image / visual placeholder */}
             <div className="flex-shrink-0 w-28 h-28 rounded-xl overflow-hidden border border-gray-200 bg-gradient-to-br from-violet-50 to-blue-50 flex items-center justify-center">
               {order.imagemUrl ? (
-                <img src={order.imagemUrl} alt="Produto" className="w-full h-full object-cover" />
+                <img onClick={() => setFullImage(order.imagemUrl!)} src={order.imagemUrl} alt="Produto" className="w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform" />
               ) : (
                 <div className="flex flex-col items-center justify-center text-center p-2">
                   <div className="w-10 h-10 rounded-lg bg-white/70 border border-violet-100 flex items-center justify-center mb-1">
@@ -664,7 +666,7 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
                     {/* Imagem */}
                     <div className="w-12 h-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden">
                       {item.imagemUrl || order.imagemUrl ? (
-                         <img src={item.imagemUrl || order.imagemUrl} alt="Produto" className="w-full h-full object-cover" />
+                         <img onClick={() => setFullImage(item.imagemUrl || order.imagemUrl!)} src={item.imagemUrl || order.imagemUrl} alt="Produto" className="w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform" />
                       ) : (
                          <div className="flex flex-col items-center opacity-40">
                            <Package size={14} className="text-violet-500 mb-0.5" />
@@ -833,6 +835,32 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
           )}
         </div>
       </motion.div>
+
+      {/* ── FULLSCREEN IMAGE ZOOM ── */}
+      <AnimatePresence>
+        {fullImage && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[999] bg-black/90 flex flex-col items-center justify-center p-4 md:p-8 backdrop-blur-md cursor-zoom-out"
+            onClick={(e) => { e.stopPropagation(); setFullImage(null); }}
+          >
+            <button
+              onClick={(e) => { e.stopPropagation(); setFullImage(null); }}
+              className="absolute top-6 right-6 text-white/70 hover:text-white p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"
+              title="Fechar"
+            >
+              <X size={24} />
+            </button>
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ duration: 0.2 }}
+              src={fullImage}
+              alt="Zoom"
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
