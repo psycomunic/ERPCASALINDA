@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Search, X, ChevronDown, List, Edit2, Trash2, ExternalLink, SlidersHorizontal, Settings2, FileText, Printer, Copy, RotateCcw } from 'lucide-react'
-import { getEntries, saveEntry, deleteEntry, FinEntry } from '../../services/dbLocal'
+import { fetchTransacoes, createTransacao, updateTransacao, deleteTransacao } from '../../services/apiFinTransacoes'
+import type { Database } from '../../lib/database.types'
+
+type Transacao = Database['public']['Tables']['fin_transacoes']['Row']
 
 export default function Payable() {
-  const [entries, setEntries] = useState<FinEntry[]>([])
+  const [entries, setEntries] = useState<Transacao[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
@@ -24,15 +27,14 @@ export default function Payable() {
   const [modalType, setModalType] = useState<false | 'new'>(false)
   const [tab, setTab] = useState(0)
   const [form, setForm] = useState({
-    descricao: '', vencimento: '', planoContas: 'Fornecedores', centroCusto: '',
+    descricao: '', vencimento: '', planoContas: 'Fornecedores Gerais', centroCusto: '',
     formaPagamento: 'Boleto Bancário', quitado: 'Não', dataCompensacao: '',
     valorBruto: '', juros: '', desconto: '',
     fornecedor: '', dataCompetencia: '', obs: ''
   })
 
   useEffect(() => {
-    // We get entries once, usually this would come from an API
-    setEntries(getEntries().filter(e => e.tipo === 'pagamento'))
+    fetchTransacoes({ tipo: 'despesa' }).then(setEntries)
   }, [])
 
   // KPI Calculations
@@ -41,13 +43,13 @@ export default function Payable() {
     let vencidos = 0, vencemHoje = 0, aVencer = 0, pagos = 0, total = 0
 
     entries.forEach(e => {
-      total += e.valor
-      if (e.status === 'pago') {
-        pagos += e.valor
+      total += e.valor_final
+      if (e.situacao === 'pago') {
+        pagos += e.valor_final
       } else {
-        if (e.dataVencimento < today) vencidos += e.valor
-        else if (e.dataVencimento === today) vencemHoje += e.valor
-        else aVencer += e.valor
+        if (e.data_vencimento < today) vencidos += e.valor_final
+        else if (e.data_vencimento === today) vencemHoje += e.valor_final
+        else aVencer += e.valor_final
       }
     })
     return { vencidos, vencemHoje, aVencer, pagos, total }
@@ -55,25 +57,23 @@ export default function Payable() {
   const kpi = calcKpis()
 
   // Handlers
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir esta despesa permanentemente?')) return
-    deleteEntry(id)
+    await deleteTransacao(id)
     setEntries(prev => prev.filter(e => e.id !== id))
     setActiveMenuId(null)
   }
 
-  const toggleStatus = (entry: FinEntry) => {
-    const isPago = entry.status === 'pago'
-    const edit = { 
-       ...entry, 
-       status: isPago ? 'pendente' as const : 'pago' as const, 
-       dataPagamento: !isPago ? new Date().toISOString().split('T')[0] : undefined 
-    }
-    saveEntry(edit)
-    setEntries(prev => prev.map(e => e.id === entry.id ? edit : e))
+  const toggleStatus = async (entry: Transacao) => {
+    const isPago = entry.situacao === 'pago'
+    const newSituacao = isPago ? 'pendente' : 'pago'
+    const novaDataPagamento = !isPago ? new Date().toISOString().split('T')[0] : null
+    
+    await updateTransacao(entry.id, { situacao: newSituacao, data_pagamento: novaDataPagamento })
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, situacao: newSituacao, data_pagamento: novaDataPagamento } : e))
   }
 
-  const handleSaveNovo = () => {
+  const handleSaveNovo = async () => {
     if (!form.descricao || !form.valorBruto || !form.vencimento) {
       alert('Preencha os campos obrigatórios: Descrição, Valor Bruto e Vencimento')
       return
@@ -84,23 +84,32 @@ export default function Payable() {
     const vd = parseFloat(form.desconto) || 0
     const finalValor = vb + vj - vd
 
-    const novo: FinEntry = {
-      id: Date.now().toString(),
-      tipo: 'pagamento',
-      categoria: form.planoContas || 'Geral',
+    const transacao = await createTransacao({
+      tipo: 'despesa',
+      plano_contas: form.planoContas,
       descricao: form.descricao,
-      valor: finalValor,
-      dataVencimento: form.vencimento,
-      dataPagamento: form.quitado === 'Sim' && form.dataCompensacao ? form.dataCompensacao : undefined,
-      status: form.quitado === 'Sim' ? 'pago' : 'pendente',
-      fornecedor_cliente: form.fornecedor || 'Fornecedor Genérico'
+      valor_bruto: vb,
+      juros_multas: vj,
+      desconto: vd,
+      valor_final: finalValor,
+      data_vencimento: form.vencimento,
+      data_pagamento: form.quitado === 'Sim' && form.dataCompensacao ? form.dataCompensacao : null,
+      situacao: form.quitado === 'Sim' ? 'pago' : 'pendente',
+      fornecedor: form.fornecedor || '',
+      forma_pagamento: form.formaPagamento,
+      centro_custo: form.centroCusto || null,
+      data_competencia: form.dataCompetencia || null,
+      observacoes: form.obs || null
+    })
+
+    if (transacao) {
+      setEntries(prev => [transacao, ...prev])
+      setModalType(false)
+      setTab(0)
+      setForm({...form, descricao: '', valorBruto: '', fornecedor: ''})
+    } else {
+      alert('Tabela fin_transacoes não encontrada no Banco de Dados. Por favor execute o Script SQL presente em supabase_script.sql no seu painel do Supabase.')
     }
-    saveEntry(novo)
-    setEntries(prev => [novo, ...prev])
-    setModalType(false)
-    setTab(0)
-    // reset
-    setForm({...form, descricao: '', valorBruto: '', fornecedor: ''})
   }
 
   const getFilteredEntries = () => {
@@ -109,12 +118,13 @@ export default function Payable() {
 
   const itemsFilteredByAdvanced = () => {
     return entries.filter(e => {
-      const matchSearch = e.fornecedor_cliente.toLowerCase().includes(searchTerm.toLowerCase()) || e.descricao.toLowerCase().includes(searchTerm.toLowerCase())
-      // simple mock logic for advanced filter
-      const matchPlan = advFilters.planoContas === 'Todos' || e.categoria === advFilters.planoContas
+      const nome_fornecedor = e.fornecedor || ''
+      const matchSearch = nome_fornecedor.toLowerCase().includes(searchTerm.toLowerCase()) || e.descricao.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchPlan = advFilters.planoContas === 'Todos' || e.plano_contas === advFilters.planoContas
       const matchStatus = advFilters.situacao === 'Todas' 
         ? true 
-        : (advFilters.situacao === 'Pago' ? e.status === 'pago' : e.status === 'pendente')
+        : (advFilters.situacao === 'Pago' ? e.situacao === 'pago' : e.situacao === 'pendente')
       
       return matchSearch && matchPlan && matchStatus
     })
@@ -329,38 +339,36 @@ export default function Payable() {
                   <tr key={e.id} className={`${index % 2===0 ? 'bg-white' : 'bg-[#f8f9fa]'} hover:bg-blue-50/40 transition-colors group`}>
                     <td className="py-3 px-4 border-r border-gray-100 flex items-center gap-1.5 font-medium text-gray-700">
                       {e.descricao}
-                      {index % 3 === 0 && <span className="text-gray-400" title="Possui anexos"><FileText size={12}/></span>}
+                      {e.anexo_url && <span className="text-gray-400" title="Possui anexos"><FileText size={12}/></span>}
                     </td>
                     <td className="py-3 px-4 border-r border-gray-100">
                       <div className="flex flex-col">
-                        <a href="#" className="font-semibold text-[#0066cc] hover:underline uppercase text-[11px] truncate max-w-[180px]" title={e.fornecedor_cliente}>
-                          {e.fornecedor_cliente}
+                        <a href="#" className="font-semibold text-[#0066cc] hover:underline uppercase text-[11px] truncate max-w-[180px]" title={e.fornecedor || 'Não informado'}>
+                          {e.fornecedor || '--'}
                         </a>
-                        <span className="text-[10px] text-gray-500 uppercase italic truncate max-w-[180px]">{(e.categoria || 'Geral')}</span>
+                        <span className="text-[10px] text-gray-500 uppercase italic truncate max-w-[180px]">{(e.plano_contas || 'Geral')}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4 border-r border-gray-100 text-gray-600">
-                      {/* Simulação da forma de pagamento, como não temos na interface dbLocal original, chumbaremos o valor form.formaPagamento pro novo ou default */}
-                      {e.status === 'pago' ? 'PIX' : 'Boleto Bancário'}
+                      {e.forma_pagamento || '--'}
                     </td>
                     <td className="py-3 px-4 border-r border-gray-100 text-gray-600 font-medium">
-                      {e.dataVencimento.split('-').reverse().join('/')}
+                      {e.data_vencimento ? e.data_vencimento.split('-').reverse().join('/') : '--'}
                     </td>
                     <td className="py-3 px-4 border-r border-gray-100">
-                      {/* NF mock */}
-                      <a href="#" className="text-gray-600 hover:text-navy-600 hover:underline">{index % 2 === 0 ? '7494' : '------'}</a>
+                      <a href="#" className="text-gray-600 hover:text-navy-600 hover:underline">{e.nfe || '------'}</a>
                     </td>
                     <td className="py-3 px-4 border-r border-gray-100 text-center">
-                      {e.status === 'pago' ? (
+                      {e.situacao === 'pago' ? (
                         <div className="inline-flex bg-[#22c55e] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-sm cursor-pointer hover:opacity-80" onClick={()=>toggleStatus(e)}>PAGO</div>
-                      ) : e.dataVencimento < new Date().toISOString().split('T')[0] ? (
+                      ) : e.data_vencimento < new Date().toISOString().split('T')[0] ? (
                         <div className="inline-flex bg-[#ef4444] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-sm cursor-pointer hover:opacity-80" onClick={()=>toggleStatus(e)}>VENCIDO</div>
                       ) : (
                         <div className="inline-flex bg-gray-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm shadow-sm cursor-pointer hover:opacity-80" onClick={()=>toggleStatus(e)}>PENDENTE</div>
                       )}
                     </td>
                     <td className="py-3 px-4 border-r border-gray-100 text-gray-700 font-semibold tabular-nums">
-                      {e.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                      {e.valor_final.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                     </td>
                     <td className="py-2 px-3 text-center align-middle h-full">
                       <div className="flex items-center justify-center gap-[2px]">

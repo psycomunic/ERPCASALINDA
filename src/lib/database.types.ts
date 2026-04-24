@@ -161,6 +161,83 @@ export interface Database {
           pedido_id?: string | null
         }
       }
+      fin_transacoes: {
+        Row: {
+          id: string
+          loja: string | null
+          tipo: 'despesa' | 'receita'
+          situacao: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
+          plano_contas: string | null
+          descricao: string
+          entidade_tipo: string | null
+          fornecedor: string | null
+          data_competencia: string | null
+          data_vencimento: string
+          data_pagamento: string | null
+          forma_pagamento: string | null
+          conta_bancaria: string | null
+          centro_custo: string | null
+          nfe: string | null
+          valor_bruto: number
+          juros_multas: number | null
+          desconto: number | null
+          valor_final: number
+          observacoes: string | null
+          anexo_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Relationships: any[]
+
+        Insert: {
+          id?: string
+          loja?: string | null
+          tipo: 'despesa' | 'receita'
+          situacao: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
+          plano_contas?: string | null
+          descricao: string
+          entidade_tipo?: string | null
+          fornecedor?: string | null
+          data_competencia?: string | null
+          data_vencimento: string
+          data_pagamento?: string | null
+          forma_pagamento?: string | null
+          conta_bancaria?: string | null
+          centro_custo?: string | null
+          nfe?: string | null
+          valor_bruto: number
+          juros_multas?: number | null
+          desconto?: number | null
+          valor_final: number
+          observacoes?: string | null
+          anexo_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          loja?: string | null
+          tipo?: 'despesa' | 'receita'
+          situacao?: 'pendente' | 'pago' | 'atrasado' | 'cancelado'
+          plano_contas?: string | null
+          descricao?: string
+          entidade_tipo?: string | null
+          fornecedor?: string | null
+          data_competencia?: string | null
+          data_vencimento?: string
+          data_pagamento?: string | null
+          forma_pagamento?: string | null
+          conta_bancaria?: string | null
+          centro_custo?: string | null
+          nfe?: string | null
+          valor_bruto?: number
+          juros_multas?: number | null
+          desconto?: number | null
+          valor_final?: number
+          observacoes?: string | null
+          anexo_url?: string | null
+          updated_at?: string
+        }
+      }
       estoque_itens: {
         Row: {
           id: string
