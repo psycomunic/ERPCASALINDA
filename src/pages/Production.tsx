@@ -1314,28 +1314,35 @@ function DeliveryCard({
           </div>
         )}
         {order.transportadora ? (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 group relative">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 relative">
             <Truck size={11} className="text-gray-400 shrink-0" />
-            <span className="flex-1">{order.transportadora}</span>
-            {onChangeCarrier && stage === 'Prontos para Envio' && (
+            
+            {onChangeCarrier && stage === 'Prontos para Envio' ? (
               <label 
-                className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600"
+                className="flex-1 flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-1 -ml-1 rounded transition-colors group py-0.5"
                 title="Alterar Transportadora"
               >
+                <span className="text-gray-600 font-semibold group-hover:text-blue-600 transition-colors">{order.transportadora}</span>
+                <span className="text-[9px] font-bold text-blue-500 bg-blue-100 px-1 border border-blue-200 rounded uppercase tracking-wider shadow-sm opacity-80 group-hover:opacity-100 flex items-center gap-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                  Alterar
+                </span>
+                
                 <select 
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                   value={order.transportadora}
                   onChange={(e) => onChangeCarrier(e.target.value)}
                 >
-                  <option value="" disabled>Alterar...</option>
+                  <option value="" disabled>Alterar Transportadora...</option>
                   {CARRIERS_BY_TYPE.map(g => (
                     <optgroup key={g.tipo} label={g.tipo}>
                       {g.items.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                     </optgroup>
                   ))}
                 </select>
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
               </label>
+            ) : (
+              <span className="flex-1">{order.transportadora}</span>
             )}
           </div>
         ) : (
