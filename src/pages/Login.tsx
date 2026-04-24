@@ -22,23 +22,32 @@ export default function Login() {
   const [success,  setSuccess]  = useState('')
   const [isRecovering, setIsRecovering] = useState(false)
 
-  // Redirect when authenticated — don't wait for profile (may be slow due to RLS)
+  // Redirect when authenticated — role-aware destination
   useEffect(() => {
     if (authLoading || !user) return
 
     const from = (location.state as any)?.from?.pathname
     if (from && from !== '/login') { navigate(from, { replace: true }); return }
 
-    // If profile loaded, use role-aware redirect; otherwise default to dashboard
-    if (profile) {
-      if (can('dashboard'))  { navigate('/dashboard',  { replace: true }); return }
-      if (can('production')) { navigate('/production', { replace: true }); return }
-      if (can('financial'))  { navigate('/financial',  { replace: true }); return }
-      if (can('inventory'))  { navigate('/inventory',  { replace: true }); return }
+    // Wait for profile to apply role-based redirect
+    if (!profile) return
+
+    const role = profile.role
+    // Produção e Impressão → painel PCP
+    if (role === 'producao' || role === 'impressao') {
+      navigate('/production', { replace: true }); return
     }
-    // Profile not yet loaded or no specific permission match — go to dashboard
+    // Financeiro → módulo financeiro
+    if (role === 'financeiro') {
+      navigate('/financial', { replace: true }); return
+    }
+    // Almoxarifado → estoque
+    if (role === 'almoxarifado') {
+      navigate('/inventory', { replace: true }); return
+    }
+    // Admin e Gerente → dashboard Casa Linda
     navigate('/dashboard', { replace: true })
-  }, [user, profile, authLoading, navigate, location, can])
+  }, [user, profile, authLoading, navigate, location])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
