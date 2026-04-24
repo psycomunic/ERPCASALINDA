@@ -9,7 +9,7 @@ import {
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder } from '../magazord'
 import {
-  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa
+  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, subscribePedidos
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -1646,68 +1646,74 @@ export default function Production() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
-  // ── Supabase: load pedidos on mount ──
+  const processFetchedRows = useCallback((rows: any[]) => {
+    if (rows.length === 0) { setDbLoading(false); setDbConnected(true); return }
+
+    const grouped: Record<Stage, Order[]> = {
+      'Novos Pedidos': [], 'Impressão': [], 'Corte Moldura': [],
+      'Entelamento + Vidro': [], 'Acabamento': [], 'Revisão': [], 'Embalagem': [],
+      'Prontos para Envio': [], 'Despachados': [],
+    }
+
+    rows.forEach(r => {
+      const etapa = r.etapa as Stage
+      if (!(etapa in grouped)) return
+      const order: Order = {
+        id: r.numero,
+        magazordId: r.magazord_id ?? undefined,
+        cliente: r.cliente,
+        produto: r.produto,
+        material: r.material ?? undefined,
+        moldura: r.moldura ?? undefined,
+        acabamento: r.acabamento ?? undefined,
+        canal: r.canal ?? undefined,
+        data: safeDate(r.data_prevista) || (r.from_magazord ? 'Pedido Mz.' : 'Hoje'),
+        hora: safeTime(r.hora_prevista ? r.hora_prevista : null),
+        status: r.status,
+        prazoEntrega: safeDate(r.prazo_entrega, 'T12:00:00') || undefined,
+        valor: r.valor ?? undefined,
+        frete: r.frete ?? undefined,
+        obs: r.obs ?? undefined,
+        endereco: r.endereco ?? undefined,
+        transportadora: r.transportadora ?? undefined,
+        rastreio: r.rastreio ?? undefined,
+        dataDespacho: r.data_despacho
+          ? (safeDate(r.data_despacho) + ' ' + safeTime(r.data_despacho)).trim() || undefined
+          : undefined,
+        fromMagazord: r.from_magazord,
+      }
+      dbIdMap.current.set(r.numero, r.id)
+      grouped[etapa].push(order)
+    })
+
+    setBoard(grouped)
+    setDbConnected(true)
+    setDbLoading(false)
+  }, [])
+
+  // ── Supabase: load pedidos on mount & subscribe to changes ──
   useEffect(() => {
     if (!isSupabaseConfigured()) return
     setDbLoading(true)
-    fetchPedidos().then(rows => {
-      if (rows.length === 0) { setDbLoading(false); setDbConnected(true); return }
-
-      const grouped: Record<Stage, Order[]> = {
-        'Novos Pedidos': [], 'Impressão': [], 'Corte Moldura': [],
-        'Entelamento + Vidro': [], 'Acabamento': [], 'Revisão': [], 'Embalagem': [],
-        'Prontos para Envio': [], 'Despachados': [],
-      }
-
-      rows.forEach(r => {
-        const etapa = r.etapa as Stage
-        if (!(etapa in grouped)) return
-        const order: Order = {
-          id: r.numero,
-          magazordId: r.magazord_id ?? undefined,
-          cliente: r.cliente,
-          produto: r.produto,
-          material: r.material ?? undefined,
-          moldura: r.moldura ?? undefined,
-          acabamento: r.acabamento ?? undefined,
-          canal: r.canal ?? undefined,
-          data: safeDate(r.data_prevista) || (r.from_magazord ? 'Pedido Mz.' : 'Hoje'),
-          hora: safeTime(r.hora_prevista ? r.hora_prevista : null),
-          status: r.status,
-          prazoEntrega: safeDate(r.prazo_entrega, 'T12:00:00') || undefined,
-          valor: r.valor ?? undefined,
-          frete: r.frete ?? undefined,
-          obs: r.obs ?? undefined,
-          endereco: r.endereco ?? undefined,
-          transportadora: r.transportadora ?? undefined,
-          rastreio: r.rastreio ?? undefined,
-          dataDespacho: r.data_despacho
-            ? (safeDate(r.data_despacho) + ' ' + safeTime(r.data_despacho)).trim() || undefined
-            : undefined,
-          fromMagazord: r.from_magazord,
-        }
-        // Track UUID for mutations
-        dbIdMap.current.set(r.numero, r.id)
-        grouped[etapa].push(order)
-      })
-
-      setBoard(grouped)
-      setDbConnected(true)
-      setDbLoading(false)
-    }).catch(() => {
-      // Fallback local storage — merge with INITIAL to guarantee all stages exist
+    
+    // Initial load
+    fetchPedidos().then(processFetchedRows).catch(() => {
+      // Fallback local storage
       const saved = localStorage.getItem('erp_board_backup')
       if (saved) {
         try {
           const parsed = JSON.parse(saved)
-          // Always spread INITIAL first so new stages that didn't exist in old
-          // backups are present as empty arrays instead of undefined
           setBoard({ ...INITIAL, ...parsed })
-        } catch { /* backup corrompido, ignora */ }
+        } catch { /* ignore */ }
       }
       setDbLoading(false)
     })
-  }, [])
+
+    // Real-time subscription
+    const sub = subscribePedidos(processFetchedRows)
+    return () => sub.unsubscribe()
+  }, [processFetchedRows])
+
 
   // Helper: get UUID for a display-id order
   const getDbId = (displayId: string) => dbIdMap.current.get(displayId)

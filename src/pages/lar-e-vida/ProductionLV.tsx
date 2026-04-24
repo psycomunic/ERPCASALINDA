@@ -14,7 +14,7 @@ import { CARRIERS_BY_TYPE } from '../../carriers'
 import {
   fetchPedidosLV, createPedidoLV, updatePedidoLV,
   despacharPedidoLV, movePedidoLVEtapa,
-  uploadFotoLV, fetchHistoricoLV, logHistoricoLV,
+  uploadFotoLV, fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
 } from '../../services/pedidosLV'
 import type { HistoricoEntry } from '../../services/pedidosLV'
 
@@ -1096,13 +1096,11 @@ export default function ProductionLV() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
   // ── Load from Supabase ──
-  const loadOrders = useCallback(async () => {
-    setLoading(true)
-    const pedidos = await fetchPedidosLV()
+  const processFetchedRowsLV = useCallback((pedidos: LVOrder[]) => {
     const newCols: Record<Stage, LVOrder[]> = Object.fromEntries(ALL_STAGES.map(s => [s, []])) as unknown as Record<Stage, LVOrder[]>
 
     let maxNum = 0
-    pedidos.forEach(p => {
+    pedidos.forEach((p: any) => {
       // Compute next sequential number from existing LV-XXXXXX numbers
       const match = (p.numero ?? '').match(/LV-(\d+)/)
       if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10))
@@ -1149,7 +1147,13 @@ export default function ProductionLV() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadOrders() }, [loadOrders])
+  useEffect(() => {
+    setLoading(true)
+    fetchPedidosLV().then(processFetchedRowsLV)
+
+    const sub = subscribePedidosLV(processFetchedRowsLV as any)
+    return () => sub.unsubscribe()
+  }, [processFetchedRowsLV])
 
   // ── New order ──
   const handleNewOrder = async (data: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => {
