@@ -17,17 +17,17 @@ export default function Conciliation() {
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      <div className="border-b border-gray-100 px-6 py-5 shrink-0 bg-white flex justify-between items-center">
+      <div className="border-b border-gray-100 px-6 py-5 shrink-0 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">Conciliação Bancária</h1>
           <p className="text-xs text-gray-400 mt-1 uppercase font-medium tracking-wider">Conta Corrente: Itaú PJ Principal</p>
         </div>
-        <button onClick={() => setExtratoAberto(true)} className="btn-primary"><UploadCloud size={14} /> Importar OFX</button>
+        <button onClick={() => setExtratoAberto(true)} className="btn-primary w-full md:w-auto justify-center"><UploadCloud size={14} /> Importar OFX</button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden overflow-y-auto md:overflow-y-hidden">
         {/* LADO ESQUERDO: EXTRATO DO BANCO */}
-        <div className="w-1/2 border-r border-gray-200 bg-gray-50 flex flex-col">
+        <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-gray-200 bg-gray-50 flex flex-col min-h-[300px] md:min-h-0">
           <div className="p-4 border-b border-gray-200 bg-gray-100 font-bold text-gray-700 text-sm flex items-center gap-2">
             <Banknote size={16} className="text-blue-600" /> Extrato Bancário (Ofx)
           </div>
@@ -61,7 +61,7 @@ export default function Conciliation() {
         </div>
 
         {/* LADO DIREITO: ERP */}
-        <div className="w-1/2 bg-white flex flex-col">
+        <div className="w-full md:w-1/2 bg-white flex flex-col min-h-[300px] md:min-h-0">
           <div className="p-4 border-b border-gray-200 bg-white font-bold text-gray-700 text-sm flex items-center gap-2">
             <FileText size={16} className="text-navy-600" /> Sistema (A Receber / A Pagar)
           </div>

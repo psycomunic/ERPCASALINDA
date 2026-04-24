@@ -93,19 +93,19 @@ export default function Inventory() {
 
   return (
     <div className="p-6 space-y-5" onClick={() => setShowFilter(false)}>
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Almoxarifado</h1>
           <p className="text-sm text-gray-500 mt-0.5">Controle de insumos, matérias-primas e gestão de estoque mínimo para a linha de produção Casa Linda.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" onClick={handleExportar}><Download size={14} /> Exportar</button>
           <button onClick={() => setModal(true)} className="btn-primary"><Plus size={14} /> Entrada de Insumo</button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="stat">
           <div className="flex items-center justify-between">
             <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-sm">⬡</div>

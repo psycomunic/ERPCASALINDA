@@ -150,7 +150,7 @@ export default function InventoryLV() {
   return (
     <div className="p-6 space-y-5" onClick={() => setShowFilter(false)}>
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
             <Sofa size={20} className="text-white" />
@@ -160,7 +160,7 @@ export default function InventoryLV() {
             <p className="text-sm text-gray-500 mt-0.5">Controle de estoque de produtos de decoração e utilidades.</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" onClick={handleExportar}><Download size={14} /> Exportar</button>
           <button
             onClick={() => setNewItemModal(true)}
@@ -173,7 +173,7 @@ export default function InventoryLV() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="stat">
           <div className="flex items-center justify-between">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#fef3c7' }}>

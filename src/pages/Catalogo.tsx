@@ -238,18 +238,20 @@ export default function Catalogo() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 gap-0">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.id ? 'border-navy-900 text-navy-900' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <t.icon size={14} /> {t.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto scrollbar-hide w-full mb-2">
+        <div className="flex border-b border-gray-200 gap-0 min-w-max">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                tab === t.id ? 'border-navy-900 text-navy-900' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <t.icon size={14} /> {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── MOLDURAS TAB ── */}

@@ -12,6 +12,19 @@ import { useAuth } from '../contexts/AuthContext'
 import { fetchPedidos } from '../services/pedidos'
 import { supabase } from '../lib/supabase'
 
+const getInitials = (name: any) => {
+  if (!name || typeof name !== 'string') return 'U'
+  try {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 0 || !parts[0]) return 'U'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  } catch (e) {
+    return 'U'
+  }
+}
+
+
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [senhas, setSenhas] = useState({ nova: '', confirmar: '' })
   const [loading, setLoading] = useState(false)
@@ -506,7 +519,7 @@ function Topbar() {
             onClick={() => setShowUser(v => !v)}
           >
             <div className="w-7 h-7 rounded-full bg-navy-900 flex items-center justify-center text-white font-bold text-xs shrink-0">
-              {profile?.nome ? profile.nome.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'A'}
+              {getInitials(profile?.nome)}
             </div>
             <div className="hidden md:block leading-tight">
               <p className="text-xs font-semibold text-gray-800">{profile?.nome ?? 'Usuário'}</p>
@@ -526,7 +539,7 @@ function Topbar() {
                 <div className="fixed inset-0 z-20" onClick={() => setShowUser(false)} />
                 <motion.div
                   initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                  className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-30 w-52 overflow-hidden"
+                  className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-30 w-48 md:w-52 overflow-hidden max-w-[calc(100vw-1rem)]"
                 >
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-800">{profile?.nome ?? 'Usuário'}</p>
