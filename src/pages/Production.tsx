@@ -2101,17 +2101,21 @@ export default function Production() {
 
   return (
     <div className="p-4 md:p-6 flex flex-col h-full bg-gray-50/50" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Produção PCP</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {view === 'kanban'
-              ? `Kanban — ${totalKanban} em produção · ${novosCount} aguardando confirmação`
-              : `Expedição — ${totalProntos} prontos · ${totalDespach} despachados`}
-          </p>
+      {/* Header Compacto Mobile */}
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 md:gap-4 mb-3 md:mb-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">Produção PCP</h1>
+            <p className="text-[11px] md:text-sm text-gray-500 mt-0.5 leading-tight">
+              {view === 'kanban'
+                ? `Kanban — ${totalKanban} em produção`
+                : `Expedição — ${totalProntos} prontos`}
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2 items-center flex-wrap justify-start md:justify-end">
+        
+        {/* Controles de Interface */}
+        <div className="flex gap-2 items-center overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:justify-end md:overflow-visible">
           {/* Supabase DB status */}
           {isSupabaseConfigured() && (
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
@@ -2138,14 +2142,14 @@ export default function Production() {
           </div>
 
           {/* View toggle */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
-            <button onClick={() => setView('kanban')} className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${view === 'kanban' ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <ClipboardList size={13} /> Produção
+          <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden bg-white">
+            <button onClick={() => setView('kanban')} className={`px-2 md:px-3 py-1.5 text-[11px] md:text-xs font-medium transition-colors flex items-center gap-1.5 ${view === 'kanban' ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <ClipboardList size={13} className="hidden sm:inline-block" /> Produção
             </button>
-            <button onClick={() => setView('delivery')} className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 relative ${view === 'delivery' ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <Truck size={13} /> Expedição
+            <button onClick={() => setView('delivery')} className={`px-2 md:px-3 py-1.5 text-[11px] md:text-xs font-medium transition-colors flex items-center gap-1.5 relative ${view === 'delivery' ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <Truck size={13} className="hidden sm:inline-block" /> Expedição
               {totalProntos > 0 && (
-                <span className={`ml-0.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${view === 'delivery' ? 'bg-yellow-400 text-gray-900' : 'bg-yellow-500 text-white'}`}>
+                <span className={`ml-0.5 w-3.5 h-3.5 md:w-4 md:h-4 rounded-full text-[8.5px] md:text-[9px] font-bold flex items-center justify-center ${view === 'delivery' ? 'bg-yellow-400 text-gray-900' : 'bg-yellow-500 text-white'}`}>
                   {totalProntos}
                 </span>
               )}
@@ -2153,12 +2157,12 @@ export default function Production() {
           </div>
 
           {view === 'kanban' && (
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
-              {([['todos', 'Todos'], ['atrasado', 'Atrasados'], ['pendente', 'Pendentes']] as const).map(([v, label]) => (
+            <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden bg-white">
+              {([['todos', 'Todos'], ['atrasado', 'Atrasado'], ['pendente', 'Pendente']] as const).map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setFilter(v)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${filter === v ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                  className={`px-2 md:px-3 py-1.5 text-[11px] md:text-xs font-medium transition-colors ${filter === v ? 'bg-navy-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   {label}
                 </button>
@@ -2166,7 +2170,7 @@ export default function Production() {
             </div>
           )}
 
-          <button onClick={() => setNewModal(true)} className="btn-primary"><Plus size={15} /> Novo Pedido</button>
+          <button onClick={() => setNewModal(true)} className="hidden md:inline-flex btn-primary shrink-0"><Plus size={15} /> Novo Pedido</button>
         </div>
       </div>
 
