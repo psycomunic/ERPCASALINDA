@@ -1638,6 +1638,10 @@ export default function Production() {
 
   // Maps display-id → Supabase UUID (needed for syncing mutations)
   const dbIdMap = useRef<Map<string, string>>(new Map())
+  const enrichCache = useRef<Record<string, any>>(() => {
+    try { return JSON.parse(localStorage.getItem('erp_enrich_cache') || '{}') }
+    catch { return {} }
+  }())
 
   // ── Magazord sync state ──
   const [syncing, setSyncing]       = useState(false)
@@ -1681,6 +1685,9 @@ export default function Production() {
           ? (safeDate(r.data_despacho) + ' ' + safeTime(r.data_despacho)).trim() || undefined
           : undefined,
         fromMagazord: r.from_magazord,
+
+        // Injeta dados enriquecidos salvos em cache para evitar recarregamento
+        ...(enrichCache.current[r.numero] || {})
       }
       dbIdMap.current.set(r.numero, r.id)
       grouped[etapa].push(order)
@@ -1771,20 +1778,27 @@ export default function Production() {
           const rich = magazordDetailedToOrder(detail)
           const imgUrl  = (rich as any).imagemUrl as string | undefined
           const imgItens = (rich as any).itens as Order['itens'] | undefined
-          if (!imgUrl && !imgItens) continue
+          // Salva no cache persistente para as futuras atualizações do Supabase Realtime não apagarem
+          const newCacheData = {
+            imagemUrl:    imgUrl ?? enrichCache.current[order.id]?.imagemUrl,
+            itens:        imgItens ?? enrichCache.current[order.id]?.itens,
+            produto:      rich.produto && rich.produto !== o.produto ? rich.produto : undefined,
+            prazoEntrega: rich.prazoEntrega ?? enrichCache.current[order.id]?.prazoEntrega,
+            notaFiscal:   (rich as any).notaFiscal ?? enrichCache.current[order.id]?.notaFiscal,
+          }
+          // Limpa undefineds
+          Object.keys(newCacheData).forEach(key => newCacheData[key as keyof typeof newCacheData] === undefined && delete newCacheData[key as keyof typeof newCacheData]);
+
+          enrichCache.current[order.id] = { ...(enrichCache.current[order.id] || {}), ...newCacheData }
+          localStorage.setItem('erp_enrich_cache', JSON.stringify(enrichCache.current))
+
           // Atualiza o card no board independente de qual etapa está
           setBoard(prev => {
             const updated = { ...prev }
             for (const stage of productionStages) {
               updated[stage] = prev[stage].map(o =>
                 o.id === order.id
-                  ? { ...o,
-                      imagemUrl:    imgUrl ?? o.imagemUrl,
-                      itens:        imgItens ?? o.itens,
-                      produto:      rich.produto && rich.produto !== o.produto ? rich.produto : o.produto,
-                      prazoEntrega: rich.prazoEntrega ?? o.prazoEntrega,
-                      notaFiscal:   (rich as any).notaFiscal ?? o.notaFiscal,
-                    }
+                  ? { ...o, ...newCacheData, produto: newCacheData.produto ?? o.produto }
                   : o
               )
             }
