@@ -60,7 +60,7 @@ export default function Login() {
           ? window.location.origin
           : (import.meta.env.VITE_APP_URL ?? 'http://localhost:5173')
       const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: appOrigin + '/dashboard',
+        redirectTo: appOrigin + '/redefinir-senha',
       })
       setLoading(false)
       if (err) {

@@ -19,6 +19,7 @@ import Settings from './pages/Settings'
 import Reports from './pages/Reports'
 import Catalogo from './pages/Catalogo'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import AccessDenied from './pages/AccessDenied'
 import UsersPage from './pages/admin/UsersPage'
 // ── Lar e Vida ────────────────────────────────────────────────────────────────
@@ -64,8 +65,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public Route */}
+          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/redefinir-senha" element={<ResetPassword />} />
 
           {/* Protected Routes */}
           <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
