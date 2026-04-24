@@ -1284,11 +1284,12 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
 // ─── Delivery Card ─────────────────────────────────────────────────────────────
 
 function DeliveryCard({
-  order, stage, onView, onDispatch, onUndo, onDragStart, onDragEnd
+  order, stage, onView, onDispatch, onUndo, onDragStart, onDragEnd, onChangeCarrier
 }: {
   order: Order; stage: DeliveryStage
   onView: () => void; onDispatch?: () => void; onUndo?: () => void
   onDragStart: () => void; onDragEnd: () => void
+  onChangeCarrier?: (newCarrier: string) => void
 }) {
   const days = daysUntil(order.prazoEntrega)
   const isLate = days !== null && days < 0
@@ -1312,11 +1313,52 @@ function DeliveryCard({
             <span className="line-clamp-1">{order.endereco}</span>
           </div>
         )}
-        {order.transportadora && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+        {order.transportadora ? (
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 group relative">
             <Truck size={11} className="text-gray-400 shrink-0" />
-            <span>{order.transportadora}</span>
+            <span className="flex-1">{order.transportadora}</span>
+            {onChangeCarrier && stage === 'Prontos para Envio' && (
+              <label 
+                className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600"
+                title="Alterar Transportadora"
+              >
+                <select 
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  value={order.transportadora}
+                  onChange={(e) => onChangeCarrier(e.target.value)}
+                >
+                  <option value="" disabled>Alterar...</option>
+                  {CARRIERS_BY_TYPE.map(g => (
+                    <optgroup key={g.tipo} label={g.tipo}>
+                      {g.items.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+              </label>
+            )}
           </div>
+        ) : (
+          onChangeCarrier && stage === 'Prontos para Envio' && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <Truck size={11} className="text-gray-400 shrink-0" />
+              <label className="cursor-pointer text-blue-600 hover:underline">
+                Definir transportadora
+                <select 
+                  className="absolute w-0 h-0 opacity-0"
+                  value=""
+                  onChange={(e) => onChangeCarrier(e.target.value)}
+                >
+                  <option value="" disabled>Selecionar...</option>
+                  {CARRIERS_BY_TYPE.map(g => (
+                    <optgroup key={g.tipo} label={g.tipo}>
+                      {g.items.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )
         )}
         {order.prazoEntrega && (
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -1360,7 +1402,7 @@ function DeliveryCard({
   )
 }
 
-function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDetail, setDispatchModal, undoDispatch, dispatchAll }: any) {
+function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDetail, setDispatchModal, undoDispatch, dispatchAll, onChangeCarrier }: any) {
   const [isOpen, setIsOpen] = useState(false)
   
   return (
@@ -1407,6 +1449,7 @@ function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDe
                   onView={() => setDetail({ order, stage })}
                   onDispatch={stage === 'Prontos para Envio' ? () => setDispatchModal(order) : undefined}
                   onUndo={stage === 'Despachados' ? () => undoDispatch(order) : undefined}
+                  onChangeCarrier={onChangeCarrier ? (newCarrier) => onChangeCarrier(order.id, newCarrier, stage) : undefined}
                 />
               ))}
             </div>
@@ -1981,11 +2024,24 @@ export default function Production() {
       'Despachados': prev['Despachados'].filter(o => o.id !== order.id),
       'Prontos para Envio': [{ ...order, dataDespacho: undefined, status: 'OK' }, ...prev['Prontos para Envio']],
     }))
-    // Supabase sync: reverter etapa
+    if (order.magazordId) updateOrderSituacao(order.magazordId, 6)
     const dbId = getDbId(order.id)
     if (dbId) movePedidoEtapa(dbId, 'Prontos para Envio')
     showToast(`Pedido #${order.id} revertido para Prontos para Envio`)
   }
+
+  const changeCarrier = async (orderId: string, newCarrier: string, stage: Stage) => {
+    const dbId = getDbId(orderId)
+    if (dbId) {
+      await updatePedido(dbId, { transportadora: newCarrier })
+    }
+    setBoard(prev => {
+      const updated = prev[stage].map(o => o.id === orderId ? { ...o, transportadora: newCarrier } : o)
+      return { ...prev, [stage]: updated }
+    })
+    showToast(`Transportadora alterada para ${newCarrier}`)
+  }
+
 
   const addOrder = async (order: Order) => {
     setBoard(prev => ({ ...prev, 'Impressão': [order, ...prev['Impressão']] }))
@@ -2370,6 +2426,7 @@ export default function Production() {
                         setDispatchModal={setDispatchModal}
                         undoDispatch={undoDispatch}
                         dispatchAll={dispatchAll}
+                        onChangeCarrier={changeCarrier}
                       />
                     )
                   })
