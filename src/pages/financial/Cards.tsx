@@ -14,7 +14,7 @@ export default function Cards() {
   const [showAddExp, setShowAddExp] = useState(false)
 
   // Add Card Form
-  const [cardForm, setCardForm] = useState({ name: '', network: 'mastercard', last4: '', limit: '', color: '#1d4ed8' })
+  const [cardForm, setCardForm] = useState({ name: 'Santander', network: 'mastercard', last4: '', limit: '', color: '#cc0000' })
 
   // Add Expense Form
   const [expForm, setExpForm] = useState({
@@ -44,7 +44,7 @@ export default function Cards() {
        color: cardForm.color
     })
     setShowAddCard(false)
-    setCardForm({ name: '', network: 'mastercard', last4: '', limit: '', color: '#1d4ed8' })
+    setCardForm({ name: 'Santander', network: 'mastercard', last4: '', limit: '', color: '#cc0000' })
     loadData()
   }
 
@@ -266,8 +266,8 @@ export default function Cards() {
              </div>
              <div className="p-6 overflow-y-auto flex-1 space-y-4">
                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Apelido (Nome)</label>
-                  <input type="text" value={cardForm.name} onChange={e => setCardForm({...cardForm, name: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="ex: Itaú PJ" />
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Nome do Banco / Apelido</label>
+                  <input type="text" value={cardForm.name} onChange={e => setCardForm({...cardForm, name: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="ex: Santander" />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>

@@ -26,8 +26,8 @@ const EXPENSES_KEY = 'erp_card_expenses_v1'
 export function getCards(): CreditCard[] {
   const data = localStorage.getItem(CARDS_KEY)
   if (!data) return [
-    { id: '1', name: 'Itaú Empresa', network: 'mastercard', last4: '5432', limit: 30000, color: '#1d4ed8' },
-    { id: '2', name: 'Nubank PJ', network: 'mastercard', last4: '8812', limit: 10000, color: '#9333ea' }
+    { id: '1', name: 'Santander', network: 'mastercard', last4: '5432', limit: 30000, color: '#cc0000' },
+    { id: '2', name: 'Santander PJ', network: 'mastercard', last4: '8812', limit: 10000, color: '#cc0000' }
   ]
   return JSON.parse(data)
 }
