@@ -11,7 +11,8 @@ import { LayoutProvider, useLayout } from '../contexts/LayoutContext'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchPedidos } from '../services/pedidos'
 import { supabase } from '../lib/supabase'
-
+import { fetchTransacoes } from '../services/apiFinTransacoes'
+import { mockContasFixas } from '../services/mockContasFixas'
 const getInitials = (name: any) => {
   if (!name || typeof name !== 'string') return 'U'
   try {
@@ -357,17 +358,115 @@ function Topbar() {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetchPedidos().then(pedidos => {
-      const atrasados = pedidos.filter(p => p.status === 'Atrasado')
-      const dynamicNotifs = atrasados.map((p, i) => ({
-        id: i + 1,
-        title: 'Pedido Atrasado',
-        desc: `Pedido ${p.magazord_id ? '#' + p.magazord_id : ''} – ${p.cliente || 'Cliente'} está atrasado.`,
-        time: 'Agora',
-        read: false
-      }))
-      setNotifs(dynamicNotifs)
-    })
+    async function loadNotifications() {
+      const notifsArr: any[] = []
+      
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayMs = today.getTime()
+
+      // 1. Pedidos (Fretes Atrasados)
+      try {
+        const pedidos = await fetchPedidos()
+        const atrasados = pedidos.filter(p => p.status === 'Atrasado')
+        atrasados.forEach((p, i) => {
+          notifsArr.push({
+            id: `ped-${i}`,
+            type: 'danger',
+            title: 'Pedido Atrasado',
+            desc: `Pedido ${p.magazord_id ? '#' + p.magazord_id : ''} – ${p.cliente || 'Cliente'} está atrasado na logística.`,
+            time: 'Urgente',
+            read: false
+          })
+        })
+      } catch (e) {
+        console.error('Erro ao buscar notificações de pedidos', e)
+      }
+
+      // 2. Contas Fixas
+      mockContasFixas.forEach((cf, i) => {
+        if (cf.situacao !== 'Em aberto' && cf.situacao !== 'Atrasada') return
+        if (!cf.vencimento) return
+
+        const [d, m, y] = cf.vencimento.split('/').map(Number)
+        if (!y) return
+        const venc = new Date(y, m - 1, d)
+        venc.setHours(0, 0, 0, 0)
+        const diffDays = Math.round((venc.getTime() - todayMs) / (1000 * 60 * 60 * 24))
+        
+        let type = ''
+        let time = ''
+        let title = ''
+        
+        if (diffDays < 0 || cf.situacao === 'Atrasada') {
+           type = 'danger'
+           time = `${Math.abs(diffDays)} dias em atraso`
+           title = 'Conta Fixa Atrasada'
+        } else if (diffDays === 0) {
+           type = 'warning'
+           time = 'Vence Hoje!'
+           title = 'Conta Fixa (Vence Hoje)'
+        } else if (diffDays > 0 && diffDays <= 3) {
+           type = 'info'
+           time = `Vence em ${diffDays} dias`
+           title = 'Aviso de Conta Fixa'
+        } else return
+
+        notifsArr.push({
+           id: `fixa-${cf.id || i}`,
+           type,
+           title,
+           desc: `${cf.descricao} - R$ ${cf.valor.toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+           time,
+           read: false
+        })
+      })
+
+      // 3. Contas Variáveis
+      try {
+        const transVars = await fetchTransacoes()
+        transVars.filter(t => t.tipo === 'despesa' && t.situacao !== 'pago' && t.situacao !== 'cancelado').forEach((tv, i) => {
+          if (!tv.data_vencimento) return
+          const [y, m, d] = tv.data_vencimento.split('-').map(Number)
+          const venc = new Date(y, m - 1, d)
+          venc.setHours(0, 0, 0, 0)
+          const diffDays = Math.round((venc.getTime() - todayMs) / (1000 * 60 * 60 * 24))
+
+          let type = ''
+          let time = ''
+          let title = ''
+
+          if (diffDays < 0 || tv.situacao === 'atrasado') {
+             type = 'danger'
+             time = diffDays < 0 ? `${Math.abs(diffDays)} dias em atraso` : 'Atrasada'
+             title = 'Custo Variável Atrasado'
+          } else if (diffDays === 0) {
+             type = 'warning'
+             time = 'Vence Hoje!'
+             title = 'Custo Variável (Hoje)'
+          } else if (diffDays > 0 && diffDays <= 3) {
+             type = 'info'
+             time = `Vence em ${diffDays} dias`
+             title = 'Aviso: Conta Variável'
+          } else return
+
+          notifsArr.push({
+             id: `var-${tv.id || i}`,
+             type,
+             title,
+             desc: `${tv.descricao} - R$ ${Number(tv.valor_bruto || 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+             time,
+             read: false
+          })
+        })
+      } catch (e) {
+         console.error('Erro ao buscar notificações previsoras', e)
+      }
+
+      setNotifs(notifsArr)
+    }
+
+    loadNotifications()
   }, [])
 
   const unread = notifs.filter(n => !n.read).length
@@ -477,22 +576,27 @@ function Topbar() {
                     )}
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {notifs.map(n => (
-                      <div
-                        key={n.id}
-                        className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!n.read ? 'bg-blue-50/40' : ''}`}
-                        onClick={() => setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
-                          <div className={!n.read ? '' : 'ml-4'}>
-                            <p className="text-sm font-semibold text-gray-800">{n.title}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{n.desc}</p>
-                            <p className="text-[11px] text-gray-400 mt-1">{n.time}</p>
+                    {notifs.map(n => {
+                      const bgClass = n.type === 'danger' ? 'bg-red-500' : n.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
+                      const titleClass = n.type === 'danger' ? 'text-red-700' : n.type === 'warning' ? 'text-orange-700' : 'text-blue-700'
+                      
+                      return (
+                        <div
+                          key={n.id}
+                          className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!n.read ? 'bg-blue-50/20 border-l-2 border-transparent hover:border-blue-500' : ''}`}
+                          onClick={() => setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            {!n.read ? <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 shadow-sm ${bgClass}`} /> : <span className="w-2 shrink-0" />}
+                            <div className={!n.read ? '' : 'ml-4 opacity-70'}>
+                              <p className={`text-sm font-black ${!n.read ? titleClass : 'text-gray-800'}`}>{n.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.desc}</p>
+                              <p className="text-[10px] uppercase font-bold text-gray-400 mt-1">{n.time}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   {unread === 0 && (
                     <div className="px-4 py-3 text-center text-xs text-gray-400">Nenhuma notificação nova.</div>
