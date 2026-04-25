@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   TrendingUp, TrendingDown, DollarSign, Filter, Download, ChevronDown, 
   PieChart as PieChartIcon, Activity, Truck, ShieldAlert, ArrowUpRight, ArrowDownRight,
-  Layers, CheckCircle2, Clock
+  Layers, CheckCircle2, Clock, Wallet
 } from 'lucide-react'
 import { getEntries } from '../../services/dbLocal'
 import { mockContasFixas } from '../../services/mockContasFixas'
