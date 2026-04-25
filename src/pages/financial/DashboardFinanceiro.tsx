@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { getEntries } from '../../services/dbLocal'
 import { mockContasFixas } from '../../services/mockContasFixas'
+import { mockContasReceber } from '../../services/mockContasReceber'
 import { fetchOrdersForFreightAnalysis, FreightOrderData } from '../../magazord'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, Cell, PieChart, Pie } from 'recharts'
 
@@ -28,7 +29,20 @@ export default function DashboardFinanceiro() {
   const [filter, setFilter] = useState(filterOptions[3]) // Default: ESTE MÊS
   const [showPeriodo, setShowPeriodo] = useState(false)
   
-  const entriesVar = useMemo(() => getEntries(), [])
+  const entriesVar = useMemo(() => {
+    const local = getEntries()
+    const reqMocks = mockContasReceber.map(m => ({
+      id: m.id,
+      tipo: 'recebimento' as const,
+      categoria: 'Venda / PIX',
+      descricao: m.descricao,
+      valor: m.valor,
+      dataVencimento: m.dataVencimento,
+      status: m.situacao,
+      fornecedor_cliente: m.entidade
+    }))
+    return [...local, ...reqMocks]
+  }, [])
   const [pedidos, setPedidos] = useState<FreightOrderData[]>([])
   const [loadingPedidos, setLoadingPedidos] = useState(true)
 

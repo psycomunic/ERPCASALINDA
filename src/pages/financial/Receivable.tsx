@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, Filter, Plus, CheckCircle, TrendingUp, X, Trash2, Link, User } from 'lucide-react'
 import { getEntries, saveEntry, deleteEntry, FinEntry } from '../../services/dbLocal'
+import { mockContasReceber } from '../../services/mockContasReceber'
 
 export default function Receivable() {
   const [entries, setEntries] = useState<FinEntry[]>([])
@@ -12,7 +13,18 @@ export default function Receivable() {
   })
 
   useEffect(() => {
-    setEntries(getEntries().filter(e => e.tipo === 'recebimento'))
+    const local = getEntries().filter(e => e.tipo === 'recebimento')
+    const mocks = mockContasReceber.map(m => ({
+      id: m.id,
+      tipo: 'recebimento' as const,
+      categoria: 'Venda / PIX',
+      descricao: m.descricao,
+      valor: m.valor,
+      dataVencimento: m.dataVencimento,
+      status: m.situacao,
+      fornecedor_cliente: m.entidade
+    }))
+    setEntries([...mocks, ...local])
   }, [])
 
   const toggleStatus = (entry: FinEntry) => {
