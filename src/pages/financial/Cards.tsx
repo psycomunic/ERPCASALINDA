@@ -134,19 +134,19 @@ export default function Cards() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50/50">
-      <div className="p-6 border-b border-gray-100 bg-white flex items-center justify-between">
+      <div className="p-6 border-b border-gray-100 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-            <CardIcon className="text-navy-600" /> Gestão de Cartões
+            <CardIcon className="text-navy-600 shrink-0" /> Gestão de Cartões
           </h1>
           <p className="text-sm text-gray-500 mt-1">Acompanhe limites, gastos e faturas dos cartões corporativos.</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => setShowAddCard(true)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors">
+        <div className="flex gap-2 w-full md:w-auto">
+          <button onClick={() => setShowAddCard(true)} className="flex-1 md:flex-none px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold border border-gray-200 hover:bg-gray-200 transition-colors text-center shadow-sm">
             Adicionar Cartão
           </button>
-          <button onClick={() => setShowAddExp(true)} className="px-4 py-2 bg-navy-600 text-white rounded-lg text-sm font-semibold hover:bg-navy-700 transition-colors flex items-center gap-2 shadow-sm">
-            <Plus size={16} /> Lançar Gasto
+          <button onClick={() => setShowAddExp(true)} className="flex-1 md:flex-none px-4 py-2.5 bg-navy-600 text-white rounded-lg text-sm font-bold hover:bg-navy-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+            <Plus size={16} className="shrink-0" /> Lançar Gasto
           </button>
         </div>
       </div>
@@ -218,12 +218,12 @@ export default function Cards() {
               </div>
            </div>
 
-           <div className="bg-gray-50 rounded-xl p-4 mb-6 flex justify-between items-center border border-gray-100">
-              <div className="flex items-center gap-2 text-gray-600">
+           <div className="bg-gray-50 rounded-xl p-5 mb-6 flex flex-col md:flex-row justify-between md:items-center border border-gray-100 gap-3">
+              <div className="flex items-center gap-2 text-gray-600 shrink-0">
                  <Calendar className="text-gray-400" size={18} />
                  <span className="text-sm font-semibold">Total Projetado p/ Fatura</span>
               </div>
-              <span className="text-2xl font-black text-navy-700">
+              <span className="text-3xl font-black text-navy-700 tracking-tight break-words">
                  R$ {totalInvoice.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
               </span>
            </div>
