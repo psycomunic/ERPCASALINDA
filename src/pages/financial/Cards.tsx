@@ -300,7 +300,7 @@ export default function Cards() {
       {/* --- ADD CARD MODAL --- */}
       {showAddCard && (
          <div className="fixed inset-0 z-[100] flex justify-end bg-navy-900/40 backdrop-blur-sm cursor-auto">
-           <div className="w-full max-w-sm bg-white h-full shadow-2xl flex flex-col cursor-auto animate-slide-in-right">
+           <div className="w-full sm:max-w-md bg-white h-full shadow-2xl flex flex-col cursor-auto animate-slide-in-right">
              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                <h3 className="font-bold text-gray-900 flex items-center gap-2">Novo Cartão</h3>
                <button onClick={() => setShowAddCard(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -312,7 +312,7 @@ export default function Cards() {
                   <label className="block text-xs font-bold text-gray-700 mb-1">Nome do Banco / Apelido</label>
                   <input type="text" value={cardForm.name} onChange={e => setCardForm({...cardForm, name: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="ex: Santander" />
                </div>
-               <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Bandeira</label>
                      <select value={cardForm.network} onChange={e => setCardForm({...cardForm, network: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow">
@@ -346,7 +346,7 @@ export default function Cards() {
       {/* --- ADD EXPENSE MODAL --- */}
       {showAddExp && (
          <div className="fixed inset-0 z-[100] flex justify-end bg-navy-900/40 backdrop-blur-sm cursor-auto">
-           <div className="w-full max-w-sm bg-white h-full shadow-2xl flex flex-col cursor-auto animate-slide-in-right">
+           <div className="w-full sm:max-w-md bg-white h-full shadow-2xl flex flex-col cursor-auto animate-slide-in-right">
              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                <h3 className="font-bold text-gray-900 flex items-center gap-2">Lançar Compra</h3>
                <button onClick={() => setShowAddExp(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -369,7 +369,7 @@ export default function Cards() {
                   <label className="block text-xs font-bold text-gray-700 mb-1">Valor Total</label>
                   <input type="number" value={expForm.value} onChange={e => setExpForm({...expForm, value: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="0.00" />
                </div>
-               <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Tipo Lançamento</label>
                      <select value={expForm.isInstallment ? 'true' : 'false'} onChange={e => setExpForm({...expForm, isInstallment: e.target.value === 'true'})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow">
@@ -384,7 +384,7 @@ export default function Cards() {
                      </div>
                   )}
                </div>
-               <div className="grid grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Data da Compra</label>
                      <input type="date" value={expForm.date} onChange={e => setExpForm({...expForm, date: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" />
