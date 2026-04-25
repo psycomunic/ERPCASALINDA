@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Plus, CreditCard as CardIcon, Calendar, Info, Trash2, ArrowRight } from 'lucide-react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { Plus, CreditCard as CardIcon, Calendar, Info, Trash2, ArrowRight, UploadCloud, Loader2, Link as LinkIcon } from 'lucide-react'
 import { getCards, saveCard, deleteCard, getCardExpenses, addCardExpense, CreditCard, CardExpense, deleteSingleExpense } from '../../services/dbCards'
+import { uploadAnexo } from '../../services/apiFinTransacoes'
 
 const RESPONSAVEIS = ['Mário', 'Johnatan', 'Empresa']
 
@@ -21,6 +22,10 @@ export default function Cards() {
     cardId: '', description: '', value: '', installments: 1, isInstallment: false,
     responsible: 'Empresa', date: new Date().toISOString().split('T')[0]
   })
+  const [uploading, setUploading] = useState(false)
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     loadData()
@@ -54,6 +59,28 @@ export default function Cards() {
     loadData()
   }
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
+    let file: File | null = null
+    if ('dataTransfer' in e) {
+      e.preventDefault()
+      setDragActive(false)
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        file = e.dataTransfer.files[0]
+      }
+    } else {
+      if (e.target.files && e.target.files.length > 0) {
+        file = e.target.files[0]
+      }
+    }
+    if (!file) return
+
+    setUploading(true)
+    const url = await uploadAnexo(file)
+    if (url) setAttachmentUrl(url)
+    else alert('Falha ao enviar arquivo. Verifique o tamanho ou tente novamente.')
+    setUploading(false)
+  }
+
   const handleSaveExp = () => {
     if (!expForm.cardId || !expForm.description || !expForm.value) return
     const now = new Date(expForm.date + 'T12:00:00')
@@ -66,13 +93,15 @@ export default function Cards() {
       installments: expForm.isInstallment ? Number(expForm.installments) : 1,
       responsible: expForm.responsible as any,
       date: expForm.date,
-      firstInvoiceMonth: startInv
+      firstInvoiceMonth: startInv,
+      attachmentUrl: attachmentUrl || undefined
     })
     setShowAddExp(false)
     setExpForm({
       cardId: cards[0]?.id || '', description: '', value: '', installments: 1, isInstallment: false,
       responsible: 'Empresa', date: new Date().toISOString().split('T')[0]
     })
+    setAttachmentUrl(null)
     loadData()
   }
 
@@ -215,8 +244,13 @@ export default function Cards() {
                               <td className="px-4 py-3 text-gray-500 font-medium">
                                  {e.date.split('-').reverse().join('/')}
                               </td>
-                              <td className="px-4 py-3 font-semibold text-gray-900">
+                              <td className="px-4 py-3 font-semibold text-gray-900 flex items-center gap-2">
                                  {e.description}
+                                 {e.attachmentUrl && (
+                                   <a href={e.attachmentUrl} target="_blank" rel="noreferrer" title="Ver Anexo" className="text-gray-400 hover:text-navy-600 transition-colors">
+                                      <LinkIcon size={14} />
+                                   </a>
+                                 )}
                               </td>
                               <td className="px-4 py-3 text-gray-500">
                                  <div className="flex items-center gap-1.5">
@@ -362,6 +396,42 @@ export default function Cards() {
                      <p>O valor total será fragmentado em {expForm.installments} parcelas de <strong>R$ {(parseFloat(expForm.value)/expForm.installments).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong> projetadas a partir da fatura de {expForm.date.split('-').slice(0,2).reverse().join('/')}.</p>
                   </div>
                )}
+
+               <div className="mt-4 border-t border-gray-100 pt-4">
+                 <label className="block text-xs font-bold text-gray-700 mb-2">Comprovante / Anexo (Opcional)</label>
+                 
+                 {attachmentUrl ? (
+                   <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 flex items-center justify-between">
+                     <span className="text-emerald-700 text-xs font-bold truncate pr-3 flex items-center gap-2">
+                       <LinkIcon size={14} /> Arquivo salvo com sucesso
+                     </span>
+                     <button onClick={() => setAttachmentUrl(null)} className="text-emerald-600 hover:text-emerald-800 bg-white px-2 py-1 rounded text-[10px] font-bold">
+                       Remover
+                     </button>
+                   </div>
+                 ) : (
+                   <div 
+                     onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+                     onDragLeave={() => setDragActive(false)}
+                     onDrop={handleFileChange}
+                     onClick={() => !uploading && fileInputRef.current?.click()}
+                     className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${dragActive ? 'border-navy-400 bg-navy-50' : 'border-gray-200 hover:border-navy-300 hover:bg-gray-50/50'}`}
+                   >
+                     <input type="file" ref={fileInputRef} className="hidden"onChange={handleFileChange} />
+                     {uploading ? (
+                       <div className="flex flex-col items-center gap-2 text-navy-500 py-2">
+                         <Loader2 size={24} className="animate-spin" />
+                         <span className="text-xs font-semibold">Enviando para a nuvem...</span>
+                       </div>
+                     ) : (
+                       <div className="flex flex-col items-center gap-2 text-gray-400 py-1">
+                         <UploadCloud size={24} />
+                         <span className="text-xs font-medium">Clique ou arraste um PDF/Imagem</span>
+                       </div>
+                     )}
+                   </div>
+                 )}
+               </div>
              </div>
              <div className="p-6 border-t border-gray-100 bg-gray-50/50">
                <button onClick={handleSaveExp} className="w-full py-3 bg-navy-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-navy-700 transition">Confirmar Lançamento</button>

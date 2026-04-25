@@ -18,6 +18,7 @@ export interface CardExpense {
   responsible: 'Mário' | 'Johnatan' | 'Empresa'
   date: string // Data da compra YYYY-MM-DD
   invoiceMonth: string // YYYY-MM correspondente à fatura em que vai aparecer
+  attachmentUrl?: string
 }
 
 const CARDS_KEY = 'erp_cards_v1'
@@ -87,6 +88,7 @@ export function addCardExpense(
       responsible: payload.responsible,
       date: payload.date,
       invoiceMonth: invMonth,
+      attachmentUrl: payload.attachmentUrl
     }
     expList.push(expenseEntry)
   }
