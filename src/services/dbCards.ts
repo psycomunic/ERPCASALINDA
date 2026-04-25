@@ -40,7 +40,7 @@ export async function getCards(): Promise<CreditCard[]> {
 export async function saveCard(card: Omit<CreditCard, 'id'> & { id?: string }): Promise<void> {
   if (!isSupabaseConfigured()) return
 
-  if (!card.id || card.id.length < 10) {
+  if (!card.id || !card.id.includes('-')) {
      // Create new
      await supabase.from('fin_cartoes' as any).insert({
        name: card.name, network: card.network, last4: card.last4, limit_value: card.limit, color: card.color

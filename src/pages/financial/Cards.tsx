@@ -49,7 +49,6 @@ export default function Cards() {
   const handleSaveCard = async () => {
     if (!cardForm.name || !cardForm.last4 || !cardForm.limit) return
     await saveCard({
-       id: Date.now().toString(),
        name: cardForm.name,
        network: cardForm.network as any,
        last4: cardForm.last4,
