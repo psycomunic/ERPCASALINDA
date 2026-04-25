@@ -1,7 +1,9 @@
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+
 export interface CreditCard {
   id: string
   name: string // "Itaú Master", "Nubank PJ"
-  network: 'mastercard' | 'visa' | 'amex' | 'elo'
+  network: string
   last4: string
   limit: number
   color: string
@@ -21,51 +23,75 @@ export interface CardExpense {
   attachmentUrl?: string
 }
 
-const CARDS_KEY = 'erp_cards_v1'
-const EXPENSES_KEY = 'erp_card_expenses_v1'
-
-export function getCards(): CreditCard[] {
-  const data = localStorage.getItem(CARDS_KEY)
-  if (!data) return [
-    { id: '1', name: 'Santander', network: 'mastercard', last4: '5432', limit: 30000, color: '#cc0000' },
-    { id: '2', name: 'Santander PJ', network: 'mastercard', last4: '8812', limit: 10000, color: '#cc0000' }
-  ]
-  return JSON.parse(data)
+export async function getCards(): Promise<CreditCard[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from('fin_cartoes' as any).select('*').order('created_at', { ascending: true })
+  if (error || !data) return []
+  return data.map((d: any) => ({
+    id: d.id,
+    name: d.name,
+    network: d.network,
+    last4: d.last4,
+    limit: parseFloat(d.limit_value),
+    color: d.color
+  }))
 }
 
-export function saveCard(card: CreditCard) {
-  const cards = getCards()
-  const exists = cards.findIndex(c => c.id === card.id)
-  if (exists > -1) cards[exists] = card
-  else cards.push(card)
-  localStorage.setItem(CARDS_KEY, JSON.stringify(cards))
+export async function saveCard(card: Omit<CreditCard, 'id'> & { id?: string }): Promise<void> {
+  if (!isSupabaseConfigured()) return
+
+  if (!card.id || card.id.length < 10) {
+     // Create new
+     await supabase.from('fin_cartoes' as any).insert({
+       name: card.name, network: card.network, last4: card.last4, limit_value: card.limit, color: card.color
+     })
+  } else {
+     // Update
+     await supabase.from('fin_cartoes' as any).update({
+       name: card.name, network: card.network, last4: card.last4, limit_value: card.limit, color: card.color
+     }).eq('id', card.id)
+  }
 }
 
-export function deleteCard(id: string) {
-  const cards = getCards().filter(c => c.id !== id)
-  localStorage.setItem(CARDS_KEY, JSON.stringify(cards))
-  // Opcional: remover despesas orfãs
+export async function deleteCard(id: string): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  await supabase.from('fin_cartoes' as any).delete().eq('id', id)
 }
 
-export function getCardExpenses(): CardExpense[] {
-  const data = localStorage.getItem(EXPENSES_KEY)
-  if (!data) return []
-  return JSON.parse(data)
+export async function getCardExpenses(): Promise<CardExpense[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from('fin_cartoes_despesas' as any).select('*').order('created_at', { ascending: true })
+  if (error || !data) return []
+  return data.map((d: any) => ({
+    id: d.id,
+    cardId: d.card_id,
+    description: d.description,
+    value: parseFloat(d.value),
+    installments: d.installments,
+    installmentValue: parseFloat(d.installment_value),
+    currentInstallment: d.current_installment,
+    responsible: d.responsible as any,
+    date: d.date,
+    invoiceMonth: d.invoice_month,
+    attachmentUrl: d.attachment_url
+  }))
 }
 
 /**
  * Adiciona um gasto. Se for parcelado, gera N registros de CardExpense alocados nas faturas seguintes.
  */
-export function addCardExpense(
-  payload: Omit<CardExpense, 'id' | 'installmentValue' | 'currentInstallment' | 'invoiceMonth'> & { firstInvoiceMonth: string } // firstInvoiceMonth: YYYY-MM
-) {
-  const expList = getCardExpenses()
+export async function addCardExpense(
+  payload: Omit<CardExpense, 'id' | 'installmentValue' | 'currentInstallment' | 'invoiceMonth'> & { firstInvoiceMonth: string }
+): Promise<void> {
+  if (!isSupabaseConfigured()) return
+
   const parsedValue = payload.value
   const numInst = payload.installments || 1
   const vlrParc = parsedValue / numInst
   const [startY, startM] = payload.firstInvoiceMonth.split('-').map(Number)
 
   const groupId = Date.now().toString()
+  const inserts = []
 
   for (let i = 0; i < numInst; i++) {
     // Calculando YYYY-MM para as parcelas
@@ -77,32 +103,26 @@ export function addCardExpense(
     }
     const invMonth = `${newY}-${newM.toString().padStart(2, '0')}`
 
-    const expenseEntry: CardExpense = {
-      id: `${groupId}-${i + 1}`,
-      cardId: payload.cardId,
+    inserts.push({
+      group_id: groupId,
+      card_id: payload.cardId,
       description: payload.description,
       value: parsedValue,
       installments: numInst,
-      installmentValue: vlrParc,
-      currentInstallment: i + 1,
+      installment_value: vlrParc,
+      current_installment: i + 1,
       responsible: payload.responsible,
       date: payload.date,
-      invoiceMonth: invMonth,
-      attachmentUrl: payload.attachmentUrl
-    }
-    expList.push(expenseEntry)
+      invoice_month: invMonth,
+      attachment_url: payload.attachmentUrl || null
+    })
   }
 
-  localStorage.setItem(EXPENSES_KEY, JSON.stringify(expList))
+  const { error } = await supabase.from('fin_cartoes_despesas' as any).insert(inserts)
+  if (error) console.error('Erro ao adicionar despesas:', error)
 }
 
-export function deleteExpenseGroup(baseIdPrefix: string) {
-  // A group prefix is typically id.split('-')[0] + '-'
-  const filtered = getCardExpenses().filter(e => !e.id.startsWith(baseIdPrefix))
-  localStorage.setItem(EXPENSES_KEY, JSON.stringify(filtered))
-}
-
-export function deleteSingleExpense(id: string) {
-  const filtered = getCardExpenses().filter(e => e.id !== id)
-  localStorage.setItem(EXPENSES_KEY, JSON.stringify(filtered))
+export async function deleteSingleExpense(id: string): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  await supabase.from('fin_cartoes_despesas' as any).delete().eq('id', id)
 }

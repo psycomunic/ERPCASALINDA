@@ -9,6 +9,8 @@ export default function Cards() {
   const [cards, setCards] = useState<CreditCard[]>([])
   const [expenses, setExpenses] = useState<CardExpense[]>([])
   const [selectedMonth, setSelectedMonth] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   // Modals
   const [showAddCard, setShowAddCard] = useState(false)
@@ -33,14 +35,20 @@ export default function Cards() {
     setSelectedMonth(`${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`)
   }, [])
 
-  const loadData = () => {
-    setCards(getCards())
-    setExpenses(getCardExpenses())
+  const loadData = async () => {
+    setLoading(true)
+    const [fetchedCards, fetchedExpenses] = await Promise.all([
+      getCards(),
+      getCardExpenses()
+    ])
+    setCards(fetchedCards)
+    setExpenses(fetchedExpenses)
+    setLoading(false)
   }
 
-  const handleSaveCard = () => {
+  const handleSaveCard = async () => {
     if (!cardForm.name || !cardForm.last4 || !cardForm.limit) return
-    saveCard({
+    await saveCard({
        id: Date.now().toString(),
        name: cardForm.name,
        network: cardForm.network as any,
@@ -50,13 +58,15 @@ export default function Cards() {
     })
     setShowAddCard(false)
     setCardForm({ name: 'Santander', network: 'mastercard', last4: '', limit: '', color: '#cc0000' })
-    loadData()
+    await loadData()
   }
 
-  const handleDeleteCard = (id: string) => {
-    if(!window.confirm('Excluir este cartão permanentemente?')) return
-    deleteCard(id)
-    loadData()
+  const handleDeleteCard = async (id: string) => {
+    if(!window.confirm('Excluir este cartão permanentemente? Todas as despesas vinculadas serão deletadas em cascata na Nuvem.')) return
+    setIsDeleting(true)
+    await deleteCard(id)
+    await loadData()
+    setIsDeleting(false)
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
@@ -81,12 +91,12 @@ export default function Cards() {
     setUploading(false)
   }
 
-  const handleSaveExp = () => {
+  const handleSaveExp = async () => {
     if (!expForm.cardId || !expForm.description || !expForm.value) return
     const now = new Date(expForm.date + 'T12:00:00')
     const startInv = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`
 
-    addCardExpense({
+    await addCardExpense({
       cardId: expForm.cardId,
       description: expForm.description,
       value: parseFloat(expForm.value),
@@ -102,7 +112,7 @@ export default function Cards() {
       responsible: 'Empresa', date: new Date().toISOString().split('T')[0]
     })
     setAttachmentUrl(null)
-    loadData()
+    await loadData()
   }
 
   const filteredExpenses = useMemo(() => {
@@ -274,7 +284,7 @@ export default function Cards() {
                               </td>
                               <td className="px-4 py-3 text-right font-black text-gray-900">
                                  R$ {e.installmentValue.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                                 <button onClick={() => {if(confirm('Apagar esta parcela específica da fatura?')) { deleteSingleExpense(e.id); loadData() }}} className="ml-2 text-gray-300 hover:text-red-500 transition-colors">
+                                 <button disabled={isDeleting} onClick={async () => {if(confirm('Apagar esta parcela específica da fatura?')) { setIsDeleting(true); await deleteSingleExpense(e.id); await loadData(); setIsDeleting(false); }}} className="ml-2 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-50">
                                     <Trash2 size={13} className="inline" />
                                  </button>
                               </td>
