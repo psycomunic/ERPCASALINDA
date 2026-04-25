@@ -50,7 +50,7 @@ export default function DashboardFinanceiro() {
   // Filtragem Dinâmica das despesas e receitas variáveis (do LocalStorage)
   const filteredVarEntries = useMemo(() => {
     return entriesVar.filter(e => {
-      const d = new Date(e.dataVencimento + 'T12:00:00')
+      const d = new Date((e.dataVencimento || '') + 'T12:00:00')
       const today = new Date()
       today.setHours(12, 0, 0, 0)
       
@@ -60,7 +60,7 @@ export default function DashboardFinanceiro() {
       if (filter === 'HOJE') return diffDays === 0
       if (filter === 'PRÓXIMOS 7 DIAS') return diffDays >= 0 && diffDays <= 7
       if (filter === 'PRÓXIMOS 15 DIAS') return diffDays >= 0 && diffDays <= 15
-      if (filter.includes('ESTE MÊS')) return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
+      if (filter.includes('ESTE MÊS')) return !isNaN(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
       
       if (filter.includes('PRÓXIMO MÊS')) {
          const nextM = today.getMonth() === 11 ? 0 : today.getMonth() + 1
@@ -77,8 +77,8 @@ export default function DashboardFinanceiro() {
     })
   }, [entriesVar, filter])
 
-  const totalVariáveis = filteredVarEntries.filter(e => e.tipo === 'pagamento').reduce((acc, curr) => acc + curr.valor, 0)
-  const totalReceitas = filteredVarEntries.filter(e => e.tipo === 'recebimento').reduce((acc, curr) => acc + curr.valor, 0)
+  const totalVariáveis = filteredVarEntries.filter(e => e.tipo === 'pagamento').reduce((acc, curr) => acc + (curr.valor || 0), 0)
+  const totalReceitas = filteredVarEntries.filter(e => e.tipo === 'recebimento').reduce((acc, curr) => acc + (curr.valor || 0), 0)
   
   // Assumindo que Custos Fixos são devidos no mês corrente:
   const isMesCorrente = filter.includes('ESTE MÊS') || filter === 'ESTE ANO' || filter === 'TUDO'
@@ -99,7 +99,8 @@ export default function DashboardFinanceiro() {
     }
     // Add Variable Costs
     filteredVarEntries.filter(e => e.tipo === 'pagamento').forEach(e => {
-      cats[e.categoria] = (cats[e.categoria] || 0) + e.valor
+      const cat = e.categoria || 'Sem Categoria'
+      cats[cat] = (cats[cat] || 0) + (e.valor || 0)
     })
 
     return Object.entries(cats).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 8)
@@ -113,18 +114,20 @@ export default function DashboardFinanceiro() {
     
     // Distribuir Receitas e Despesas Variáveis
     filteredVarEntries.forEach(e => {
+       if (!e.dataVencimento) return;
        const day = e.dataVencimento.split('-').reverse().slice(0, 2).join('/')
        if (!grouped[day]) grouped[day] = { e: 0, s: 0, fixo: 0 }
-       if (e.tipo === 'recebimento') grouped[day].e += e.valor
-       else grouped[day].s += e.valor
+       if (e.tipo === 'recebimento') grouped[day].e += (e.valor || 0)
+       else grouped[day].s += (e.valor || 0)
     })
 
     // Distribuir Custos Fixos nas datas (simplificado para o mês corrente)
     if (isMesCorrente) {
       mockContasFixas.forEach(e => {
+         if (!e.vencimento) return;
          const dayMatch = e.vencimento.split('/')[0] + '/' + e.vencimento.split('/')[1]
          if (!grouped[dayMatch]) grouped[dayMatch] = { e: 0, s: 0, fixo: 0 }
-         grouped[dayMatch].fixo += e.valor
+         grouped[dayMatch].fixo += (e.valor || 0)
       })
     }
 
