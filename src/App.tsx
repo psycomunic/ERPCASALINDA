@@ -13,6 +13,7 @@ import Dre from './pages/financial/Dre'
 import CashFlow from './pages/financial/CashFlow'
 import Conciliation from './pages/financial/Conciliation'
 import ComingSoon from './pages/financial/ComingSoon'
+import Cards from './pages/financial/Cards'
 import Inventory from './pages/Inventory'
 import Patrimonio from './pages/Patrimonio'
 import Partners from './pages/Partners'
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="payable"     element={<Payable />} />
               <Route path="payable-fixed" element={<PayableFixed />} />
               <Route path="receivable"  element={<Receivable />} />
+              <Route path="cards"       element={<Cards />} />
               <Route path="dre"         element={<Dre />} />
               <Route path="cashflow"    element={<CashFlow />} />
               <Route path="conciliation" element={<Conciliation />} />

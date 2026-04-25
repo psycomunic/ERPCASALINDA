@@ -5,12 +5,13 @@ import {
   DownloadCloud, UploadCloud, ChevronDown, ChevronRight,
   Monitor, PiggyBank, Banknote, Network, List, Receipt,
   GitCompare, ArrowRightLeft, PlusSquare, Mail, Layers, Settings,
-  Barcode
+  Barcode, CreditCard
 } from 'lucide-react'
 
 const MENU = [
   { to: '/financial/payable', label: 'Contas a pagar', icon: TrendingDown },
   { to: '/financial/receivable', label: 'Contas a receber', icon: TrendingUp },
+  { to: '/financial/cards', label: 'Gestão de Cartões', icon: CreditCard },
   { to: '/financial/dre', label: 'DRE gerencial', icon: Network },
   { to: '/financial/cashflow', label: 'Fluxo de caixa', icon: BarChart3 },
 ]
