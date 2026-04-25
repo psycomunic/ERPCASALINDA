@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Plus, CreditCard as CardIcon, Calendar, Info, Trash2, ArrowRight, UploadCloud, Loader2, Link as LinkIcon } from 'lucide-react'
+import { Plus, CreditCard as CardIcon, Calendar, Info, Trash2, ArrowRight, UploadCloud, Loader2, Link as LinkIcon, Printer, Filter } from 'lucide-react'
 import { getCards, saveCard, deleteCard, getCardExpenses, addCardExpense, CreditCard, CardExpense, deleteSingleExpense } from '../../services/dbCards'
 import { uploadAnexo } from '../../services/apiFinTransacoes'
 
@@ -9,6 +9,8 @@ export default function Cards() {
   const [cards, setCards] = useState<CreditCard[]>([])
   const [expenses, setExpenses] = useState<CardExpense[]>([])
   const [selectedMonth, setSelectedMonth] = useState<string>('')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   
@@ -115,8 +117,20 @@ export default function Cards() {
   }
 
   const filteredExpenses = useMemo(() => {
-    return expenses.filter(e => e.invoiceMonth === selectedMonth)
-  }, [expenses, selectedMonth])
+    return expenses.filter(e => {
+      let isMatch = true
+      if (selectedMonth) {
+         isMatch = isMatch && e.invoiceMonth === selectedMonth
+      }
+      if (startDate) {
+         isMatch = isMatch && e.date >= startDate
+      }
+      if (endDate) {
+         isMatch = isMatch && e.date <= endDate
+      }
+      return isMatch
+    })
+  }, [expenses, selectedMonth, startDate, endDate])
 
   const totalInvoice = filteredExpenses.reduce((acc, curr) => acc + curr.installmentValue, 0)
 
@@ -174,7 +188,10 @@ export default function Cards() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">Acompanhe limites, gastos e faturas dos cartões corporativos.</p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex gap-2 w-full md:w-auto print:hidden">
+          <button onClick={() => window.print()} className="px-3 py-2.5 bg-white text-navy-600 rounded-lg text-sm font-bold border border-navy-200 hover:bg-navy-50 transition-colors text-center shadow-sm flex items-center justify-center gap-1.5 md:hidden">
+             <Printer size={16} /> PDF
+          </button>
           <button onClick={() => setShowAddCard(true)} className="flex-1 md:flex-none px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold border border-gray-200 hover:bg-gray-200 transition-colors text-center shadow-sm">
             Adicionar Cartão
           </button>
@@ -233,21 +250,46 @@ export default function Cards() {
 
         {/* Right Column: Invoice Timeline */}
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col">
-           <div className="flex items-center justify-between mb-8">
+           <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4 print:hidden">
               <div>
                  <h2 className="text-lg font-black text-gray-900 border-l-4 border-navy-500 pl-3">Fatura do Mês</h2>
                  <p className="text-xs text-gray-500 ml-4 border-l-4 border-transparent mt-1">Lançamentos e parcelamentos atuantes.</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                 <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1.5 border border-gray-200">
+                    <Filter className="text-gray-400 ml-1" size={14} />
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer" />
+                    <span className="text-gray-400 text-xs">Até</span>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer" />
+                 </div>
                  <select 
-                    className="border border-gray-200 bg-white px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 cursor-pointer"
+                    className="border border-gray-200 bg-white px-3 py-2 rounded-lg text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 cursor-pointer"
                     value={selectedMonth}
                     onChange={e => setSelectedMonth(e.target.value)}
                  >
+                    <option value="">Todas as Faturas</option>
                     {availableMonths.map(m => (
                        <option key={m} value={m}>{m.split('-')[1]}/{m.split('-')[0]}</option>
                     ))}
                  </select>
+                 <button onClick={() => window.print()} className="px-3 py-2 bg-navy-600 text-white rounded-lg text-sm font-semibold hover:bg-navy-700 transition shadow-sm flex items-center gap-2">
+                    <Printer size={16} /> <span className="hidden sm:inline">Exportar</span>
+                 </button>
+              </div>
+           </div>
+           
+           {/* Print Only Header */}
+           <div className="hidden print:block mb-8 border-b-2 border-navy-800 pb-4">
+              <div className="flex items-center justify-between">
+                 <div>
+                    <h1 className="text-3xl font-black text-navy-900">ERP CASA LINDA</h1>
+                    <h2 className="text-xl font-bold text-gray-600 mt-1">Relatório Analítico de Cartões</h2>
+                 </div>
+                 <div className="text-right text-sm text-gray-500">
+                    <p>Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
+                    <p>Filtro de Fatura: {selectedMonth ? `${selectedMonth.split('-')[1]}/${selectedMonth.split('-')[0]}` : 'Todas'}</p>
+                    {(startDate || endDate) && <p>Período de Compra: {startDate ? startDate.split('-').reverse().join('/') : 'Início'} à {endDate ? endDate.split('-').reverse().join('/') : 'Hoje'}</p>}
+                 </div>
               </div>
            </div>
 

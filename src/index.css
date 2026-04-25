@@ -88,3 +88,29 @@
   /* KPI stat */
   .stat { @apply card p-5 flex flex-col gap-1; }
 }
+
+@media print {
+  aside, nav, header {
+    display: none !important;
+  }
+  body, html {
+    background-color: white !important;
+    overflow: visible !important;
+  }
+  main, #root, #app {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+  /* Preserve exact colors for charts and bars */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Remove Box Shadows and make borders thin for a professional paper look */
+  .shadow-sm, .shadow-card, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
+    box-shadow: none !important;
+  }
+}
