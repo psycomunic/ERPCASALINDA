@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, ChevronDown, List, Edit2, Trash2, ExternalLink, SlidersHorizontal, Settings2, FileText, Printer, Copy, RotateCcw, Loader2, UploadCloud, Edit3, DollarSign, Home, ChevronRight, CheckSquare, Calendar, Sparkles } from 'lucide-react'
 import { fetchTransacoes, createTransacao, updateTransacao, deleteTransacao, uploadAnexo } from '../../services/apiFinTransacoes'
 import type { Database } from '../../lib/database.types'
@@ -7,6 +8,7 @@ import type { Database } from '../../lib/database.types'
 type Transacao = Database['public']['Tables']['fin_transacoes']['Row']
 
 export default function Payable() {
+  const navigate = useNavigate()
   const [entries, setEntries] = useState<Transacao[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -174,7 +176,7 @@ export default function Payable() {
             <button onClick={() => setModalType('new')} className="bg-[#10b981] hover:bg-emerald-600 text-white font-medium px-4 py-[9px] rounded text-sm flex items-center gap-2 shrink-0 transition-colors">
               <Plus size={16} /> Adicionar
             </button>
-            <button className="bg-[#701a75] hover:bg-fuchsia-900 text-white font-medium px-4 py-[9px] rounded text-sm flex items-center gap-2 shrink-0 transition-colors">
+            <button onClick={() => navigate('/financial/payable-fixed')} className="bg-[#701a75] hover:bg-fuchsia-900 text-white font-medium px-4 py-[9px] rounded text-sm flex items-center gap-2 shrink-0 transition-colors">
               <FileText size={16} /> Contas fixas
             </button>
             <div className="relative shrink-0">

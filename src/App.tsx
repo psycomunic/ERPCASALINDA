@@ -7,6 +7,7 @@ import Production from './pages/Production'
 import FinancialLayout from './pages/financial/FinancialLayout'
 import DashboardFinanceiro from './pages/financial/DashboardFinanceiro'
 import Payable from './pages/financial/Payable'
+import PayableFixed from './pages/financial/PayableFixed'
 import Receivable from './pages/financial/Receivable'
 import Dre from './pages/financial/Dre'
 import CashFlow from './pages/financial/CashFlow'
@@ -80,6 +81,7 @@ export default function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard"   element={<DashboardFinanceiro />} />
               <Route path="payable"     element={<Payable />} />
+              <Route path="payable-fixed" element={<PayableFixed />} />
               <Route path="receivable"  element={<Receivable />} />
               <Route path="dre"         element={<Dre />} />
               <Route path="cashflow"    element={<CashFlow />} />
