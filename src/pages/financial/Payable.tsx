@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, ChevronDown, List, Edit2, Trash2, ExternalLink, SlidersHorizontal, Settings2, FileText, Printer, Copy, RotateCcw, Loader2, UploadCloud, Edit3, DollarSign, Home, ChevronRight, CheckSquare, Calendar, Sparkles } from 'lucide-react'
+import { Plus, Search, X, ChevronDown, List, Edit2, Trash2, ExternalLink, SlidersHorizontal, Settings2, FileText, Printer, Copy, RotateCcw, Loader2, UploadCloud, Edit3, DollarSign, Home, ChevronRight, CheckSquare, Calendar, Sparkles, Check, Download, Upload, PiggyBank, FileSpreadsheet, ArrowRightLeft, Layers } from 'lucide-react'
 import { fetchTransacoes, createTransacao, updateTransacao, deleteTransacao, uploadAnexo } from '../../services/apiFinTransacoes'
 import type { Database } from '../../lib/database.types'
 
@@ -15,6 +15,14 @@ export default function Payable() {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [periodo, setPeriodo] = useState('Abril de 2026')
   const [showPeriodoMenu, setShowPeriodoMenu] = useState(false)
+  
+  // Novos estados dos Dropdowns do header
+  const [showMaisAcoes, setShowMaisAcoes] = useState(false)
+  const [showColunas, setShowColunas] = useState(false)
+  const [colunasAtivas, setColunasAtivas] = useState({
+    n: false, descricao: true, entidade: true, planoContas: false, 
+    pagamento: true, nfe: true, situacao: true, valor: true, loja: false
+  })
 
   // Advanced search states
   const [advFilters, setAdvFilters] = useState({
@@ -41,6 +49,16 @@ export default function Payable() {
 
   useEffect(() => {
     fetchTransacoes({ tipo: 'despesa' }).then(setEntries)
+
+    // Close menus on click outside
+    const handleClickOutside = () => {
+      setShowMaisAcoes(false)
+      setShowColunas(false)
+      setShowPeriodoMenu(false)
+      setActiveMenuId(null)
+    }
+    window.addEventListener('click', handleClickOutside)
+    return () => window.removeEventListener('click', handleClickOutside)
   }, [])
 
   // KPI Calculations
@@ -180,20 +198,94 @@ export default function Payable() {
               <FileText size={16} /> Contas fixas
             </button>
             <div className="relative shrink-0">
-              <button className="bg-[#111827] hover:bg-gray-900 text-white font-medium px-4 py-[9px] rounded text-sm flex items-center gap-2 transition-colors">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowMaisAcoes(!showMaisAcoes); setShowColunas(false); setShowPeriodoMenu(false) }}
+                className="bg-[#111827] hover:bg-gray-900 text-white font-medium px-4 py-[9px] rounded text-sm flex items-center gap-2 transition-colors"
+              >
                 <Settings2 size={16} /> Mais ações <ChevronDown size={14} />
               </button>
+              <AnimatePresence>
+                {showMaisAcoes && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                    className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg w-72 py-2 z-40"
+                  >
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <Check size={18} className="text-gray-600" /> Confirmar pagamentos
+                    </button>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <X size={18} className="text-gray-600" /> Cancelar pagamentos
+                    </button>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <PiggyBank size={18} className="text-gray-600" /> Contas fixas
+                    </button>
+                    <div className="h-px bg-gray-100 my-1 mx-2"></div>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <ArrowRightLeft size={18} className="text-gray-600" /> Transferências entre contas
+                    </button>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <UploadCloud size={18} className="text-gray-600" /> Importar extrato
+                    </button>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <FileSpreadsheet size={18} className="text-gray-600" /> Importar planilha
+                    </button>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <Download size={18} className="text-gray-600" /> Exportar pagamentos
+                    </button>
+                    <div className="h-px bg-gray-100 my-1 mx-2"></div>
+                    <button className="w-full text-left px-5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 font-medium">
+                      <Layers size={18} className="text-gray-600" /> Agrupar
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-[9px] rounded flex items-center shrink-0 transition-colors">
-              <List size={16} />
-            </button>
+            
+            <div className="relative shrink-0">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowColunas(!showColunas); setShowMaisAcoes(false); setShowPeriodoMenu(false) }}
+                className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-[9px] rounded flex items-center shrink-0 transition-colors"
+                title="Gerenciar colunas"
+              >
+                <List size={16} />
+              </button>
+              <AnimatePresence>
+                {showColunas && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                    className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg w-56 py-3 z-40"
+                  >
+                    <div className="px-4 pb-2 mb-2 border-b border-gray-100 font-medium text-gray-800">
+                      Gerenciar colunas
+                    </div>
+                    {[
+                      { key: 'n', label: 'Nº' }, { key: 'descricao', label: 'Descrição' }, 
+                      { key: 'entidade', label: 'Entidade' }, { key: 'planoContas', label: 'Plano de contas' },
+                      { key: 'pagamento', label: 'Pagamento' }, { key: 'nfe', label: 'NF-e' },
+                      { key: 'situacao', label: 'Situação' }, { key: 'valor', label: 'Valor' },
+                      { key: 'loja', label: 'Loja' }
+                    ].map(col => (
+                      <label key={col.key} className="flex items-center gap-3 px-4 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded text-emerald-600 bg-gray-100 border-gray-300 focus:ring-emerald-500 cursor-pointer accent-[#111827]"
+                          checked={colunasAtivas[col.key as keyof typeof colunasAtivas]}
+                          onChange={(e) => setColunasAtivas({...colunasAtivas, [col.key]: e.target.checked})}
+                        />
+                        {col.label}
+                      </label>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Ações da Direita */}
           <div className="flex bg-white items-center gap-2 overflow-x-auto scrollbar-hide py-1 xl:py-0 w-full xl:w-auto shrink-0 justify-start xl:justify-end">
             <div className="relative">
               <button 
-                onClick={(e) => { e.stopPropagation(); setShowPeriodoMenu(!showPeriodoMenu) }}
+                onClick={(e) => { e.stopPropagation(); setShowPeriodoMenu(!showPeriodoMenu); setShowColunas(false); setShowMaisAcoes(false) }}
                 className="bg-[#111827] hover:bg-gray-900 text-white font-medium px-4 py-[9px] rounded text-sm flex items-center gap-2 min-w-[140px] justify-between transition-colors"
               >
                 {periodo} <ChevronDown size={14} />
@@ -202,10 +294,10 @@ export default function Payable() {
                 {showPeriodoMenu && (
                    <motion.div 
                      initial={{ opacity:0, y:-5 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-5 }}
-                     className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg w-full py-1 z-30"
+                     className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg w-full py-1 z-40"
                    >
-                     {['Hoje', 'Esta semana', 'Mês passado', 'Este mês', 'Próximo mês', 'Todo o período'].map(m => (
-                       <button key={m} onClick={() => { setPeriodo(m); setShowPeriodoMenu(false) }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                     {['Hoje', 'Esta semana', 'Mês passado', 'Este mês', 'Próximo mês', 'Todo o período', 'Escolha o período'].map(m => (
+                       <button key={m} onClick={() => { setPeriodo(m); setShowPeriodoMenu(false) }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100">
                          {m}
                        </button>
                      ))}
