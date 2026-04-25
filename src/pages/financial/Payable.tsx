@@ -628,8 +628,8 @@ export default function Payable() {
                   )}
 
                   <div className="flex justify-center mt-12 gap-3 pb-8">
-                     <button className="px-5 py-2 text-sm text-gray-500 font-bold hover:bg-gray-100 rounded border border-transparent hover:border-gray-200 transition-all flex items-center gap-1"><ChevronRight className="rotate-180" size={14}/> Voltar</button>
-                     <button className="px-5 py-2 text-sm text-gray-500 font-bold hover:bg-gray-100 rounded border border-gray-200 transition-all flex items-center gap-1">Continuar <ChevronRight size={14}/></button>
+                     <button onClick={() => setTab(Math.max(0, tab - 1))} disabled={tab === 0} className="px-5 py-2 text-sm text-gray-500 font-bold hover:bg-gray-100 rounded border border-transparent hover:border-gray-200 transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"><ChevronRight className="rotate-180" size={14}/> Voltar</button>
+                     <button onClick={() => setTab(Math.min(2, tab + 1))} disabled={tab === 2} className="px-5 py-2 text-sm text-gray-500 font-bold hover:bg-gray-100 rounded border border-gray-200 transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">Continuar <ChevronRight size={14}/></button>
                   </div>
                 </div>
 
