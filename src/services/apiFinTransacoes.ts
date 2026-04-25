@@ -81,3 +81,24 @@ export async function deleteTransacao(id: string): Promise<boolean> {
   }
   return true
 }
+
+export async function uploadAnexo(file: File): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null
+
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+  const filePath = `${fileName}`
+
+  // Ensure the bucket exists and is set to "Public" in the Supabase Dashboard
+  const { error: uploadError } = await supabase.storage
+    .from('anexos_financeiros')
+    .upload(filePath, file)
+
+  if (uploadError) {
+    console.error('[apiFinTransacoes] uploadAnexo error:', uploadError.message)
+    return null
+  }
+
+  const { data } = supabase.storage.from('anexos_financeiros').getPublicUrl(filePath)
+  return data.publicUrl
+}

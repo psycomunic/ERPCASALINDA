@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, X, ChevronDown, List, Edit2, Trash2, ExternalLink, SlidersHorizontal, Settings2, FileText, Printer, Copy, RotateCcw } from 'lucide-react'
-import { fetchTransacoes, createTransacao, updateTransacao, deleteTransacao } from '../../services/apiFinTransacoes'
+import { Plus, Search, X, ChevronDown, List, Edit2, Trash2, ExternalLink, SlidersHorizontal, Settings2, FileText, Printer, Copy, RotateCcw, Loader2, UploadCloud, Edit3, DollarSign, Home, ChevronRight, CheckSquare, Calendar, Sparkles } from 'lucide-react'
+import { fetchTransacoes, createTransacao, updateTransacao, deleteTransacao, uploadAnexo } from '../../services/apiFinTransacoes'
 import type { Database } from '../../lib/database.types'
 
 type Transacao = Database['public']['Tables']['fin_transacoes']['Row']
@@ -26,6 +26,10 @@ export default function Payable() {
   // Modal State (for New Expense)
   const [modalType, setModalType] = useState<false | 'new'>(false)
   const [tab, setTab] = useState(0)
+  const [uploading, setUploading] = useState(false)
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+
   const [form, setForm] = useState({
     descricao: '', vencimento: '', planoContas: 'Fornecedores Gerais', centroCusto: '',
     formaPagamento: 'Boleto Bancário', quitado: 'Não', dataCompensacao: '',
@@ -99,17 +103,40 @@ export default function Payable() {
       forma_pagamento: form.formaPagamento,
       centro_custo: form.centroCusto || null,
       data_competencia: form.dataCompetencia || null,
-      observacoes: form.obs || null
+      observacoes: form.obs || null,
+      anexo_url: uploadedUrl
     })
 
     if (transacao) {
       setEntries(prev => [transacao, ...prev])
       setModalType(false)
       setTab(0)
+      setUploadedUrl(null)
       setForm({...form, descricao: '', valorBruto: '', fornecedor: ''})
     } else {
       alert('Tabela fin_transacoes não encontrada no Banco de Dados. Por favor execute o Script SQL presente em supabase_script.sql no seu painel do Supabase.')
     }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDragActive(false)
+    const file = 'dataTransfer' in e ? e.dataTransfer.files[0] : e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Tamanho máximo 5Mb excedido.')
+      return
+    }
+
+    setUploading(true)
+    const url = await uploadAnexo(file)
+    if (url) {
+      setUploadedUrl(url)
+    } else {
+      alert('Falha ao enviar arquivo. Verifique se o bucket "anexos_financeiros" foi criado no Supabase como Public.')
+    }
+    setUploading(false)
   }
 
   const getFilteredEntries = () => {
@@ -430,91 +457,194 @@ export default function Payable() {
         </div>
       </div>
 
-       {/* Modal Nova Despesa (Original Preservado Esteticamente) */}
+       {/* Modal Nova Despesa (Reference screenshot style) */}
        {modalType && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
-          <div className="bg-gray-50 rounded shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
-            
-            <div className="bg-[#111827] px-5 py-4 flex justify-between items-center text-white">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2"><Plus size={18}/> Adicionar pagamento</h2>
-              <button onClick={() => setModalType(false)} className="text-gray-300 hover:text-white transition-colors"><X size={20}/></button>
+        <div className="fixed inset-0 bg-[#f4f5f7] z-[60] flex items-start justify-center p-0 overflow-y-auto w-full h-full">
+          <div className="bg-[#f4f5f7] w-full min-h-full flex flex-col relative">
+
+            {/* HEADER MODAL */}
+            <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
+              <h2 className="text-xl text-gray-700 font-medium">Adicionar pagamento</h2>
+              <div className="flex items-center text-xs text-gray-500 gap-1.5 font-medium uppercase tracking-wide">
+                <Home size={12} className="text-gray-400"/> Início <ChevronRight size={12} className="text-gray-300"/> Contas a pagar <ChevronRight size={12} className="text-gray-300"/> Adicionar
+              </div>
             </div>
 
-            <div className="bg-white px-5 flex gap-8 border-b border-gray-200 text-sm text-gray-600">
-              <button onClick={() => setTab(0)} className={`py-3 font-semibold border-b-2 transition-colors ${tab === 0 ? 'border-navy-600 text-navy-900' : 'border-transparent hover:text-gray-900'}`}>Lançamento financeiro</button>
-              <button onClick={() => setTab(1)} className={`py-3 font-semibold border-b-2 transition-colors ${tab === 1 ? 'border-navy-600 text-navy-900' : 'border-transparent hover:text-gray-900'}`}>Outras informações</button>
-            </div>
+            {/* MENU SUPERIOR E CONTENT BODY */}
+            <div className="p-6 flex-1 w-full max-w-[1500px] mx-auto">
+              
+              {/* TABS + BOTÃO IA */}
+              <div className="flex justify-between items-end mb-4 border-b border-gray-200/60">
+                <div className="flex gap-1 text-sm font-semibold">
+                  <button onClick={() => setTab(0)} className={`py-2 px-5 transition-colors border border-b-0 rounded-t-lg ${tab === 0 ? 'bg-white text-gray-800 border-gray-200 shadow-[0_4px_0_0_white]' : 'bg-transparent text-gray-400 border-transparent hover:text-gray-600'}`}>Lançamento financeiro</button>
+                  <button onClick={() => setTab(1)} className={`py-2 px-5 transition-colors border border-b-0 rounded-t-lg ${tab === 1 ? 'bg-white text-gray-800 border-gray-200 shadow-[0_4px_0_0_white]' : 'bg-transparent text-gray-400 border-transparent hover:text-gray-600'}`}>Outras informações</button>
+                  <button onClick={() => setTab(2)} className={`py-2 px-5 transition-colors border border-b-0 rounded-t-lg ${tab === 2 ? 'bg-white text-gray-800 border-gray-200 shadow-[0_4px_0_0_white]' : 'bg-transparent text-gray-400 border-transparent hover:text-gray-600'}`}>Anexos</button>
+                </div>
+                <div className="pb-2">
+                  <button className="bg-white border text-gray-600 border-gray-200 hover:bg-gray-50 px-4 py-1.5 rounded-md text-xs font-bold flex items-center gap-2 shadow-sm">
+                    <Sparkles size={14}/> Adicionar com IA
+                  </button>
+                </div>
+              </div>
 
-            <div className="p-5 overflow-y-auto flex-1 bg-[#f8f9fa]">
-              {tab === 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white border border-gray-200 p-5 shadow-sm rounded-sm">
-                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                      <div className="col-span-2">
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Descrição *</label>
-                        <input className="input" placeholder="Ex: Compra de materiais" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} />
+              {/* CONTEUDO (FUNDO BRANCO GLOBAL) */}
+              <div className="bg-white border border-gray-200 p-6 shadow-sm min-h-[500px] rounded-b-md rounded-tr-md flex flex-col relative">
+                
+                <div className="flex-1">
+                  {tab === 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      {/* DADOS GERAIS */}
+                      <div className="lg:col-span-8 border border-gray-200 rounded-sm overflow-hidden">
+                        <div className="bg-[#fcfdfd] border-b border-gray-200 px-4 py-3 flex items-center gap-2 text-gray-700 font-semibold text-sm">
+                          <Edit3 size={16} className="text-gray-400"/> Dados gerais
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Descrição do pagamento <span className="text-red-500">*</span></label>
+                            <input className="input h-[42px]" value={form.descricao} onChange={e => setForm({...form, descricao: e.target.value})} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Vencimento <span className="text-red-500">*</span></label>
+                            <div className="relative">
+                              <input type="date" className="input h-[42px] appearance-none" value={form.vencimento} onChange={e => setForm({...form, vencimento: e.target.value})} />
+                              <Calendar size={16} className="absolute right-3 top-3.5 text-gray-400 pointer-events-none"/>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Plano de contas <span className="text-red-500">*</span></label>
+                            <input className="input h-[42px]" placeholder="Digite para buscar" value={form.planoContas} onChange={e => setForm({...form, planoContas: e.target.value})} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Centro de custo</label>
+                            <input className="input h-[42px]" placeholder="Digite para buscar" value={form.centroCusto} onChange={e => setForm({...form, centroCusto: e.target.value})} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Forma de pagamento <span className="text-red-500">*</span></label>
+                            <input className="input h-[42px]" placeholder="Digite para buscar" value={form.formaPagamento} onChange={e => setForm({...form, formaPagamento: e.target.value})} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Conta bancária <span className="text-red-500">*</span></label>
+                            <input className="input h-[42px]" placeholder="Digite para buscar" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Pagamento quitado <span className="text-red-500">*</span></label>
+                            <select className="input h-[42px]" value={form.quitado} onChange={e => setForm({...form, quitado: e.target.value})}>
+                              <option>Não</option><option>Sim</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data de compensação</label>
+                            <div className="relative">
+                               <input type="date" className="input h-[42px] bg-gray-50 border-gray-200 appearance-none disabled:opacity-50" disabled={form.quitado === 'Não'} value={form.dataCompensacao} onChange={e => setForm({...form, dataCompensacao: e.target.value})} />
+                               <Calendar size={16} className={`absolute right-3 top-3.5 pointer-events-none ${form.quitado==='Não'?'text-gray-200':'text-gray-400'}`}/>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Vencimento *</label>
-                        <input type="date" className="input" value={form.vencimento} onChange={e => setForm({...form, vencimento: e.target.value})} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Forma de pagamento</label>
-                        <select className="input" value={form.formaPagamento} onChange={e => setForm({...form, formaPagamento: e.target.value})}>
-                          <option>Boleto Bancário</option><option>PIX</option><option>Cartão Crédito</option>
-                        </select>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Fornecedor</label>
-                        <input className="input" placeholder="Razão social ou apelido" value={form.fornecedor} onChange={e => setForm({...form, fornecedor: e.target.value})} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Conta Quitada?</label>
-                        <select className="input" value={form.quitado} onChange={e => setForm({...form, quitado: e.target.value})}>
-                          <option>Não</option><option>Sim</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="bg-white border border-gray-200 shadow-sm rounded-sm flex flex-col">
-                    <div className="p-5 flex-1 space-y-4">
+                      {/* VALORES */}
+                      <div className="lg:col-span-4 border border-gray-200 rounded-sm overflow-hidden flex flex-col">
+                        <div className="bg-[#fcfdfd] border-b border-gray-200 px-4 py-3 flex items-center gap-2 text-gray-700 font-semibold text-sm shrink-0">
+                          <DollarSign size={16} className="text-gray-400"/> Valores
+                        </div>
+                        <div className="p-6 flex flex-col gap-6 flex-1">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Valor bruto <span className="text-red-500">*</span></label>
+                            <input type="number" className="input h-[42px] font-medium" placeholder="0,00" value={form.valorBruto} onChange={e => setForm({...form, valorBruto: e.target.value})} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Juros</label>
+                            <input type="number" className="input h-[42px]" placeholder="0,00" value={form.juros} onChange={e => setForm({...form, juros: e.target.value})} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Desconto</label>
+                            <input type="number" className="input h-[42px]" placeholder="0,00" value={form.desconto} onChange={e => setForm({...form, desconto: e.target.value})} />
+                          </div>
+                        </div>
+                        <div className="bg-[#f8f9fa] border-t border-gray-200 py-6 text-center shrink-0">
+                          <span className="text-gray-800 font-bold text-xl">Total: {((parseFloat(form.valorBruto)||0) + (parseFloat(form.juros)||0) - (parseFloat(form.desconto)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {tab === 1 && (
+                    <div className="max-w-5xl">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Entidade</label>
+                          <select className="input h-[42px]"><option>Fornecedor</option><option>Colaborador</option></select>
+                        </div>
+                        <div className="md:col-span-1">
+                          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Fornecedor</label>
+                          <input className="input h-[42px]" placeholder="Digite para buscar" value={form.fornecedor} onChange={e => setForm({...form, fornecedor: e.target.value})} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Data de competência <span className="text-red-500">*</span></label>
+                          <div className="relative">
+                            <input type="date" className="input h-[42px] appearance-none" value={form.dataCompetencia} onChange={e => setForm({...form, dataCompetencia: e.target.value})} />
+                            <Calendar size={16} className="absolute right-3 top-3.5 text-gray-400 pointer-events-none"/>
+                          </div>
+                        </div>
+                      </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Valor Original (R$) *</label>
-                        <input type="number" className="input text-right text-lg font-bold text-gray-800" placeholder="0,00" value={form.valorBruto} onChange={e => setForm({...form, valorBruto: e.target.value})} />
-                      </div>
-                      <div className="flex gap-4">
-                        <div className="flex-1">
-                          <label className="block text-xs font-semibold text-gray-700 mb-1 text-red-600">Juros (+)</label>
-                          <input type="number" className="input text-right" placeholder="0,00" value={form.juros} onChange={e => setForm({...form, juros: e.target.value})} />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-xs font-semibold text-gray-700 mb-1 text-green-600">Desconto (-)</label>
-                          <input type="number" className="input text-right" placeholder="0,00" value={form.desconto} onChange={e => setForm({...form, desconto: e.target.value})} />
-                        </div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Informações complementares</label>
+                        <textarea className="input min-h-[140px]" value={form.obs} onChange={e => setForm({...form, obs: e.target.value})}></textarea>
                       </div>
                     </div>
-                    <div className="bg-gray-100 border-t border-gray-200 p-4 text-center">
-                      <span className="text-gray-500 text-xs font-bold uppercase tracking-wider block mb-1">Valor Final Líquido</span>
-                      <span className="text-navy-900 font-black text-2xl">R$ {((parseFloat(form.valorBruto)||0) + (parseFloat(form.juros)||0) - (parseFloat(form.desconto)||0)).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+                  )}
+
+                  {tab === 2 && (
+                    <div className="max-w-4xl">
+                      <div className="bg-[#fff3cd] text-[#856404] border border-[#ffeeba] text-xs px-4 py-3 mb-6 rounded-sm font-medium">
+                        Utilize este espaço para anexar comprovantes e documentos. Tamanho máximo 5Mb.
+                      </div>
+                      
+                      <div className="border-2 border-dashed border-gray-300 bg-[#fefefe] rounded-sm flex flex-col items-center justify-center p-12 text-center relative"
+                           onDragEnter={()=>setDragActive(true)} onDragLeave={()=>setDragActive(false)} onDragOver={(e)=>e.preventDefault()} onDrop={handleFileUpload}>
+                        {uploading ? (
+                          <div className="flex flex-col items-center text-gray-500">
+                             <Loader2 size={32} className="animate-spin mb-4" />
+                             <span>Fazendo upload...</span>
+                          </div>
+                        ) : uploadedUrl ? (
+                          <div className="flex flex-col items-center text-emerald-600">
+                             <CheckSquare size={42} className="mb-2" />
+                             <span className="font-bold underline text-sm break-all">{uploadedUrl}</span>
+                             <button onClick={() => setUploadedUrl(null)} className="mt-4 text-xs text-red-500 font-bold hover:underline">Remover anexo</button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-gray-600 font-semibold mb-3">Solte o arquivo aqui para fazer upload...</p>
+                            <p className="text-gray-400 text-xs mb-3">ou</p>
+                            <label className="bg-[#111827] text-white text-sm font-bold px-6 py-2 rounded-sm shadow-sm cursor-pointer hover:bg-gray-800 transition-colors flex items-center gap-2">
+                              <UploadCloud size={16}/> Selecionar arquivo
+                              <input type="file" className="hidden" onChange={handleFileUpload} />
+                            </label>
+                          </>
+                        )}
+                      </div>
                     </div>
+                  )}
+
+                  <div className="flex justify-center mt-12 gap-3 pb-8">
+                     <button className="px-5 py-2 text-sm text-gray-500 font-bold hover:bg-gray-100 rounded border border-transparent hover:border-gray-200 transition-all flex items-center gap-1"><ChevronRight className="rotate-180" size={14}/> Voltar</button>
+                     <button className="px-5 py-2 text-sm text-gray-500 font-bold hover:bg-gray-100 rounded border border-gray-200 transition-all flex items-center gap-1">Continuar <ChevronRight size={14}/></button>
                   </div>
                 </div>
-              )}
-              {tab === 1 && (
-                <div className="bg-white border border-gray-200 p-5 shadow-sm rounded-sm">
-                  <p className="text-xs text-gray-400 mb-4">Informações complementares e central de custo.</p>
-                  {/* Simplificando outros inputs */}
-                  <textarea className="input h-32" placeholder="Observações..." value={form.obs} onChange={e=>setForm({...form, obs:e.target.value})}></textarea>
-                </div>
-              )}
-            </div>
 
-            <div className="bg-white border-t border-gray-200 p-4 flex justify-between items-center">
-              <button onClick={() => setModalType(false)} className="px-5 py-2 rounded text-sm text-gray-600 font-bold hover:bg-gray-100">Cancelar</button>
-              <button onClick={handleSaveNovo} className="bg-[#10b981] hover:bg-emerald-600 text-white font-bold px-6 py-2 rounded text-sm shadow-md transition-colors">
-                Salvar Lançamento
-              </button>
+              </div>
+
+              {/* FIXED FOOTER CONTROLS OUTSIDE THE WHITE BOX */}
+              <div className="flex items-center mt-4 gap-3">
+                <button onClick={handleSaveNovo} className="bg-[#10b981] hover:bg-emerald-600 text-white font-bold px-6 py-[9px] rounded-sm text-sm shadow-sm transition-colors flex items-center gap-2">
+                  <CheckSquare size={16}/> Cadastrar
+                </button>
+                <button onClick={() => setModalType(false)} className="bg-[#ef4444] hover:bg-red-600 text-white font-bold px-5 py-[9px] rounded-sm text-sm shadow-sm transition-colors flex items-center gap-2">
+                  <X size={16}/> Cancelar
+                </button>
+              </div>
+
             </div>
           </div>
         </div>
