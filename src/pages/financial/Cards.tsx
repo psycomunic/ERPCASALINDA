@@ -120,6 +120,40 @@ export default function Cards() {
 
   const totalInvoice = filteredExpenses.reduce((acc, curr) => acc + curr.installmentValue, 0)
 
+  const costAnalysis = useMemo(() => {
+    let empresaTotal = 0
+    let marioTotal = 0
+    let johnatanTotal = 0
+    const cardTotals: Record<string, number> = {}
+
+    filteredExpenses.forEach(exp => {
+      const val = exp.installmentValue
+      if (exp.responsible === 'Empresa') empresaTotal += val
+      else if (exp.responsible === 'Mário') marioTotal += val
+      else if (exp.responsible === 'Johnatan') johnatanTotal += val
+
+      if (!cardTotals[exp.cardId]) cardTotals[exp.cardId] = 0
+      cardTotals[exp.cardId] += val
+    })
+
+    const sum = empresaTotal + marioTotal + johnatanTotal
+
+    return {
+      total: sum,
+      empresa: empresaTotal,
+      empresaPct: sum ? (empresaTotal / sum) * 100 : 0,
+      mario: marioTotal,
+      marioPct: sum ? (marioTotal / sum) * 100 : 0,
+      johnatan: johnatanTotal,
+      johnatanPct: sum ? (johnatanTotal / sum) * 100 : 0,
+      cardTotals: Object.entries(cardTotals).map(([id, val]) => ({
+        card: cards.find(c => c.id === id)!,
+        val,
+        pct: sum ? (val / sum) * 100 : 0
+      })).filter(c => c.card)
+    }
+  }, [filteredExpenses, cards])
+
   // Get months array for dropdown (from this year and next year)
   const availableMonths = useMemo(() => {
     const list = []
@@ -226,6 +260,61 @@ export default function Cards() {
                  R$ {totalInvoice.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
               </span>
            </div>
+
+           {costAnalysis.total > 0 && (
+              <div className="mb-6 space-y-4">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Empresa Area */}
+                    <div className="p-4 rounded-xl bg-white border border-gray-100 shadow-sm flex flex-col gap-2">
+                       <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">🏢 Empresa</span>
+                          <span className="text-xs font-bold text-navy-600">{costAnalysis.empresaPct.toFixed(1)}%</span>
+                       </div>
+                       <span className="text-lg font-black text-gray-900">R$ {costAnalysis.empresa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                       <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-navy-500 rounded-full" style={{ width: `${costAnalysis.empresaPct}%` }}></div>
+                       </div>
+                    </div>
+                    {/* Mário Area */}
+                    <div className="p-4 rounded-xl bg-white border border-emerald-100 shadow-sm flex flex-col gap-2">
+                       <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">👨🏻‍💼 Mário</span>
+                          <span className="text-xs font-bold text-emerald-600">{costAnalysis.marioPct.toFixed(1)}%</span>
+                       </div>
+                       <span className="text-lg font-black text-gray-900">R$ {costAnalysis.mario.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                       <div className="h-1.5 w-full bg-emerald-50 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${costAnalysis.marioPct}%` }}></div>
+                       </div>
+                    </div>
+                    {/* Johnatan Area */}
+                    <div className="p-4 rounded-xl bg-white border border-amber-100 shadow-sm flex flex-col gap-2">
+                       <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">👨🏽‍💼 Johnatan</span>
+                          <span className="text-xs font-bold text-amber-600">{costAnalysis.johnatanPct.toFixed(1)}%</span>
+                       </div>
+                       <span className="text-lg font-black text-gray-900">R$ {costAnalysis.johnatan.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                       <div className="h-1.5 w-full bg-amber-50 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-500 rounded-full" style={{ width: `${costAnalysis.johnatanPct}%` }}></div>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="flex flex-col gap-2">
+                    {costAnalysis.cardTotals.map(c => (
+                       <div key={c.card.id} className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-3 shadow-sm">
+                          <div className="flex items-center gap-3">
+                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.card.color }}></div>
+                             <span className="text-sm font-bold text-gray-800">{c.card.name} <span className="text-gray-400 font-normal">({c.card.last4})</span></span>
+                          </div>
+                          <div className="flex items-center gap-3 text-right">
+                             <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">{c.pct.toFixed(1)}%</span>
+                             <span className="text-xs font-black text-gray-900 w-24">R$ {c.val.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           )}
 
            <div className="flex-1 overflow-auto rounded-lg border border-gray-100">
               <table className="w-full text-left text-sm whitespace-nowrap">
