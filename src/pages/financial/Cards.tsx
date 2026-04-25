@@ -197,7 +197,7 @@ export default function Cards() {
               </div>
               <div className="flex items-center gap-3">
                  <select 
-                    className="border-gray-200 rounded-lg text-sm font-medium py-1.5 focus:ring-navy-500 focus:border-navy-500"
+                    className="border border-gray-200 bg-white px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 cursor-pointer"
                     value={selectedMonth}
                     onChange={e => setSelectedMonth(e.target.value)}
                  >
@@ -301,12 +301,12 @@ export default function Cards() {
              <div className="p-6 overflow-y-auto flex-1 space-y-4">
                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Nome do Banco / Apelido</label>
-                  <input type="text" value={cardForm.name} onChange={e => setCardForm({...cardForm, name: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="ex: Santander" />
+                  <input type="text" value={cardForm.name} onChange={e => setCardForm({...cardForm, name: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="ex: Santander" />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Bandeira</label>
-                     <select value={cardForm.network} onChange={e => setCardForm({...cardForm, network: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500">
+                     <select value={cardForm.network} onChange={e => setCardForm({...cardForm, network: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow">
                         <option value="mastercard">Mastercard</option>
                         <option value="visa">Visa</option>
                         <option value="amex">Amex</option>
@@ -315,12 +315,12 @@ export default function Cards() {
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Final (4 digitos)</label>
-                     <input type="text" maxLength={4} value={cardForm.last4} onChange={e => setCardForm({...cardForm, last4: e.target.value.replace(/\D/g, '')})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="0000" />
+                     <input type="text" maxLength={4} value={cardForm.last4} onChange={e => setCardForm({...cardForm, last4: e.target.value.replace(/\D/g, '')})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="0000" />
                   </div>
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Limite Total do Cartão</label>
-                  <input type="number" value={cardForm.limit} onChange={e => setCardForm({...cardForm, limit: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="0.00" />
+                  <input type="number" value={cardForm.limit} onChange={e => setCardForm({...cardForm, limit: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="0.00" />
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Cor do Cartão</label>
@@ -347,23 +347,23 @@ export default function Cards() {
              <div className="p-6 overflow-y-auto flex-1 space-y-4">
                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Cartão de Crédito</label>
-                  <select value={expForm.cardId} onChange={e => setExpForm({...expForm, cardId: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500">
+                  <select value={expForm.cardId} onChange={e => setExpForm({...expForm, cardId: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow">
                      <option value="" disabled>Selecione um cartão...</option>
                      {cards.map(c => <option key={c.id} value={c.id}>{c.name} (Final {c.last4})</option>)}
                   </select>
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Descrição</label>
-                  <input type="text" value={expForm.description} onChange={e => setExpForm({...expForm, description: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="Ex: Passagem Rio x SP" />
+                  <input type="text" value={expForm.description} onChange={e => setExpForm({...expForm, description: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="Ex: Passagem Rio x SP" />
                </div>
                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Valor Total</label>
-                  <input type="number" value={expForm.value} onChange={e => setExpForm({...expForm, value: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" placeholder="0.00" />
+                  <input type="number" value={expForm.value} onChange={e => setExpForm({...expForm, value: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" placeholder="0.00" />
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Tipo Lançamento</label>
-                     <select value={expForm.isInstallment ? 'true' : 'false'} onChange={e => setExpForm({...expForm, isInstallment: e.target.value === 'true'})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500">
+                     <select value={expForm.isInstallment ? 'true' : 'false'} onChange={e => setExpForm({...expForm, isInstallment: e.target.value === 'true'})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow">
                         <option value="false">À Vista (1x)</option>
                         <option value="true">Parcelado</option>
                      </select>
@@ -371,18 +371,18 @@ export default function Cards() {
                   {expForm.isInstallment && (
                      <div>
                         <label className="block text-xs font-bold text-gray-700 mb-1">Qtd Parcelas</label>
-                        <input type="number" min="2" max="24" value={expForm.installments} onChange={e => setExpForm({...expForm, installments: parseInt(e.target.value)})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" />
+                        <input type="number" min="2" max="24" value={expForm.installments} onChange={e => setExpForm({...expForm, installments: parseInt(e.target.value)})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" />
                      </div>
                   )}
                </div>
                <div className="grid grid-cols-2 gap-4">
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Data da Compra</label>
-                     <input type="date" value={expForm.date} onChange={e => setExpForm({...expForm, date: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500" />
+                     <input type="date" value={expForm.date} onChange={e => setExpForm({...expForm, date: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow" />
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-gray-700 mb-1">Responsável CC</label>
-                     <select value={expForm.responsible} onChange={e => setExpForm({...expForm, responsible: e.target.value})} className="w-full border-gray-300 rounded-lg text-sm focus:ring-navy-500 focus:border-navy-500">
+                     <select value={expForm.responsible} onChange={e => setExpForm({...expForm, responsible: e.target.value})} className="w-full border border-gray-300 bg-white px-3 py-2.5 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500 transition-shadow">
                         <option value="Empresa">Empresa</option>
                         <option value="Mário">Mário</option>
                         <option value="Johnatan">Johnatan</option>
