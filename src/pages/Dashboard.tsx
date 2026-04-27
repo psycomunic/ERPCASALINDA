@@ -362,21 +362,24 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
       if (!keep) return
 
       const prods = p.produtos || []
-      prods.forEach((prodName: string) => {
-        const lower = prodName.toLowerCase()
+      prods.forEach((prod: any) => {
+        const prodName = typeof prod === 'string' ? prod : prod.nome
+        const qtd = typeof prod === 'string' ? 1 : (prod.qtd || 1)
+
+        const lower = prodName?.toLowerCase() || ''
         
-        // Extract size
-        const sizeMatch = lower.match(/\b(\d+)\s*[xX]\s*(\d+)\b/)
+        // Extract size (handles standard x, uppercase X, and unicode multiplication sign ×)
+        const sizeMatch = lower.match(/\b(\d+)\s*[xX×]\s*(\d+)\b/)
         if (sizeMatch) {
           const s1 = parseInt(sizeMatch[1], 10)
           const s2 = parseInt(sizeMatch[2], 10)
           const min = Math.min(s1, s2)
           const max = Math.max(s1, s2)
-          const sizeKey = `${min}x${max}cm`
-          sizesMap.set(sizeKey, (sizesMap.get(sizeKey) || 0) + 1)
+          const sizeKey = `${min}\u00D7${max}cm`
+          sizesMap.set(sizeKey, (sizesMap.get(sizeKey) || 0) + qtd)
         } else {
-             if (lower.includes('a4')) sizesMap.set('A4 (21x30cm)', (sizesMap.get('A4 (21x30cm)') || 0) + 1)
-             if (lower.includes('a3')) sizesMap.set('A3 (30x42cm)', (sizesMap.get('A3 (30x42cm)') || 0) + 1)
+             if (lower.includes('a4')) sizesMap.set('A4 (21\u00D730cm)', (sizesMap.get('A4 (21\u00D730cm)') || 0) + qtd)
+             if (lower.includes('a3')) sizesMap.set('A3 (30\u00D742cm)', (sizesMap.get('A3 (30\u00D742cm)') || 0) + qtd)
         }
 
         // Extract color/moldura
@@ -393,7 +396,7 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
         if (!colorKey && lower.includes('chanfrada')) colorKey = 'Chanfrada Especial'
 
         if (colorKey) {
-          colorsMap.set(colorKey, (colorsMap.get(colorKey) || 0) + 1)
+          colorsMap.set(colorKey, (colorsMap.get(colorKey) || 0) + qtd)
         }
       })
     })

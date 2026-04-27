@@ -278,7 +278,7 @@ export interface FreightOrderData {
   data: string
   situacao?: number  // 4=Aprovado, 7=Transporte/Faturado, etc.
   quantidade?: number // Quantos itens há no pedido
-  produtos?: string[] // ARRAY de nomes de produtos (para extração de Analytics)
+  produtos?: {nome: string, qtd: number}[] // ARRAY de nomes de produtos (para extração de Analytics)
 }
 
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
@@ -303,7 +303,7 @@ export function updateFreightCache(key: string, data: FreightOrderData[]) {
  * Ideal para KPIs do Dashboard onde frete exato não é necessário.
  */
 export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]> {
-  const key = `kpis-v3-${dias}`
+  const key = `kpis-v4-${dias}`
   const cached = getCached(key)
   if (cached) return cached
 
@@ -337,8 +337,10 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
       const produtos = itemsArr.map((i: any) => {
         const baseName = i.nome || i.produtoNome || ''
         const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
-        return `${baseName} ${derivacao}`.trim()
-      }).filter(Boolean)
+        const nomeFinal = `${baseName} ${derivacao}`.trim()
+        const qtd = Number(i.quantidade) || 1
+        return nomeFinal ? { nome: nomeFinal, qtd } : null
+      }).filter(Boolean) as {nome: string, qtd: number}[]
 
       return {
         codigo: String(o.codigo || o.id),
@@ -430,8 +432,10 @@ export async function enrichOrdersWithCarriers(
             entry.produtos = itemsArr.map((i: any) => {
               const baseName = i.nome || i.produtoNome || ''
               const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
-              return `${baseName} ${derivacao}`.trim()
-            }).filter(Boolean)
+              const nomeFinal = `${baseName} ${derivacao}`.trim()
+              const qtd = Number(i.quantidade) || 1
+              return nomeFinal ? { nome: nomeFinal, qtd } : null
+            }).filter(Boolean) as {nome: string, qtd: number}[]
           }
         }
       } catch { /* ignora */ }
