@@ -688,7 +688,26 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">🖼 Especificação dos Itens</p>
             
             <div className="space-y-4">
-              {(order.itens && order.itens.length > 0 ? order.itens : [order]).map((item, idx) => (
+              {(() => {
+                // 1) Se há itens individuais salvos, usa diretamente
+                if (order.itens && order.itens.length > 0) return order.itens
+                // 2) Detecta padrão "X quadros — item1, item2, ..." gerado ao salvar manualmente
+                const multiMatch = order.produto?.match(/^\d+ quadros? — (.+)$/)
+                if (multiMatch) {
+                  const nomes = multiMatch[1].split(', ')
+                  return nomes.map(nome => ({
+                    produto: nome.trim(),
+                    quantidade: 1,
+                    tamanho: order.tamanho,
+                    formato: order.formato,
+                    moldura: order.moldura,
+                    acabamento: order.acabamento,
+                    imagemUrl: undefined as string | undefined,
+                  }))
+                }
+                // 3) Pedido com item único
+                return [order]
+              })().map((item, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
                   {/* Item header */}
                   <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex gap-3">
@@ -2499,6 +2518,19 @@ export default function Production() {
         order.quantidade || 1
       )
     }
+
+    // ── Persistir itens individuais no enrichCache (localStorage) ──────────────
+    // O Supabase não armazena o array de itens individuais. Para que os quadros
+    // separados sejam restaurados após reload, salvamos os itens no enrichCache
+    // (localStorage), que é injetado de volta ao construir o board via processFetchedRows.
+    if ((order.itens && order.itens.length > 0) || order.imagemUrl) {
+      const cacheEntry: Record<string, any> = {}
+      if (order.itens && order.itens.length > 0) cacheEntry.itens = order.itens
+      if (order.imagemUrl) cacheEntry.imagemUrl = order.imagemUrl
+      enrichCache.current[order.id] = { ...(enrichCache.current[order.id] || {}), ...cacheEntry }
+      localStorage.setItem('erp_enrich_cache', JSON.stringify(enrichCache.current))
+    }
+
     showToast(`Pedido #${order.id} adicionado ao Kanban!`)
   }
 
