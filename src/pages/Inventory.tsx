@@ -18,6 +18,7 @@ interface Item {
   minimo: number
   status: 'NORMAL' | 'CRÍTICO' | 'ATENÇÃO'
   img: string | null
+  categoria?: string
 }
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
@@ -59,7 +60,8 @@ export default function Inventory() {
       return {
         id: i.id, ref: i.codigo || i.id.substring(0, 6).toUpperCase(),
         nome: i.nome, unidade: i.unidade || 'un', atual, minimo: min, status,
-        img: getFrameImage(i.nome)
+        img: getFrameImage(i.nome),
+        categoria: i.categoria
       }
     })
     setItems(mappedItens)
@@ -121,6 +123,14 @@ export default function Inventory() {
   const totalItems = items.length
 
   const filteredItems = filterStatus === 'TODOS' ? items : items.filter(i => i.status === filterStatus)
+
+  // Agrupar itens por categoria para facilitar a visualização
+  const groupedItems = filteredItems.reduce((acc, item) => {
+    const cat = item.categoria || 'Outros'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(item)
+    return acc
+  }, {} as Record<string, typeof filteredItems>)
 
   const handleExportar = () => {
     const csv = ['Ref,Nome,Unidade,Atual,Mínimo,Status',
@@ -299,38 +309,47 @@ export default function Inventory() {
                 <th className="th">Status</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredItems.map(item => (
-                <tr key={item.id} className="tr">
-                  <td className="td">
-                    <div className="flex items-center gap-3">
-                      {item.img ? (
-                        <div className="w-10 h-10 shrink-0 rounded overflow-hidden border border-gray-200">
-                          <img src={item.img} alt={item.nome} className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 shrink-0 rounded bg-gray-50 border border-gray-100 flex items-center justify-center">
-                          <span className="text-[10px] font-bold text-gray-300">N/A</span>
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-medium text-gray-800">{item.nome}</p>
-                        <p className="text-[11px] text-gray-400">{item.ref}</p>
-                      </div>
-                    </div>
+            {Object.keys(groupedItems).sort().map(cat => (
+              <tbody key={cat}>
+                <tr>
+                  <td colSpan={5} className="bg-gray-100/80 py-2.5 px-5 text-xs font-bold text-navy-900 uppercase tracking-widest border-y border-gray-200">
+                    📦 {cat} <span className="text-gray-400 font-medium lowercase ml-1">({groupedItems[cat].length} itens)</span>
                   </td>
-                  <td className="td text-gray-500 text-xs">{item.unidade}</td>
-                  <td className={`td font-bold ${item.status === 'CRÍTICO' ? 'text-red-600' : item.status === 'ATENÇÃO' ? 'text-orange-600' : 'text-gray-900'}`}>
-                    {item.atual}
-                  </td>
-                  <td className="td text-gray-500">{item.minimo}</td>
-                  <td className="td"><span className={`badge ${STATUS_BADGE[item.status]}`}>{item.status}</span></td>
                 </tr>
-              ))}
-              {filteredItems.length === 0 && (
+                {groupedItems[cat].map(item => (
+                  <tr key={item.id} className="tr">
+                    <td className="td">
+                      <div className="flex items-center gap-3">
+                        {item.img ? (
+                          <div className="w-10 h-10 shrink-0 rounded overflow-hidden border border-gray-200">
+                            <img src={item.img} alt={item.nome} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 shrink-0 rounded bg-gray-50 border border-gray-100 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-gray-300">N/A</span>
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-800">{item.nome}</p>
+                          <p className="text-[11px] text-gray-400">{item.ref}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="td text-gray-500 text-xs">{item.unidade}</td>
+                    <td className={`td font-bold ${item.status === 'CRÍTICO' ? 'text-red-600' : item.status === 'ATENÇÃO' ? 'text-orange-600' : 'text-gray-900'}`}>
+                      {item.atual}
+                    </td>
+                    <td className="td text-gray-500">{item.minimo}</td>
+                    <td className="td"><span className={`badge ${STATUS_BADGE[item.status]}`}>{item.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+            {filteredItems.length === 0 && (
+              <tbody>
                 <tr><td colSpan={5} className="td text-center text-gray-400 py-6">Nenhum item encontrado.</td></tr>
-              )}
-            </tbody>
+              </tbody>
+            )}
           </table>
           </div>
         </div>
