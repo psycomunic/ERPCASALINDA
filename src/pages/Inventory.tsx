@@ -275,6 +275,7 @@ export default function Inventory() {
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
             @page { size: A4 portrait; margin: 15mm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { background: white !important; color: black; font-family: sans-serif; }
             table { page-break-inside: auto; }
             tr    { page-break-inside: avoid; page-break-after: auto; }
@@ -287,11 +288,11 @@ export default function Inventory() {
               setTimeout(() => {
                 window.print();
                 window.close();
-              }, 500);
+              }, 600);
             };
           </script>
         </head>
-        <body class="bg-white p-2">
+        <body class="bg-white">
           ${printContent.innerHTML}
         </body>
       </html>
@@ -711,63 +712,93 @@ export default function Inventory() {
 
     {/* RELATÓRIO P/ IMPRESSÃO (Oculto na tela, extraído via popup) */}
     <div id="print-report" className="hidden">
-      <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
+      
+      {/* Premium Document Header */}
+      <div className="bg-[#1e3a8a] text-white p-8 rounded-t-2xl flex justify-between items-center shadow-md mb-8">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter">Casa Linda</h1>
-          <h2 className="text-lg font-semibold uppercase tracking-widest text-gray-600 mt-1">Relatório Oficial de Inventário</h2>
+          <h1 className="text-4xl font-black uppercase tracking-tight flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#1e3a8a]">
+              <PackagePlus size={24} />
+            </div>
+            Casa Linda
+          </h1>
+          <h2 className="text-xl font-medium uppercase tracking-widest text-blue-100 mt-2 opacity-90">Relatório Completo de Inventário</h2>
         </div>
-        <div className="text-right">
-          <p className="text-sm font-bold">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-          <p className="text-sm text-gray-600">Total de Insumos Cadastrados: {totalItems}</p>
-          <p className="text-sm text-red-600 font-bold">Itens com Estoque Crítico: {criticos}</p>
+        <div className="text-right bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm">
+          <p className="text-sm font-semibold opacity-90 mb-1">DATA DE EMISSÃO</p>
+          <p className="text-xl font-bold">{new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
         </div>
       </div>
 
-      <div className="space-y-8">
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex justify-between items-center">
+          <span className="text-gray-500 font-semibold uppercase text-xs tracking-wider">Total de Insumos</span>
+          <span className="text-xl font-black text-[#1e3a8a]">{totalItems} itens</span>
+        </div>
+        <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex justify-between items-center">
+          <span className="text-red-500 font-semibold uppercase text-xs tracking-wider">Estoque Crítico</span>
+          <span className="text-xl font-black text-red-600">{criticos} itens em alerta</span>
+        </div>
+      </div>
+
+      <div className="space-y-10">
         {Object.keys(groupedItems).sort().map(cat => (
           <div key={cat}>
-            <h3 className="text-lg font-bold bg-gray-200 px-3 py-1 mb-2 uppercase flex justify-between border border-gray-300 break-after-avoid">
-              <span>📦 {cat}</span>
-              <span className="text-sm font-normal text-gray-600">{groupedItems[cat].length} itens desta categoria</span>
-            </h3>
-            <table className="w-full text-sm border-collapse border border-gray-300">
-              <thead>
-                <tr className="border-b-2 border-gray-400 bg-gray-50">
-                  <th className="py-2 px-3 text-left w-24">Código</th>
-                  <th className="py-2 px-3 text-left">Produto/Insumo</th>
-                  <th className="py-2 px-3 text-center w-16">Unid.</th>
-                  <th className="py-2 px-3 text-right w-24">Mínimo</th>
-                  <th className="py-2 px-3 text-right w-32 font-bold">Estoque Atual</th>
-                  <th className="py-2 px-3 text-center w-28">Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedItems[cat].map(item => (
-                  <tr key={item.id} className={`border-b border-gray-200 ${item.status === 'CRÍTICO' ? 'bg-red-50/50' : ''}`}>
-                    <td className="py-1.5 px-3 align-middle text-gray-500 text-xs font-mono">{item.ref}</td>
-                    <td className="py-1.5 px-3 align-middle font-medium">{item.nome}</td>
-                    <td className="py-1.5 px-3 align-middle text-center text-gray-500">{item.unidade}</td>
-                    <td className="py-1.5 px-3 align-middle text-right text-gray-500">{item.minimo}</td>
-                    <td className={`py-1.5 px-3 align-middle text-right font-bold text-[15px] ${item.status === 'CRÍTICO' ? 'text-red-700' : ''}`}>
-                      {item.atual}
-                    </td>
-                    <td className="py-1.5 px-3 align-middle text-center text-xs font-bold">
-                      {item.status === 'CRÍTICO' 
-                        ? <span className="text-red-600 border border-red-200 px-2 py-0.5 rounded uppercase inline-block w-full">CRÍTICO</span> 
-                        : item.status === 'ATENÇÃO' 
-                          ? <span className="text-orange-600 border border-orange-200 px-2 py-0.5 rounded uppercase inline-block w-full">ATENÇÃO</span> 
-                          : <span className="text-green-600 border border-green-200 px-2 py-0.5 rounded uppercase inline-block w-full">NORMAL</span>}
-                    </td>
+            <div className="bg-gradient-to-r from-gray-100 to-white px-5 py-3 mb-4 rounded-lg flex justify-between items-center border-l-4 border-[#1e3a8a] break-after-avoid shadow-sm">
+              <h3 className="text-lg font-black text-[#1e3a8a] uppercase flex items-center gap-2">
+                <span className="text-xl">📦</span> {cat}
+              </h3>
+              <span className="text-xs font-bold bg-white px-3 py-1 rounded-full text-gray-500 border border-gray-200 shadow-sm">{groupedItems[cat].length} INS.</span>
+            </div>
+            
+            <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                    <th className="py-3 px-4 text-center font-bold text-xs uppercase tracking-wider w-16">Foto</th>
+                    <th className="py-3 px-4 text-left font-bold text-xs uppercase tracking-wider w-24">Cód</th>
+                    <th className="py-3 px-4 text-left font-bold text-xs uppercase tracking-wider">Produto/Insumo</th>
+                    <th className="py-3 px-4 text-center font-bold text-xs uppercase tracking-wider w-16">UN</th>
+                    <th className="py-3 px-4 text-right font-bold text-xs uppercase tracking-wider w-24">Mínimo</th>
+                    <th className="py-3 px-4 text-right font-bold text-xs uppercase tracking-wider w-28 bg-blue-50/30">Atual</th>
+                    <th className="py-3 px-4 text-center font-bold text-xs uppercase tracking-wider w-28">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {groupedItems[cat].map(item => (
+                    <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${item.status === 'CRÍTICO' ? 'bg-red-50/20' : ''}`}>
+                      <td className="py-2 px-4 align-middle text-center">
+                        {item.img ? (
+                          <img src={item.img} className="w-9 h-9 object-cover rounded shadow-sm border border-gray-200 mx-auto" />
+                        ) : (
+                          <div className="w-9 h-9 bg-gray-100 rounded border border-gray-200 mx-auto flex items-center justify-center text-gray-400 text-[10px]">sem img</div>
+                        )}
+                      </td>
+                      <td className="py-2 px-4 align-middle text-gray-400 text-xs font-mono font-medium">{item.ref}</td>
+                      <td className="py-2 px-4 align-middle font-bold text-gray-800">{item.nome}</td>
+                      <td className="py-2 px-4 align-middle text-center text-gray-500 font-medium">{item.unidade}</td>
+                      <td className="py-2 px-4 align-middle text-right text-gray-400">{item.minimo}</td>
+                      <td className={`py-2 px-4 align-middle text-right font-black text-base bg-blue-50/10 ${item.status === 'CRÍTICO' ? 'text-red-600' : 'text-[#1e3a8a]'}`}>
+                        {item.atual}
+                      </td>
+                      <td className="py-2 px-4 align-middle text-center text-[10px] uppercase font-black tracking-wider">
+                        {item.status === 'CRÍTICO' 
+                          ? <span className="text-red-700 bg-red-100 border border-red-200 px-2 py-1 rounded w-full inline-block">CRÍTICO</span> 
+                          : item.status === 'ATENÇÃO' 
+                            ? <span className="text-orange-700 bg-orange-100 border border-orange-200 px-2 py-1 rounded w-full inline-block">ATENÇÃO</span> 
+                            : <span className="text-green-700 bg-green-100 border border-green-200 px-2 py-1 rounded w-full inline-block">NORMAL</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-12 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-4 font-mono">
-        Casa Linda Decorações - Relatório Gerado pelo ERP Integrado ({new Date().toLocaleString('pt-BR')}) - Página impressa automaticamente.
+      <div className="mt-16 text-center text-xs text-gray-400 border-t border-gray-200 pt-6 font-medium">
+        Casa Linda Decorações - Relatório Gerado pelo ERP Integrado ({new Date().toLocaleString('pt-BR')}) - Impressão Oficial.
       </div>
     </div>
     </>
