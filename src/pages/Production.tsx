@@ -1693,7 +1693,7 @@ export default function Production() {
       const etapa = r.etapa as Stage
       if (!(etapa in grouped)) return
       const order: Order = {
-        id: r.numero,
+        id: String(r.numero),
         magazordId: r.magazord_id ?? undefined,
         cliente: r.cliente,
         produto: r.produto,
@@ -1723,7 +1723,22 @@ export default function Production() {
       grouped[etapa].push(order)
     })
 
-    setBoard(grouped)
+    setBoard(prev => {
+      // Build dbIds ONLY from orders that are actually mapped to valid stages in grouped
+      const validDbIds = new Set<string>()
+      for (const stage of Object.keys(grouped) as Stage[]) {
+        grouped[stage].forEach(o => validDbIds.add(String(o.id)))
+      }
+
+      // Preserve unconfirmed Magazord orders that aren't yet visibly in the DB (i.e. not in validDbIds)
+      const pendingMagazord = prev['Novos Pedidos'].filter(o => !validDbIds.has(String(o.id)))
+
+      return {
+        ...grouped,
+        'Novos Pedidos': [...pendingMagazord, ...grouped['Novos Pedidos']]
+      }
+    })
+
     setDbConnected(true)
     setDbLoading(false)
   }, [])
