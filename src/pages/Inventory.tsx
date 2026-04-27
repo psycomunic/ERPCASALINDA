@@ -68,7 +68,7 @@ export default function Inventory() {
       return {
         id: i.id, ref: i.codigo || i.id.substring(0, 6).toUpperCase(),
         nome: i.nome, unidade: i.unidade || 'un', atual, minimo: min, status,
-        img: getFrameImage(i.nome),
+        img: i.categoria?.toLowerCase() === 'moldura' ? getFrameImage(i.nome) : null,
         categoria: i.categoria
       }
     })
