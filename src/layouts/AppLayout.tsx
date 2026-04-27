@@ -689,7 +689,7 @@ export default function AppLayout() {
 
   return (
     <LayoutProvider>
-      <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex h-screen overflow-hidden bg-gray-50 print:block print:h-auto print:overflow-visible">
         {/* Mobile overlay */}
         <AnimatePresence>
           {mobileOpen && (
@@ -720,7 +720,7 @@ export default function AppLayout() {
         </div>
 
         {/* Main */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:block print:h-auto print:overflow-visible">
           {/* Mobile menu button */}
           <div className="lg:hidden absolute top-3 left-3 z-30">
             <button onClick={() => setMobileOpen(true)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -730,7 +730,7 @@ export default function AppLayout() {
 
           <Topbar />
 
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto print:block print:h-auto print:overflow-visible">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
@@ -738,7 +738,7 @@ export default function AppLayout() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className="h-full"
+                className="h-full print:block print:h-auto print:overflow-visible"
               >
                 <Outlet />
               </motion.div>
