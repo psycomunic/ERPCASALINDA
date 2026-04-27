@@ -474,7 +474,7 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                 <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} width={85} />
-                <RechartsTooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
+                <Tooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
                 <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                   {topSizes.map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
                 </Bar>
@@ -490,7 +490,7 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                 <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} width={105} />
-                <RechartsTooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
+                <Tooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
                 <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                   {topColors.map((_, i) => <Cell key={i} fill={['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6', '#14b8a6'][i % 7]} />)}
                 </Bar>

@@ -33,6 +33,7 @@ export interface Database {
           transportadora: string | null
           rastreio: string | null
           data_despacho: string | null
+          volumes: number | null
           data_prevista: string | null
           hora_prevista: string | null
           from_magazord: boolean
@@ -72,6 +73,7 @@ export interface Database {
           transportadora?: string | null
           rastreio?: string | null
           data_despacho?: string | null
+          volumes?: number | null
           data_prevista?: string | null
           hora_prevista?: string | null
           from_magazord?: boolean
@@ -107,6 +109,7 @@ export interface Database {
           transportadora?: string | null
           rastreio?: string | null
           data_despacho?: string | null
+          volumes?: number | null
           data_prevista?: string | null
           hora_prevista?: string | null
           from_magazord?: boolean

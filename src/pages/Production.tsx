@@ -62,6 +62,8 @@ export interface ProductionOrder {
   revisaoMotivo?: string
   revisaoAreas?: string[]
   revisaoFotoUrl?: string
+  // Expedição extras
+  volumes?: number
 }
 
 type Order = ProductionOrder
@@ -1149,7 +1151,7 @@ function ReviewModal({ order, onClose, onApprove, onReject }: {
 
 function ReadyModal({ order, onClose, onConfirm }: {
   order: Order; onClose: () => void
-  onConfirm: (endereco: string, transportadora: string, prazo: string) => void
+  onConfirm: (endereco: string, transportadora: string, prazo: string, volumes: number) => void
 }) {
   // Convert prazoEntrega "dd/mm/yyyy" → "yyyy-mm-dd" for the date input
   const toInputDate = (dateStr?: string) => {
@@ -1165,6 +1167,7 @@ function ReadyModal({ order, onClose, onConfirm }: {
   const [endereco, setEndereco] = useState(order.endereco ?? '')
   const [trans, setTrans]       = useState(order.transportadora ?? CARRIER_NAMES[0])
   const [prazo, setPrazo]       = useState(toInputDate(order.prazoEntrega))
+  const [volumes, setVolumes]   = useState(order.volumes || order.quantidade || 1)
   const [fetching, setFetching] = useState(false)
   const [fetched, setFetched]   = useState(false)
 
@@ -1230,10 +1233,10 @@ function ReadyModal({ order, onClose, onConfirm }: {
               disabled={fetching}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Transportadora</label>
-              <select className="input" value={trans} onChange={e => setTrans(e.target.value)} disabled={fetching}>
+              <select className="input font-semibold" value={trans} onChange={e => setTrans(e.target.value)} disabled={fetching}>
                 {CARRIERS_BY_TYPE.map(g => (
                   <optgroup key={g.tipo} label={g.tipo}>
                     {g.items.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
@@ -1245,14 +1248,22 @@ function ReadyModal({ order, onClose, onConfirm }: {
               <label className="block text-xs text-gray-500 mb-1">Prazo de Entrega</label>
               <input className="input" type="date" value={prazo} onChange={e => setPrazo(e.target.value)} disabled={fetching} />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Qtd Volumes (Caixas) <span className="text-red-500">*</span></label>
+              <input 
+                className="input border-yellow-300 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-200" 
+                type="number" min="1" max="50" step="1"
+                value={volumes} onChange={e => setVolumes(parseInt(e.target.value) || 1)} disabled={fetching} 
+              />
+            </div>
           </div>
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button
-              onClick={() => { onConfirm(endereco, trans, prazo); onClose() }}
+              onClick={() => { onConfirm(endereco, trans, prazo, volumes); onClose() }}
               className="btn-primary flex-1 justify-center"
               style={{ background: '#d97706' }}
-              disabled={fetching}
+              disabled={fetching || volumes < 1}
             >
               <ClipboardList size={14} /> Marcar como Pronto
             </button>
@@ -1499,6 +1510,12 @@ function DeliveryCard({
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <Calendar size={11} className="text-gray-400 shrink-0" />
             <span>Prazo: {order.prazoEntrega}</span>
+          </div>
+        )}
+        {Boolean(order.volumes) && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded w-fit border border-amber-100">
+            <Package size={11} className="text-amber-500 shrink-0" />
+            <span>{order.volumes} {order.volumes === 1 ? 'Cx/Volume' : 'Cxs/Volumes'}</span>
           </div>
         )}
         {order.rastreio && (
@@ -1815,6 +1832,7 @@ export default function Production() {
           ? (safeDate(r.data_despacho) + ' ' + safeTime(r.data_despacho)).trim() || undefined
           : undefined,
         fromMagazord: r.from_magazord,
+        volumes: r.volumes ?? undefined,
 
         // Injeta dados enriquecidos salvos em cache para evitar recarregamento
         ...(enrichCache.current[r.numero] || {})
@@ -2072,19 +2090,19 @@ export default function Production() {
     localStorage.setItem('erp_board_backup', JSON.stringify(board))
   }, [board])
 
-  const markReady = (order: Order, endereco: string, transportadora: string, prazoEntrega: string) => {
+  const markReady = (order: Order, endereco: string, transportadora: string, prazoEntrega: string, volumes: number) => {
     const prazoFmt = prazoEntrega
       ? new Date(prazoEntrega).toLocaleDateString('pt-BR')
       : order.prazoEntrega
     setBoard(prev => ({
       ...prev,
       'Embalagem': prev['Embalagem'].filter(o => o.id !== order.id),
-      'Prontos para Envio': [{ ...order, status: 'OK', endereco, transportadora, prazoEntrega: prazoFmt }, ...prev['Prontos para Envio']],
+      'Prontos para Envio': [{ ...order, status: 'OK', endereco, transportadora, prazoEntrega: prazoFmt, volumes }, ...prev['Prontos para Envio']],
     }))
     // Supabase sync
     const dbId = getDbId(order.id)
     if (dbId) updatePedido(dbId, { etapa: 'Prontos para Envio', endereco, transportadora,
-      prazo_entrega: prazoEntrega || undefined })
+      prazo_entrega: prazoEntrega || undefined, volumes })
     setReadyModal(null)
     showToast(`Pedido #${order.id} está Pronto para Envio!`)
   }
@@ -2714,7 +2732,7 @@ export default function Production() {
           <ReadyModal
             order={readyModal}
             onClose={() => setReadyModal(null)}
-            onConfirm={(end, tr, prazo) => markReady(readyModal, end, tr, prazo)}
+            onConfirm={(end, tr, prazo, vol) => markReady(readyModal, end, tr, prazo, vol)}
           />
         )}
         {dispatchModal && (
