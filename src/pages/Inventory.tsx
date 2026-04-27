@@ -49,6 +49,7 @@ export default function Inventory() {
   const [toast, setToast]         = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
   const [showFilter, setShowFilter]     = useState(false)
+  const [activeCategory, setActiveCategory] = useState<string>('MOLDURA')
   const [form, setForm] = useState({ materialId: '', quantidade: '', nf: '', fornecedor: '', obs: '' })
 
   const [modalNovo, setModalNovo] = useState(false)
@@ -129,11 +130,20 @@ export default function Inventory() {
 
   // Agrupar itens por categoria para facilitar a visualização
   const groupedItems = filteredItems.reduce((acc, item) => {
-    const cat = item.categoria || 'Outros'
+    // Normalizing category strings (uppercase, trim) for robust grouping
+    const cat = (item.categoria || 'OUTROS').toUpperCase().trim()
     if (!acc[cat]) acc[cat] = []
     acc[cat].push(item)
     return acc
   }, {} as Record<string, typeof filteredItems>)
+
+  const categoriesList = Object.keys(groupedItems).sort()
+  const displayCategories = ['TODAS', ...categoriesList]
+  
+  // If active category is set but not 'TODAS', we only render that group
+  const renderedGroups = activeCategory === 'TODAS'
+    ? Object.keys(groupedItems).sort()
+    : groupedItems[activeCategory] ? [activeCategory] : []
 
   const handleExportar = () => {
     const csv = ['Ref,Nome,Unidade,Atual,Mínimo,Status',
@@ -324,6 +334,26 @@ export default function Inventory() {
             </div>
             <button className="btn-ghost text-xs" onClick={handleAtualizar}><RefreshCw size={12} /> Atualizar</button>
           </div>
+          
+          {/* Horizontal Category Tabs */}
+          <div className="bg-gray-50 border-b border-gray-200 overflow-x-auto scrollbar-hide w-full">
+            <div className="flex px-4 pt-3 pb-0 min-w-max">
+              {displayCategories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                    activeCategory === cat
+                      ? 'border-navy-900 text-navy-900 bg-blue-50/50 rounded-t-lg'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-t-lg'
+                  }`}
+                >
+                  {cat === 'TODAS' ? '📦 Todas as Categorias' : cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="overflow-x-auto w-full">
             <table className="w-full min-w-[600px]">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -335,7 +365,7 @@ export default function Inventory() {
                 <th className="th">Status</th>
               </tr>
             </thead>
-            {Object.keys(groupedItems).sort().map(cat => (
+            {renderedGroups.map(cat => (
               <tbody key={cat}>
                 <tr>
                   <td colSpan={5} className="bg-gray-100/80 py-2.5 px-5 text-xs font-bold text-navy-900 uppercase tracking-widest border-y border-gray-200">
