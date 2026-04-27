@@ -303,7 +303,7 @@ export function updateFreightCache(key: string, data: FreightOrderData[]) {
  * Ideal para KPIs do Dashboard onde frete exato não é necessário.
  */
 export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]> {
-  const key = `kpis-${dias}`
+  const key = `kpis-v3-${dias}`
   const cached = getCached(key)
   if (cached) return cached
 
@@ -334,7 +334,11 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
     const result: FreightOrderData[] = toProcess.map((o: any) => {
       // Tenta achar itens no modelo V1 ou V2
       const itemsArr = o.itens || o.arrayPedidoItem || o.pedidoItem || []
-      const produtos = itemsArr.map((i: any) => i.nome || i.produtoNome || '').filter(Boolean)
+      const produtos = itemsArr.map((i: any) => {
+        const baseName = i.nome || i.produtoNome || ''
+        const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
+        return `${baseName} ${derivacao}`.trim()
+      }).filter(Boolean)
 
       return {
         codigo: String(o.codigo || o.id),
@@ -423,7 +427,11 @@ export async function enrichOrdersWithCarriers(
           
           // Se não tinhamos produtos ou se o detalhe tem mais garantia sobre os nomes, salvamos
           if (!entry.produtos || entry.produtos.length === 0) {
-            entry.produtos = itemsArr.map((i: any) => i.nome || i.produtoNome || '').filter(Boolean)
+            entry.produtos = itemsArr.map((i: any) => {
+              const baseName = i.nome || i.produtoNome || ''
+              const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
+              return `${baseName} ${derivacao}`.trim()
+            }).filter(Boolean)
           }
         }
       } catch { /* ignora */ }
