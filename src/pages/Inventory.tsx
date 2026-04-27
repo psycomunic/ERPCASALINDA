@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem, updateItem } from '../services/estoque'
+import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem, updateItem, deleteItem } from '../services/estoque'
 import { fetchPedidos } from '../services/pedidos'
 import { useAuth } from '../contexts/AuthContext'
 import {
   Download, Plus, Filter, RefreshCw, ArrowUpCircle, ArrowDownCircle, Lightbulb,
-  X, Check, ChevronDown, PackagePlus, Printer, Edit2
+  X, Check, ChevronDown, PackagePlus, Printer, Edit2, Trash2, AlertTriangle
 } from 'lucide-react'
 import { getFrameImage } from '../lib/frameImages'
 
@@ -57,6 +57,7 @@ export default function Inventory() {
 
   const [modalEdit, setModalEdit] = useState<{ id: string, name: string } | null>(null)
   const [formEdit, setFormEdit] = useState({ nome: '', categoria: '', unidade: '', atual: 0 as number | string, minimo: 0 as number | string, fornecedor: '', codigoFornecedor: '' })
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string, name: string } | null>(null)
 
   const loadData = async () => {
     const rawItens = await fetchItens()
@@ -273,6 +274,19 @@ export default function Inventory() {
       showToast('Insumo atualizado com sucesso!')
     } else {
       showToast('Erro ao atualizar insumo.')
+    }
+  }
+
+  const handleDeleteItem = async () => {
+    if (!confirmDelete) return
+    const success = await deleteItem(confirmDelete.id)
+    if (success) {
+      setConfirmDelete(null)
+      setModalEdit(null)
+      loadData()
+      showToast(`Insumo "${confirmDelete.name}" excluído com sucesso.`)
+    } else {
+      showToast('Erro ao excluir insumo.')
     }
   }
 
@@ -727,9 +741,56 @@ export default function Inventory() {
                   </div>
                 </div>
               </div>
-              <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <div className="p-5 bg-gray-50 border-t border-gray-100 flex items-center gap-3">
+                <button
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 text-sm font-semibold transition-colors mr-auto"
+                  onClick={() => modalEdit && setConfirmDelete({ id: modalEdit.id, name: modalEdit.name })}
+                >
+                  <Trash2 size={14} /> Excluir
+                </button>
                 <button className="btn-secondary" onClick={() => setModalEdit(null)}>Cancelar</button>
                 <button className="btn-primary" onClick={handleSaveEdit}>Salvar Alterações</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {/* ── Modal de confirmação de exclusão ── */}
+        {confirmDelete && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900/60 z-[60] flex items-center justify-center p-4"
+            onClick={() => setConfirmDelete(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                  <Trash2 size={24} className="text-red-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Excluir Insumo?</h3>
+                <p className="text-sm text-gray-500 text-center mb-1">Tem certeza que deseja excluir</p>
+                <p className="text-sm font-bold text-gray-800 text-center mb-4">"{confirmDelete.name}"?</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 flex gap-2">
+                  <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700">Esta ação é <strong>irreversível</strong>. O item será removido do inventário permanentemente.</p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
+                    onClick={() => setConfirmDelete(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-1.5"
+                    onClick={handleDeleteItem}
+                  >
+                    <Trash2 size={14} /> Sim, excluir
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
