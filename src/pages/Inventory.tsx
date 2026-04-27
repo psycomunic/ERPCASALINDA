@@ -725,8 +725,8 @@ export default function Inventory() {
 
       <div className="space-y-8">
         {Object.keys(groupedItems).sort().map(cat => (
-          <div key={cat} className="break-inside-avoid">
-            <h3 className="text-lg font-bold bg-gray-200 px-3 py-1 mb-2 uppercase flex justify-between border border-gray-300">
+          <div key={cat}>
+            <h3 className="text-lg font-bold bg-gray-200 px-3 py-1 mb-2 uppercase flex justify-between border border-gray-300 break-after-avoid">
               <span>📦 {cat}</span>
               <span className="text-sm font-normal text-gray-600">{groupedItems[cat].length} itens desta categoria</span>
             </h3>
