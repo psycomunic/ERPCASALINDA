@@ -279,6 +279,7 @@ export interface FreightOrderData {
   situacao?: number  // 4=Aprovado, 7=Transporte/Faturado, etc.
   quantidade?: number // Quantos itens há no pedido
   produtos?: {nome: string, qtd: number}[] // ARRAY de nomes de produtos (para extração de Analytics)
+  fullyEnriched?: boolean // Marca se já passamos pela Fase 2 para extrair produtos precisos
 }
 
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
@@ -287,6 +288,14 @@ const extractFrete = (o: any) => parseFloat(String(o.valorFreteTransportadora ||
 // ─── Cache simples (5 min) para evitar chamadas duplas no mesmo carregamento ──
 const _freightCache = new Map<string, { data: FreightOrderData[]; ts: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+
+// Banco de Enriquecimento Permanente (Salvar em LocalStorage para que o detalhe fase 2 nunca despareça)
+const _enrichDB: Record<string, Partial<FreightOrderData>> = (() => {
+  try { return JSON.parse(localStorage.getItem('erp_freight_enrich_db') || '{}') } catch { return {} }
+})()
+function saveEnrichDB() {
+  try { localStorage.setItem('erp_freight_enrich_db', JSON.stringify(_enrichDB)) } catch {}
+}
 
 function getCached(key: string): FreightOrderData[] | null {
   const c = _freightCache.get(key)
@@ -332,9 +341,11 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
     const toProcess = filtered.length > 0 ? filtered : allItems
 
     const result: FreightOrderData[] = toProcess.map((o: any) => {
-      // Tenta achar itens no modelo V1 ou V2
+      const baseCodigo = String(o.codigo || o.id)
+      const cachedDetail = _enrichDB[baseCodigo]
+
       const itemsArr = o.itens || o.arrayPedidoItem || o.pedidoItem || []
-      const produtos = itemsArr.map((i: any) => {
+      const calcProdutos = itemsArr.map((i: any) => {
         const baseName = i.nome || i.produtoNome || ''
         const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
         const nomeFinal = `${baseName} ${derivacao}`.trim()
@@ -342,14 +353,17 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
         return nomeFinal ? { nome: nomeFinal, qtd } : null
       }).filter(Boolean) as {nome: string, qtd: number}[]
 
+      // Se temos no DB Permanente, damos override nas info da Fase 1 usando o Enriquecido
       return {
-        codigo: String(o.codigo || o.id),
-        transportadora: extractTransportadora(o),
-        frete: extractFrete(o),
+        codigo: baseCodigo,
+        transportadora: cachedDetail?.transportadora || extractTransportadora(o),
+        frete: cachedDetail?.frete !== undefined ? cachedDetail.frete : extractFrete(o),
         valor: parseFloat(String(o.valorTotal || 0)) || 0,
         data: o.dataHora || o.data_pedido || new Date().toISOString(),
         situacao: o.pedidoSituacao ?? o.situacao,
-        produtos
+        quantidade: cachedDetail?.quantidade || undefined,
+        produtos: cachedDetail?.produtos || calcProdutos,
+        fullyEnriched: cachedDetail?.fullyEnriched || false
       }
     })
 
@@ -405,7 +419,7 @@ export async function enrichOrdersWithCarriers(
   const result = orders.map(o => ({ ...o }))
   const byCode = new Map(result.map(o => [o.codigo, o]))
 
-  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.produtos || o.produtos.length === 0)
+  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched)
   console.log(`[Freight] Enriquecendo ${needsDetail.length} de ${orders.length} pedidos...`)
 
   for (let i = 0; i < needsDetail.length; i += concurrency) {
@@ -437,9 +451,21 @@ export async function enrichOrdersWithCarriers(
               return nomeFinal ? { nome: nomeFinal, qtd } : null
             }).filter(Boolean) as {nome: string, qtd: number}[]
           }
+          // Marca como totalmente extraido
+          entry.fullyEnriched = true
+          
+          // Persistence fallback pra agilizar os futuros refreshes de cache F5
+          _enrichDB[entry.codigo] = { 
+            transportadora: entry.transportadora, 
+            frete: entry.frete, 
+            quantidade: entry.quantidade, 
+            produtos: entry.produtos,
+            fullyEnriched: true
+          }
         }
       } catch { /* ignora */ }
     }))
+    saveEnrichDB()
     // Notifica UI com snapshot atual após cada lote
     onProgress([...result])
     console.log(`[Freight] Lote ${Math.ceil((i + concurrency) / concurrency)}: ${Math.min(i + concurrency, needsDetail.length)}/${needsDetail.length} enriquecidos`)
