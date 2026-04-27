@@ -117,6 +117,8 @@ export default function Inventory() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const criticos = items.filter(i => i.status === 'CRÍTICO').length
+  const totalMolduras = items.filter(i => i.nome.toLowerCase().includes('moldura') || i.nome.toLowerCase().includes('caixa') || i.nome.toLowerCase().includes('flutuante') || i.nome.toLowerCase().includes('imperial') || i.nome.toLowerCase().includes('trono') || i.nome.toLowerCase().includes('majestade') || i.nome.toLowerCase().includes('roma') || i.nome.toLowerCase().includes('côncava')).reduce((acc, i) => acc + i.atual, 0)
+  const totalItems = items.length
 
   const filteredItems = filterStatus === 'TODOS' ? items : items.filter(i => i.status === filterStatus)
 
@@ -181,9 +183,9 @@ export default function Inventory() {
         <div className="stat">
           <div className="flex items-center justify-between">
             <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-sm">⬡</div>
-            <span className="badge badge-normal text-[11px]">ESTÁVEL</span>
+            <span className="badge badge-normal text-[11px]">GERAL</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">1.240m</p>
+          <p className="text-2xl font-bold text-gray-900 mt-2">{totalMolduras.toLocaleString('pt-BR')}m</p>
           <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">Total de Molduras em Estoque</p>
         </div>
         <div className="stat cursor-pointer" onClick={() => setFilterStatus('CRÍTICO')}>
@@ -197,10 +199,10 @@ export default function Inventory() {
         <div className="stat">
           <div className="flex items-center justify-between">
             <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center text-yellow-600 text-sm">📋</div>
-            <span className="badge badge-pendente text-[11px]">PENDENTE</span>
+            <span className="badge badge-pendente text-[11px]">CADASTRO</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">R$ 12.4k</p>
-          <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">Valor em Pedidos de Compra</p>
+          <p className="text-2xl font-bold text-gray-900 mt-2">{totalItems}</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">Insumos Registrados</p>
         </div>
       </div>
 

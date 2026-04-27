@@ -4,6 +4,7 @@ import {
   Grid, Maximize2, Layers, Star, Check, X,
   ChevronDown, Square, Columns, Layout, Package
 } from 'lucide-react'
+import { getFrameImage } from '../lib/frameImages'
 
 // ─── Catalog Data ──────────────────────────────────────────────────────────────
 
@@ -170,11 +171,15 @@ function MolduraSwatch({
     >
       {/* Frame preview */}
       <div className="w-14 h-14 rounded-lg flex items-center justify-center relative overflow-hidden"
-        style={{ background: cor ? cor + '22' : '#f3f4f6', border: `3px solid ${cor ?? '#6b7280'}` }}>
-        {isPremium && (
-          <span className="absolute top-0.5 right-0.5 text-[8px]">⭐</span>
+        style={{ background: cor ? cor + '22' : '#f3f4f6', border: `3px solid ${cor ?? '#e5e7eb'}` }}>
+        {getFrameImage(nome) ? (
+          <img src={getFrameImage(nome)!} alt={nome} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-2xl">{emoji}</span>
         )}
-        <span className="text-2xl">{emoji}</span>
+        {isPremium && (
+          <span className="absolute top-0.5 right-0.5 text-[8px] z-10 drop-shadow-sm">⭐</span>
+        )}
       </div>
       <p className="text-[11px] font-semibold text-gray-700 leading-tight">{nome}</p>
       {selected && (
@@ -492,7 +497,13 @@ export default function Catalogo() {
                       }`}
                       style={{ background: (m as any).cor ? (m as any).cor + '33' : '#f3f4f6', borderColor: selectedMoldura === m.id ? '#1e3a8a' : ((m as any).cor ?? '#e5e7eb') + '88' }}
                     >
-                      {m.emoji}
+                      {getFrameImage(m.nome) ? (
+                        <div className="w-full h-full p-[2px]">
+                          <img src={getFrameImage(m.nome)!} alt={m.nome} className="w-full h-full object-cover rounded-[2px]" />
+                        </div>
+                      ) : (
+                        m.emoji
+                      )}
                     </button>
                   ))}
                   {ALL_MOLDURAS.length > 16 && (
