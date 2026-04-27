@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem } from '../services/estoque'
-import { fetchPedidos } from '../services/pedidos'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Download, Plus, Filter, ArrowUpCircle, ArrowDownCircle, RefreshCw,
-  X, Lightbulb, Check, ChevronDown, PackagePlus
+  Download, Plus, Filter, RefreshCw,
+  X, Check, ChevronDown, PackagePlus, Printer
 } from 'lucide-react'
 import { getFrameImage } from '../lib/frameImages'
 
