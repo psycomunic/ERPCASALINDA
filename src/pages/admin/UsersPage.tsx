@@ -146,8 +146,8 @@ function InviteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
             <select className="input" value={form.role} onChange={e => set('role', e.target.value as Role)}>
               <option value="admin">👑 Administrador — acesso total</option>
               <option value="gerente">🏢 Gerente — tudo exceto config. avançadas</option>
-              <option value="producao">🏭 Produção — somente PCP / Kanban</option>
-              <option value="impressao">🖨️ Impressão — produção + OK exclusivo na Impressão</option>
+              <option value="producao">🏭 Produção — PCP / Kanban + Almoxarifado</option>
+              <option value="impressao">🖨️ Impressão — Produção + Almoxarifado + OK exclusivo na Impressão</option>
               <option value="financeiro">💰 Financeiro — Dashboard + Financeiro</option>
               <option value="almoxarifado">📦 Almoxarifado — Estoque + Patrimônio</option>
             </select>
@@ -445,8 +445,8 @@ export default function UsersPage() {
               <p className="text-xs text-gray-500 flex-1">
                 {role === 'admin' && 'Acesso total a todas as áreas, incluindo gestão de usuários'}
                 {role === 'gerente' && 'Dashboard, Produção, Financeiro, Almoxarifado, Patrimônio, Parceiros, Relatórios'}
-                {role === 'producao' && 'Somente painel de Produção (PCP) — Casa Linda e Lar e Vida'}
-                {role === 'impressao' && 'Produção + permissão exclusiva de confirmar OK na etapa Impressão'}
+                {role === 'producao' && 'Painel de Produção (PCP) + Almoxarifado — Casa Linda e Lar e Vida'}
+                {role === 'impressao' && 'Produção + Almoxarifado + permissão exclusiva de confirmar OK na etapa Impressão'}
                 {role === 'financeiro' && 'Dashboard e módulo Financeiro completo'}
                 {role === 'almoxarifado' && 'Almoxarifado e Patrimônio'}
               </p>

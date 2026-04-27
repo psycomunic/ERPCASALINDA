@@ -41,8 +41,8 @@ export interface UserProfile {
 const ROLE_MODULES: Record<Role, Module[]> = {
   admin:        ['dashboard','production','financial','inventory','patrimonio','partners','reports','settings','catalogo','users'],
   gerente:      ['dashboard','production','financial','inventory','patrimonio','partners','reports','catalogo'],
-  producao:     ['production'],
-  impressao:    ['production'],
+  producao:     ['production','inventory'],
+  impressao:    ['production','inventory'],
   financeiro:   ['dashboard','financial'],
   almoxarifado: ['inventory','patrimonio'],
 }
