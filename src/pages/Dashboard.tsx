@@ -9,10 +9,10 @@ import {
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell
+  ResponsiveContainer, BarChart, Bar, Cell, LabelList
 } from 'recharts'
 import { fetchPedidos, updatePedido } from '../services/pedidos'
-import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
+import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, updateFreightCache, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
 import { FreightOrderData } from '../magazord'
 
 const cashflow: any[] = []
@@ -477,6 +477,7 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
                 <Tooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
                 <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                   {topSizes.map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
+                  <LabelList dataKey="value" position="right" fill="#6b7280" fontSize={11} fontWeight="bold" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -493,6 +494,7 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
                 <Tooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
                 <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                   {topColors.map((_, i) => <Cell key={i} fill={['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6', '#14b8a6'][i % 7]} />)}
+                  <LabelList dataKey="value" position="right" fill="#6b7280" fontSize={11} fontWeight="bold" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -537,7 +539,7 @@ export default function Dashboard() {
       setLoadingOrders(false)
 
       // Fase 2: Enriquece os itens globalmente para corrigir a Qtd (volumes) no KPI também
-      const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0)
+      const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.produtos || o.produtos.length === 0)
       if (needsEnrich.length === 0) return
 
       setEnriching(true)
@@ -546,7 +548,8 @@ export default function Dashboard() {
         done += 12
         setEnrichProgress(Math.min(100, Math.round((done / needsEnrich.length) * 100)))
         setAllOrders(enriched)
-      }).then(() => {
+      }).then((finalEnriched) => {
+        updateFreightCache('kpis-90', finalEnriched)
         setEnriching(false)
         setEnrichProgress(100)
       }).catch(() => setEnriching(false))

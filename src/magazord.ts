@@ -294,7 +294,7 @@ function getCached(key: string): FreightOrderData[] | null {
   if (Date.now() - c.ts > CACHE_TTL) { _freightCache.delete(key); return null }
   return c.data
 }
-function setCache(key: string, data: FreightOrderData[]) {
+export function updateFreightCache(key: string, data: FreightOrderData[]) {
   _freightCache.set(key, { data, ts: Date.now() })
 }
 
@@ -347,7 +347,7 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
       }
     })
 
-    setCache(key, result)
+    updateFreightCache(key, result)
     return result
   } catch (err) {
     console.error('[Magazord] fetchOrdersForKPIs falhou:', err)
@@ -399,7 +399,7 @@ export async function enrichOrdersWithCarriers(
   const result = orders.map(o => ({ ...o }))
   const byCode = new Map(result.map(o => [o.codigo, o]))
 
-  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0)
+  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.produtos || o.produtos.length === 0)
   console.log(`[Freight] Enriquecendo ${needsDetail.length} de ${orders.length} pedidos...`)
 
   for (let i = 0; i < needsDetail.length; i += concurrency) {
