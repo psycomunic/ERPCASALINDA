@@ -7,6 +7,7 @@ import {
   Download, Plus, Filter, ArrowUpCircle, ArrowDownCircle, RefreshCw,
   X, Lightbulb, Check, ChevronDown
 } from 'lucide-react'
+import { getFrameImage } from '../lib/frameImages'
 
 interface Item {
   id: string
@@ -16,6 +17,7 @@ interface Item {
   atual: number
   minimo: number
   status: 'NORMAL' | 'CRÍTICO' | 'ATENÇÃO'
+  img: string | null
 }
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
@@ -56,7 +58,8 @@ export default function Inventory() {
       const status = atual < min ? 'CRÍTICO' : atual < (min * 1.5) ? 'ATENÇÃO' : 'NORMAL'
       return {
         id: i.id, ref: i.codigo || i.id.substring(0, 6).toUpperCase(),
-        nome: i.nome, unidade: i.unidade || 'un', atual, minimo: min, status
+        nome: i.nome, unidade: i.unidade || 'un', atual, minimo: min, status,
+        img: getFrameImage(i.nome)
       }
     })
     setItems(mappedItens)
@@ -298,8 +301,21 @@ export default function Inventory() {
               {filteredItems.map(item => (
                 <tr key={item.id} className="tr">
                   <td className="td">
-                    <p className="font-medium text-gray-800">{item.nome}</p>
-                    <p className="text-[11px] text-gray-400">{item.ref}</p>
+                    <div className="flex items-center gap-3">
+                      {item.img ? (
+                        <div className="w-10 h-10 shrink-0 rounded overflow-hidden border border-gray-200">
+                          <img src={item.img} alt={item.nome} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 shrink-0 rounded bg-gray-50 border border-gray-100 flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-gray-300">N/A</span>
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-gray-800">{item.nome}</p>
+                        <p className="text-[11px] text-gray-400">{item.ref}</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="td text-gray-500 text-xs">{item.unidade}</td>
                   <td className={`td font-bold ${item.status === 'CRÍTICO' ? 'text-red-600' : item.status === 'ATENÇÃO' ? 'text-orange-600' : 'text-gray-900'}`}>

@@ -113,17 +113,29 @@ export async function deductInventoryForProduction(
     const w = parseInt(match[1], 10)
     const h = parseInt(match[2], 10)
     
+    // Identificar multiplicador de telas
+    let multiplicador = 1
+    if (tamanho.toLowerCase().includes('2 telas')) multiplicador = 2
+    else if (tamanho.toLowerCase().includes('3 telas')) multiplicador = 3
+    else if (tamanho.toLowerCase().includes('4 telas')) multiplicador = 4
+    else if (tamanho.toLowerCase().includes('5 telas')) multiplicador = 5
+    
     // 1) Descontar Moldura
     // Se a moldura for diferente de "Sem Moldura" e tiver algum nome de cor
-    if (moldura && moldura !== 'Sem Moldura') {
+    if (moldura && moldura !== 'Sem Moldura (Borda Infinita)') {
       const perimetroLinear = ((w + h) * 2) / 100 // Metros lineares por unidade de tela
-      const quantidadeTotalMoldura = perimetroLinear * quantidade
+      const quantidadeTotalMoldura = perimetroLinear * multiplicador * quantidade
       
-      // Procura o item correspondente à moldura. Assume-se que o nome do item 
-      // contém a cor/nome da moldura (ex: "Moldura Preta" ou "Moldura Branca")
+      // Procura o item correspondente à moldura. (ex: "Moldura Caixa Preta" ou "Moldura Trono de Ouro")
+      let buscaMoldura = moldura.toLowerCase().trim()
+      
+      // Ajuste para facilitar o match na base de dados
+      // Remove termos desnecessários ou mapeia para termos conhecidos
+      buscaMoldura = buscaMoldura.replace('caixa ', '').replace('flutuante ', '').replace('côncava ', '')
+      
       const itemMoldura = items.find(i => 
-        i.nome.toLowerCase().includes('moldura') && 
-        i.nome.toLowerCase().includes(moldura.toLowerCase().replace('flutuante ', ''))
+        (i.nome.toLowerCase().includes('moldura') || i.categoria?.toLowerCase() === 'moldura') && 
+        i.nome.toLowerCase().includes(buscaMoldura)
       )
 
       if (itemMoldura) {
@@ -131,7 +143,7 @@ export async function deductInventoryForProduction(
           item_id: itemMoldura.id,
           tipo: 'saida',
           quantidade: quantidadeTotalMoldura,
-          motivo: `Produção OS #${orderId} - Moldura ${moldura} (${tamanho})`,
+          motivo: `Produção #${orderId} - Moldura ${moldura} (${multiplicador}x ${w}x${h})`,
           pedido_id: orderId,
           usuario: userLabel || 'Sistema'
         })
@@ -139,21 +151,23 @@ export async function deductInventoryForProduction(
     }
 
     // 2) Descontar Vidro (se Acabamento tiver Vidro)
-    if (acabamento && (acabamento.toLowerCase().includes('vidro') || acabamento.toLowerCase().includes('acrílico'))) {
+    if (acabamento && (acabamento.toLowerCase().includes('vidro') || acabamento.toLowerCase().includes('acrílico')) && acabamento !== 'Sem Vidro') {
       const tipoMaterial = acabamento.toLowerCase().includes('vidro') ? 'vidro' : 'acrílico'
       
-      // Procura o item correspondente ao vidro/acrílico daquela medida Ex: "Vidro 115x75"
+      // Procura o item correspondente ao vidro/acrílico daquela medida (usando apenas LxA Ex: "Vidro 115x75")
       const itemVidro = items.find(i => 
         i.nome.toLowerCase().includes(tipoMaterial) && 
-        i.nome.toLowerCase().includes(tamanho.toLowerCase())
+        i.nome.toLowerCase().includes(`${w}x${h}`)
       )
 
       if (itemVidro) {
+        // Multiplica a quantidade de quadros pela quantidade de telas (multiplicador)
+        const totalVidro = quantidade * multiplicador
         await registrarMovimentacao({
           item_id: itemVidro.id,
           tipo: 'saida',
-          quantidade: quantidade,
-          motivo: `Produção OS #${orderId} - ${acabamento} (${tamanho})`,
+          quantidade: totalVidro,
+          motivo: `Produção #${orderId} - ${acabamento} (${multiplicador}x ${w}x${h})`,
           pedido_id: orderId,
           usuario: userLabel || 'Sistema'
         })

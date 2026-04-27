@@ -14,6 +14,7 @@ import {
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { deductInventoryForProduction } from '../services/estoque'
+import { getFrameImage } from '../lib/frameImages'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,10 +116,24 @@ const MATERIAIS = ['PAPEL MATTE PREMIUM', 'CANVAS LONA', 'PVC VINÍLICO', 'PAPEL
 const CLIENTES  = ['Mariana S. Oliveira', 'Ricardo Augusto', 'Fernanda Lima', 'João Pedro Santos', 'Carla Mendes', 'Ana Paula Ramos', 'Carlos Henrique']
 
 const LOJAS_OPCOES = ['Casa Linda', 'Lar e Vida']
-const FORMATOS_OPCOES = ['1 Tela', '3 Telas', '5 Telas', '1 Tela Quadrado']
-const TAMANHOS_OPCOES = ['60x40', '90x60', '115x75', '120x80', '150x100', '100x70', '80x80', '100x100']
-const MOLDURAS_OPCOES = ['Sem Moldura', 'Preta', 'Branca', 'Madeira', 'Dourada', 'Flutuante Preta', 'Flutuante Madeira', 'Flutuante Dourada']
-const ACABAMENTOS_OPCOES = ['Com Vidro', 'Sem Vidro', 'Acrílico']
+const FORMATOS_OPCOES = ['1 Tela Quadrado', '1 Tela', '2 Telas', '3 Telas']
+const TAMANHOS_OPCOES = [
+  'Livre/Outro',
+  '85x85 cm', '115x115 cm', '145x145 cm',
+  '85x55 cm', '115x75 cm', '145x95 cm', '175x100 cm',
+  '55x35 cm cada (2 Telas)', '85x55 cm cada (2 Telas)', '115x75 cm cada (2 Telas)', '145x95 cm cada (2 Telas)', '175x95 cm cada (2 Telas)',
+  '40x20 cm cada (3 Telas)', '55x30 cm cada (3 Telas)', '70x40 cm cada (3 Telas)', '90x50 cm cada (3 Telas)', '120x70 cm cada (3 Telas)'
+]
+const MOLDURAS_OPCOES = [
+  'Sem Moldura (Borda Infinita)',
+  'Caixa Preta', 'Caixa Branca', 'Caixa Dourada', 'Caixa Madeira',
+  'Flutuante Preta', 'Flutuante Branca', 'Flutuante Dourada', 'Flutuante Madeira',
+  'Côncava Preta', 'Côncava Branca', 'Côncava Dourada', 'Côncava Madeira',
+  'Inox',
+  'Trono de Ouro', 'Majestade Negra', 'Galeria Imperial',
+  'Roma Moderna', 'Palaciana', 'Realce Imperial', 'Imperial Prata e Ouro', 'Barroco Imperial'
+]
+const ACABAMENTOS_OPCOES = ['Sem Vidro', 'Com Vidro']
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1342,11 +1357,18 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
                 {MATERIAIS.map(m => <option key={m}>{m}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Moldura</label>
-              <select className="input" value={form.moldura} onChange={f('moldura')}>
-                {MOLDURAS_OPCOES.map(o => <option key={o}>{o}</option>)}
-              </select>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Moldura</label>
+                <select className="input" value={form.moldura} onChange={f('moldura')}>
+                  {MOLDURAS_OPCOES.map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+              {form.moldura && getFrameImage(form.moldura) && (
+                <div className="w-10 h-10 shrink-0 rounded overflow-hidden border border-gray-200">
+                  <img src={getFrameImage(form.moldura)!} alt={form.moldura} className="w-full h-full object-cover" />
+                </div>
+              )}
             </div>
 
             <div>
