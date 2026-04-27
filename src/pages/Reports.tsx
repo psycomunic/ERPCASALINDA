@@ -11,6 +11,8 @@ import {
   type ReportOrder, type ReportTx, type ReportItem,
   type ReportAsset, type ReportDespacho,
 } from '../reportEngine'
+import { fetchPedidos } from '../services/pedidos'
+import { isSupabaseConfigured } from '../lib/supabase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -534,12 +536,18 @@ function buildPatrimonio(assets: ReportAsset[], period: string): string {
     </div>`
 }
 
-function buildExecutivo(orders: ReportOrder[], txs: ReportTx[], items: ReportItem[], period: string): string {
+function buildExecutivo(orders: ReportOrder[], txs: ReportTx[], items: ReportItem[], period: string, liveStats: any): string {
   const entradas    = txs.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0)
   const saidas      = txs.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0)
   const concluidos  = orders.filter(o => ['Concluído', 'Pronto', 'Despachado'].includes(o.status)).length
   const atrasados   = orders.filter(o => o.status === 'Atrasado').length
   const criticos    = items.filter(i => i.status === 'CRÍTICO').length
+
+  const tamRows = Object.entries(liveStats?.tamanhos || {}).sort((a:any,b:any)=>b[1]-a[1]).slice(0, 5)
+    .map(([t,v]) => `<tr><td>${t}</td><td style="text-align:right"><strong>${v} un</strong></td></tr>`).join('')
+  
+  const moldRows = Object.entries(liveStats?.molduras || {}).sort((a:any,b:any)=>b[1]-a[1]).slice(0, 5)
+    .map(([m,v]) => `<tr><td>${m}</td><td style="text-align:right"><strong>${v} un</strong></td></tr>`).join('')
 
   return `
     <div id="report-print-area">
@@ -599,6 +607,31 @@ function buildExecutivo(orders: ReportOrder[], txs: ReportTx[], items: ReportIte
             .map(([c,v])=>`<tr><td>${c}</td><td style="text-align:right">${v.count}</td><td style="text-align:right"><strong>${fmtBRL(v.valor)}</strong></td></tr>`).join('')}
         </tbody>
       </table>
+
+      <p class="rpt-section-title">Volume de Produção (Mês Atual)</p>
+      <div class="rpt-two-col">
+        <div class="rpt-box">
+          <p class="rpt-box-title">Tamanhos mais Faturados</p>
+          <table class="rpt-table">
+            <tbody>
+              ${tamRows || '<tr><td colspan="2" style="color:#888">Sem dados no sistema.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <div class="rpt-box">
+          <p class="rpt-box-title">Cores de Moldura & Vidro</p>
+          <table class="rpt-table">
+            <tbody>
+              ${moldRows || '<tr><td colspan="2" style="color:#888">Sem dados no sistema.</td></tr>'}
+            </tbody>
+            <tfoot>
+              <tr><td>Com Vidro/Acrílico</td><td style="text-align:right"><strong>${liveStats?.vidro?.com || 0} un</strong></td></tr>
+              <tr><td>Sem Vidro</td><td style="text-align:right"><strong>${liveStats?.vidro?.sem || 0} un</strong></td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
       ${footerHTML()}
     </div>`
 }
@@ -614,6 +647,31 @@ export default function Reports() {
   const [preview,  setPreview]  = useState<ReportId | null>(null)
   const [previewHTML, setPreviewHTML] = useState('')
   const [toast,    setToast]    = useState<string | null>(null)
+  
+  const [liveStats, setLiveStats] = useState({ tamanhos: {}, molduras: {}, vidro: { com: 0, sem: 0 } })
+
+  import { useEffect } from 'react'
+  useEffect(() => {
+    async function loadStats() {
+      if (!isSupabaseConfigured()) return
+      const pedidos = await fetchPedidos()
+      const aggTam: any = {}, aggMold: any = {}; let cV = 0, sV = 0
+      const curr = new Date().getMonth()
+      pedidos.forEach(p => {
+        if (new Date(p.created_at).getMonth() === curr) {
+          const q = p.quantidade || 1
+          const t = p.tamanho || 'Outro', a = (p.acabamento || '').toLowerCase()
+          aggTam[t] = (aggTam[t] || 0) + q
+          aggMold[p.moldura || 'N/A'] = (aggMold[p.moldura || 'N/A'] || 0) + q
+          if (a.includes('vidro') || a.includes('acrílico')) {
+            if (a.includes('sem')) sV += q; else cV += q
+          } else { sV += q }
+        }
+      })
+      setLiveStats({ tamanhos: aggTam, molduras: aggMold, vidro: { com: cV, sem: sV } })
+    }
+    loadStats()
+  }, [])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
@@ -630,9 +688,9 @@ export default function Reports() {
       case 'financeiro':      return buildFinanceiro(filteredTxs, periodLabel)
       case 'estoque':         return buildEstoque(STOCK_ITEMS, periodLabel)
       case 'patrimonio':      return buildPatrimonio(ASSETS, periodLabel)
-      case 'executivo':       return buildExecutivo(ORDERS, filteredTxs, STOCK_ITEMS, periodLabel)
+      case 'executivo':       return buildExecutivo(ORDERS, filteredTxs, STOCK_ITEMS, periodLabel, liveStats)
     }
-  }, [filteredTxs, periodLabel])
+  }, [filteredTxs, periodLabel, liveStats])
 
   const handlePrint = (id: ReportId) => {
     const html = buildHTML(id)

@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { fetchItens, fetchMovimentacoes, registrarMovimentacao } from '../services/estoque'
+import { fetchPedidos } from '../services/pedidos'
+import { useAuth } from '../contexts/AuthContext'
 import {
   Download, Plus, Filter, ArrowUpCircle, ArrowDownCircle, RefreshCw,
   X, Lightbulb, Check, ChevronDown
 } from 'lucide-react'
 
 interface Item {
-  id: number
+  id: string
   ref: string
   nome: string
   unidade: string
@@ -17,9 +20,6 @@ interface Item {
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
 
-const INITIAL_ITEMS: Item[] = []
-
-const INITIAL_MOVEMENTS: Movement[] = []
 
 const STATUS_BADGE: Record<string, string> = { NORMAL: 'badge-normal', CRÍTICO: 'badge-critico', ATENÇÃO: 'badge-atencao' }
 
@@ -37,14 +37,80 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 }
 
 export default function Inventory() {
-  const [items, setItems]         = useState(INITIAL_ITEMS)
-  const [movements, setMovements] = useState(INITIAL_MOVEMENTS)
+  const { profile } = useAuth()
+  const [items, setItems]         = useState<Item[]>([])
+  const [movements, setMovements] = useState<Movement[]>([])
+  const [stats, setStats]         = useState({ tamanhos: {} as any, molduras: {} as any, vidro: { com: 0, sem: 0 } })
   const [modal, setModal]         = useState(false)
   const [showAll, setShowAll]     = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
   const [showFilter, setShowFilter]     = useState(false)
-  const [form, setForm] = useState({ material: INITIAL_ITEMS[0]?.nome || '', quantidade: '', nf: '', fornecedor: '', obs: '' })
+  const [form, setForm] = useState({ materialId: '', quantidade: '', nf: '', fornecedor: '', obs: '' })
+
+  const loadData = async () => {
+    const rawItens = await fetchItens()
+    const mappedItens: Item[] = rawItens.map(i => {
+      const atual = i.quantidade || 0
+      const min = i.quantidade_minima || 0
+      const status = atual < min ? 'CRÍTICO' : atual < (min * 1.5) ? 'ATENÇÃO' : 'NORMAL'
+      return {
+        id: i.id, ref: i.codigo || i.id.substring(0, 6).toUpperCase(),
+        nome: i.nome, unidade: i.unidade || 'un', atual, minimo: min, status
+      }
+    })
+    setItems(mappedItens)
+    if (mappedItens.length > 0 && !form.materialId) {
+      setForm(prev => ({ ...prev, materialId: mappedItens[0].id }))
+    }
+
+    const rawMovs = await fetchMovimentacoes()
+    const mappedMovs: Movement[] = rawMovs.map(m => {
+      const dataStr = new Date(m.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+      const itemData = m.estoque_itens as any
+      const nome = itemData?.nome || 'Item Desconhecido'
+      const un = itemData?.unidade || 'un'
+      const desc = `${m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'saida' ? 'Saída' : 'Ajuste'} de ${m.quantidade} ${un} de ${nome}`
+      const sub = m.motivo || 'Sem observações'
+      return { tipo: m.tipo as any, desc, sub, time: dataStr }
+    })
+    setMovements(mappedMovs)
+
+    // Agregações de Produção (Mês Atual baseando-se nos pedidos puxados)
+    const pedidos = await fetchPedidos()
+    const currMonth = new Date().getMonth()
+    const aggTam: Record<string, number> = {}
+    const aggMold: Record<string, number> = {}
+    let comVidro = 0, semVidro = 0
+
+    pedidos.forEach(p => {
+      const d = new Date(p.created_at)
+      if (d.getMonth() === currMonth) {
+        // quantidade
+        const qtd = p.quantidade || 1
+        
+        // Tamanho
+        const tam = p.tamanho || 'Outro'
+        aggTam[tam] = (aggTam[tam] || 0) + qtd
+        
+        // Moldura
+        const mold = p.moldura || 'N/A'
+        aggMold[mold] = (aggMold[mold] || 0) + qtd
+        
+        // Vidro
+        const aba = (p.acabamento || '').toLowerCase()
+        if (aba.includes('vidro') || aba.includes('acrílico')) {
+          if (aba.includes('sem vidro')) semVidro += qtd
+          else comVidro += qtd
+        } else {
+          semVidro += qtd // fallback "sem vidro"
+        }
+      }
+    })
+    setStats({ tamanhos: aggTam, molduras: aggMold, vidro: { com: comVidro, sem: semVidro } })
+  }
+
+  useEffect(() => { loadData() }, [])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const criticos = items.filter(i => i.status === 'CRÍTICO').length
@@ -61,32 +127,35 @@ export default function Inventory() {
     showToast('Inventário exportado!')
   }
 
-  const handleAtualizar = () => {
+  const handleAtualizar = async () => {
+    await loadData()
     showToast('Inventário sincronizado com sucesso!')
   }
 
-  const handleRegistrarEntrada = () => {
+  const handleRegistrarEntrada = async () => {
     const qty = parseFloat(form.quantidade)
-    if (!form.quantidade || isNaN(qty)) return
-    const item = items.find(i => i.nome === form.material)
-    if (item) {
-      setItems(prev => prev.map(i => {
-        if (i.nome !== form.material) return i
-        const novoAtual = i.atual + qty
-        const novoStatus: Item['status'] = novoAtual < i.minimo ? 'CRÍTICO' : novoAtual < i.minimo * 1.5 ? 'ATENÇÃO' : 'NORMAL'
-        return { ...i, atual: novoAtual, status: novoStatus }
-      }))
-      const newMov: Movement = {
-        tipo: 'entrada',
-        desc: `Entrada de ${qty} ${item.unidade} de ${item.nome}`,
-        sub: `NF ${form.nf || 'S/N'} · ${form.fornecedor || 'Fornecedor não informado'}`,
-        time: 'AGORA MESMO',
-      }
-      setMovements(prev => [newMov, ...prev])
+    if (!form.quantidade || isNaN(qty) || !form.materialId) return
+    
+    let motivo = form.obs || ''
+    if (form.nf) motivo += ` (NF ${form.nf})`
+    if (form.fornecedor) motivo += ` - Fornecedor: ${form.fornecedor}`
+
+    const success = await registrarMovimentacao({
+      item_id: form.materialId,
+      tipo: 'entrada',
+      quantidade: qty,
+      motivo: motivo.trim() || 'Entrada manual avulsa',
+      usuario: profile?.nome || profile?.email || 'Sistema'
+    })
+
+    if (success) {
+      await loadData()
+      setModal(false)
+      setForm({ materialId: items[0]?.id || '', quantidade: '', nf: '', fornecedor: '', obs: '' })
+      showToast('Entrada de insumo registrada com sucesso!')
+    } else {
+      showToast('Erro ao registrar entrada.')
     }
-    setModal(false)
-    setForm({ material: INITIAL_ITEMS[0]?.nome || '', quantidade: '', nf: '', fornecedor: '', obs: '' })
-    showToast('Entrada de insumo registrada com sucesso!')
   }
 
   const visibleMovements = showAll ? movements : movements.slice(0, 3)
@@ -132,7 +201,57 @@ export default function Inventory() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      {/* Analytics Panel */}
+      <div className="card p-5 mt-5">
+        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Filter size={16} className="text-blue-500" />
+          Estatísticas de Produção (Mês Atual)
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Tamanhos */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100 pb-2">Tamanhos mais produzidos</h3>
+            <div className="space-y-2">
+              {Object.entries(stats.tamanhos).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0, 5).map(([tam, val]) => (
+                <div key={tam} className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700 font-medium">{tam}</span>
+                  <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded">{String(val)} un</span>
+                </div>
+              ))}
+              {Object.keys(stats.tamanhos).length === 0 && <p className="text-xs text-gray-400 italic">Sem dados neste mês</p>}
+            </div>
+          </div>
+          {/* Molduras */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100 pb-2">Cores de Moldura</h3>
+            <div className="space-y-2">
+              {Object.entries(stats.molduras).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0, 5).map(([mold, val]) => (
+                <div key={mold} className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700 font-medium">{mold}</span>
+                  <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded">{String(val)} un</span>
+                </div>
+              ))}
+              {Object.keys(stats.molduras).length === 0 && <p className="text-xs text-gray-400 italic">Sem dados neste mês</p>}
+            </div>
+          </div>
+          {/* Acabamento */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100 pb-2">Acabamento com Vidro</h3>
+            <div className="flex gap-4 items-end">
+              <div className="flex-1 bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
+                <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Com Vidro/Acrílico</p>
+                <p className="text-2xl font-black text-gray-900">{stats.vidro.com}</p>
+              </div>
+              <div className="flex-1 bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
+                <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Sem Vidro</p>
+                <p className="text-2xl font-black text-gray-400">{stats.vidro.sem}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-5">
         {/* Table */}
         <div className="xl:col-span-2 card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
@@ -251,8 +370,8 @@ export default function Inventory() {
               <div className="p-5 space-y-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Material *</label>
-                  <select className="input" value={form.material} onChange={e => setForm(f => ({ ...f, material: e.target.value }))}>
-                    {items.map(i => <option key={i.id}>{i.nome}</option>)}
+                  <select className="input" value={form.materialId} onChange={e => setForm(f => ({ ...f, materialId: e.target.value }))}>
+                    {items.map(i => <option key={i.id} value={i.id}>{i.nome}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

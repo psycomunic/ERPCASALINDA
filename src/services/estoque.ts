@@ -92,3 +92,72 @@ export async function registrarMovimentacao(mov: MovimentacaoInsert): Promise<bo
   return true
   // O trigger no banco atualiza a quantidade automaticamente
 }
+
+export async function deductInventoryForProduction(
+  orderId: string, 
+  userLabel: string | null,
+  tamanho: string | null, 
+  moldura: string | null, 
+  acabamento: string | null, 
+  quantidade: number = 1
+) {
+  if (!isSupabaseConfigured() || !tamanho) return
+
+  const items = await fetchItens()
+
+  // Parsing do tamanho (ex: "115x75")
+  const regex = /(\d+)[xX×](\d+)/
+  const match = tamanho.match(regex)
+  
+  if (match) {
+    const w = parseInt(match[1], 10)
+    const h = parseInt(match[2], 10)
+    
+    // 1) Descontar Moldura
+    // Se a moldura for diferente de "Sem Moldura" e tiver algum nome de cor
+    if (moldura && moldura !== 'Sem Moldura') {
+      const perimetroLinear = ((w + h) * 2) / 100 // Metros lineares por unidade de tela
+      const quantidadeTotalMoldura = perimetroLinear * quantidade
+      
+      // Procura o item correspondente à moldura. Assume-se que o nome do item 
+      // contém a cor/nome da moldura (ex: "Moldura Preta" ou "Moldura Branca")
+      const itemMoldura = items.find(i => 
+        i.nome.toLowerCase().includes('moldura') && 
+        i.nome.toLowerCase().includes(moldura.toLowerCase().replace('flutuante ', ''))
+      )
+
+      if (itemMoldura) {
+        await registrarMovimentacao({
+          item_id: itemMoldura.id,
+          tipo: 'saida',
+          quantidade: quantidadeTotalMoldura,
+          motivo: `Produção OS #${orderId} - Moldura ${moldura} (${tamanho})`,
+          pedido_id: orderId,
+          usuario: userLabel || 'Sistema'
+        })
+      }
+    }
+
+    // 2) Descontar Vidro (se Acabamento tiver Vidro)
+    if (acabamento && (acabamento.toLowerCase().includes('vidro') || acabamento.toLowerCase().includes('acrílico'))) {
+      const tipoMaterial = acabamento.toLowerCase().includes('vidro') ? 'vidro' : 'acrílico'
+      
+      // Procura o item correspondente ao vidro/acrílico daquela medida Ex: "Vidro 115x75"
+      const itemVidro = items.find(i => 
+        i.nome.toLowerCase().includes(tipoMaterial) && 
+        i.nome.toLowerCase().includes(tamanho.toLowerCase())
+      )
+
+      if (itemVidro) {
+        await registrarMovimentacao({
+          item_id: itemVidro.id,
+          tipo: 'saida',
+          quantidade: quantidade,
+          motivo: `Produção OS #${orderId} - ${acabamento} (${tamanho})`,
+          pedido_id: orderId,
+          usuario: userLabel || 'Sistema'
+        })
+      }
+    }
+  }
+}

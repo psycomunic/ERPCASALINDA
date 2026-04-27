@@ -13,7 +13,6 @@ import {
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { deductInventoryForProduction } from '../services/estoque'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,12 +112,6 @@ const INITIAL: Record<Stage, Order[]> = {
 
 const MATERIAIS = ['PAPEL MATTE PREMIUM', 'CANVAS LONA', 'PVC VINÍLICO', 'PAPEL BRILHO', 'TECIDO LINHO']
 const CLIENTES  = ['Mariana S. Oliveira', 'Ricardo Augusto', 'Fernanda Lima', 'João Pedro Santos', 'Carla Mendes', 'Ana Paula Ramos', 'Carlos Henrique']
-
-const LOJAS_OPCOES = ['Casa Linda', 'Lar e Vida']
-const FORMATOS_OPCOES = ['1 Tela', '3 Telas', '5 Telas', '1 Tela Quadrado']
-const TAMANHOS_OPCOES = ['60x40', '90x60', '115x75', '120x80', '150x100', '100x70', '80x80', '100x100']
-const MOLDURAS_OPCOES = ['Sem Moldura', 'Preta', 'Branca', 'Madeira', 'Dourada', 'Flutuante Preta', 'Flutuante Madeira', 'Flutuante Dourada']
-const ACABAMENTOS_OPCOES = ['Com Vidro', 'Sem Vidro', 'Acrílico']
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1251,117 +1244,46 @@ function ReadyModal({ order, onClose, onConfirm }: {
 // ─── New Order Modal ──────────────────────────────────────────────────────────
 
 function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: Order) => void }) {
-  const [form, setForm] = useState({ 
-    loja: LOJAS_OPCOES[0],
-    cliente: '', 
-    produto: '', 
-    material: MATERIAIS[0], 
-    formato: FORMATOS_OPCOES[0],
-    tamanho: TAMANHOS_OPCOES[2],
-    moldura: MOLDURAS_OPCOES[1],
-    acabamento: ACABAMENTOS_OPCOES[0],
-    quantidade: '1',
-    data: '', 
-    hora: '', 
-    prazoEntrega: '', 
-    obs: '' 
-  })
-  
+  const [form, setForm] = useState({ cliente: '', produto: '', material: MATERIAIS[0], data: '', hora: '', prazoEntrega: '', obs: '' })
   const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(p => ({ ...p, [k]: e.target.value }))
 
   const save = () => {
     if (!form.cliente || !form.produto) return
     const id = String(Math.floor(800 + Math.random() * 200))
-    onSave({ 
-      id, 
-      cliente: form.cliente, 
-      produto: form.produto, 
-      material: form.material,
-      tamanho: form.tamanho,
-      formato: form.formato,
-      moldura: form.moldura,
-      acabamento: form.acabamento,
-      quantidade: parseInt(form.quantidade, 10) || 1,
-      canal: form.loja,
-      data: form.data || 'Hoje', 
-      hora: form.hora, 
-      prazoEntrega: form.prazoEntrega || undefined,
-      status: 'Pendente', 
-      obs: form.obs 
-    })
+    onSave({ id, cliente: form.cliente, produto: form.produto, material: form.material,
+             data: form.data || 'Hoje', hora: form.hora, prazoEntrega: form.prazoEntrega || undefined,
+             status: 'Pendente', obs: form.obs })
     onClose()
   }
 
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="modal" style={{ maxWidth: '600px' }} initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} onClick={e => e.stopPropagation()}>
+      <motion.div className="modal" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           <div>
             <h3 className="font-bold text-gray-900">Novo Pedido de Produção</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Preencha os dados e gere baixa automática de insumos.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Preencha os dados para incluir no Kanban.</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
-        <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Loja de Origem *</label>
-              <select className="input font-semibold text-navy-800" value={form.loja} onChange={f('loja')}>
-                {LOJAS_OPCOES.map(l => <option key={l}>{l}</option>)}
-              </select>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Cliente *</label>
-              <input className="input" list="clientes-list" placeholder="Nome do cliente" value={form.cliente} onChange={f('cliente')} />
-              <datalist id="clientes-list">{CLIENTES.map(c => <option key={c} value={c} />)}</datalist>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Produto / Descrição *</label>
-              <input className="input" placeholder="Ex: Canvas Skyline NY 120×80" value={form.produto} onChange={f('produto')} />
-            </div>
-
-            {/* Informações Técnicas */}
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Formato</label>
-              <select className="input" value={form.formato} onChange={f('formato')}>
-                {FORMATOS_OPCOES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Tamanho (cm)</label>
-              <select className="input" value={form.tamanho} onChange={f('tamanho')}>
-                <option value="">Livre/Outro</option>
-                {TAMANHOS_OPCOES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Material Impressão</label>
-              <select className="input" value={form.material} onChange={f('material')}>
-                {MATERIAIS.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Moldura</label>
-              <select className="input" value={form.moldura} onChange={f('moldura')}>
-                {MOLDURAS_OPCOES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Acabamento Frontal</label>
-              <select className="input" value={form.acabamento} onChange={f('acabamento')}>
-                {ACABAMENTOS_OPCOES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Quantidade de Quadros</label>
-              <input className="input" type="number" min="1" value={form.quantidade} onChange={f('quantidade')} />
-            </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Cliente *</label>
+            <input className="input" list="clientes-list" placeholder="Nome do cliente" value={form.cliente} onChange={f('cliente')} />
+            <datalist id="clientes-list">{CLIENTES.map(c => <option key={c} value={c} />)}</datalist>
           </div>
-
-          <div className="grid grid-cols-2 gap-4 mt-2">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Produto / Descrição *</label>
+            <input className="input" placeholder="Ex: Canvas Skyline NY 120×80" value={form.produto} onChange={f('produto')} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Material</label>
+            <select className="input" value={form.material} onChange={f('material')}>
+              {MATERIAIS.map(m => <option key={m}>{m}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Prev. Produção</label>
               <input className="input" type="date" value={form.data} onChange={f('data')} />
@@ -1375,10 +1297,10 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
             <label className="block text-xs text-gray-500 mb-1">Observações</label>
             <textarea className="input h-16 resize-none" placeholder="Detalhes adicionais..." value={form.obs} onChange={f('obs')} />
           </div>
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
+          <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button onClick={save} className="btn-primary flex-1 justify-center">
-              <Plus size={14} /> Salvar e Baixar Estoque
+              <Plus size={14} /> Incluir no Kanban
             </button>
           </div>
         </div>
@@ -1771,7 +1693,7 @@ export default function Production() {
       const etapa = r.etapa as Stage
       if (!(etapa in grouped)) return
       const order: Order = {
-        id: String(r.numero),
+        id: r.numero,
         magazordId: r.magazord_id ?? undefined,
         cliente: r.cliente,
         produto: r.produto,
@@ -1802,14 +1724,8 @@ export default function Production() {
     })
 
     setBoard(prev => {
-      // Build dbIds ONLY from orders that are actually mapped to valid stages in grouped
-      const validDbIds = new Set<string>()
-      for (const stage of Object.keys(grouped) as Stage[]) {
-        grouped[stage].forEach(o => validDbIds.add(String(o.id)))
-      }
-
-      // Preserve unconfirmed Magazord orders that aren't yet visibly in the DB (i.e. not in validDbIds)
-      const pendingMagazord = prev['Novos Pedidos'].filter(o => !validDbIds.has(String(o.id)))
+      const dbIds = new Set(rows.map(r => r.numero))
+      const pendingMagazord = prev['Novos Pedidos'].filter(o => o.fromMagazord && !dbIds.has(o.id))
 
       return {
         ...grouped,
@@ -2205,9 +2121,6 @@ export default function Production() {
         moldura:       order.moldura,
         acabamento:    order.acabamento,
         canal:         order.canal,
-        tamanho:       order.tamanho,
-        categoria:     order.formato, // guardando o "formato" (1 Tela, 3 Telas)
-        quantidade:    order.quantidade,
         etapa:         'Impressão',
         status:        order.status,
         prazo_entrega: order.prazoEntrega
@@ -2219,16 +2132,6 @@ export default function Production() {
         from_magazord: false,
       })
       if (created) dbIdMap.current.set(order.id, created.id)
-      
-      // Efetua a baixa real e automática no almoxarifado DB
-      await deductInventoryForProduction(
-        order.id,
-        profile?.nome || profile?.email || 'Sistema',
-        order.tamanho || null,
-        order.moldura || null,
-        order.acabamento || null,
-        order.quantidade || 1
-      )
     }
     showToast(`Pedido #${order.id} adicionado ao Kanban!`)
   }
