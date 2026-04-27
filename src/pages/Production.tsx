@@ -226,7 +226,12 @@ function MagazordCard({
       </div>
 
       <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
-      <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
+      <p className="text-xs text-gray-500 mt-0.5 mb-1">{order.produto}</p>
+      {(order.quantidade ?? 1) > 1 && (
+        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full mb-2">
+          🖼️ {order.quantidade} quadros
+        </span>
+      )}
 
       {/* Product specs */}
       <div className="space-y-1 mb-2">
@@ -1389,8 +1394,35 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Quantidade de Quadros</label>
-              <input className="input" type="number" min="1" value={form.quantidade} onChange={f('quantidade')} />
+              <label className="block text-xs text-gray-500 mb-1">
+                Quantidade de Quadros
+                {parseInt(form.quantidade) > 1 && (
+                  <span className="ml-2 inline-flex items-center gap-0.5 bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {form.quantidade} quadros
+                  </span>
+                )}
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, quantidade: String(Math.max(1, parseInt(p.quantidade) - 1)) }))}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 text-lg font-bold hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-30"
+                  disabled={parseInt(form.quantidade) <= 1}
+                >−</button>
+                <input
+                  className="input text-center font-bold text-base w-16"
+                  type="number"
+                  min="1"
+                  max="99"
+                  value={form.quantidade}
+                  onChange={e => setForm(p => ({ ...p, quantidade: String(Math.max(1, parseInt(e.target.value) || 1)) }))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, quantidade: String(Math.min(99, parseInt(p.quantidade) + 1)) }))}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 text-lg font-bold hover:bg-gray-50 hover:border-gray-400 transition-all"
+                >+</button>
+              </div>
             </div>
           </div>
 
@@ -2458,7 +2490,12 @@ export default function Production() {
                           </div>
 
                           <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
-                          <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 mb-1">{order.produto}</p>
+                          {(order.quantidade ?? 1) > 1 && (
+                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full mb-2">
+                              🖼️ {order.quantidade} quadros
+                            </span>
+                          )}
 
                           {/* ── Miniaturas das imagens ── */}
                           {(() => {
