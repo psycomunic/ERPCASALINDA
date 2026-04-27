@@ -4,7 +4,7 @@ import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem } fro
 import { useAuth } from '../contexts/AuthContext'
 import {
   Download, Plus, Filter, RefreshCw,
-  X, Check, ChevronDown, PackagePlus, Printer
+  X, Check, ChevronDown, PackagePlus, Printer, Edit2
 } from 'lucide-react'
 import { getFrameImage } from '../lib/frameImages'
 
@@ -53,6 +53,9 @@ export default function Inventory() {
 
   const [modalNovo, setModalNovo] = useState(false)
   const [formNovo, setFormNovo] = useState({ nome: '', categoria: 'Embalagem', unidade: 'un', minimo: '' as number | string })
+
+  const [modalEdit, setModalEdit] = useState<{ id: string, name: string } | null>(null)
+  const [formEdit, setFormEdit] = useState({ nome: '', categoria: '', unidade: '', atual: 0 as number | string, minimo: 0 as number | string })
 
   const loadData = async () => {
     const rawItens = await fetchItens()
@@ -202,6 +205,56 @@ export default function Inventory() {
       setFormNovo({ nome: '', categoria: 'Embalagem', unidade: 'un', minimo: '' })
     } else {
       showToast('Erro ao cadastrar novo insumo.')
+    }
+  }
+
+  const handleRowClick = (item: Item) => {
+    setFormEdit({
+      nome: item.nome,
+      categoria: item.categoria || 'Outros',
+      unidade: item.unidade,
+      atual: item.atual,
+      minimo: item.minimo
+    })
+    setModalEdit({ id: item.id, name: item.nome })
+  }
+
+  const handleSaveEdit = async () => {
+    if (!modalEdit || !formEdit.nome) return
+
+    const originalItem = items.find(i => i.id === modalEdit.id)
+    if (!originalItem) return
+
+    // Verifica se houve mudança na quantidade atual
+    const newAtual = Number(formEdit.atual) || 0
+    if (newAtual !== originalItem.atual) {
+      // Registrar movimento de 'ajuste'
+      const successMovimento = await registrarMovimentacao({
+        item_id: modalEdit.id,
+        tipo: 'ajuste',
+        quantidade: newAtual,
+        motivo: 'Ajuste manual de estoque',
+        usuario: profile?.nome || profile?.email || 'Sistema'
+      })
+      if (!successMovimento) {
+        return showToast('Erro ao ajustar a quantidade em estoque.')
+      }
+    }
+
+    // Atualiza metadados do item
+    const successUpdate = await updateItem(modalEdit.id, {
+      nome: formEdit.nome.trim(),
+      categoria: formEdit.categoria,
+      unidade: formEdit.unidade,
+      quantidade_minima: Number(formEdit.minimo) || 0
+    })
+
+    if (successUpdate) {
+      setModalEdit(null)
+      loadData() // Recarrega para refletir a edição e trigger de ajuste
+      showToast('Insumo atualizado com sucesso!')
+    } else {
+      showToast('Erro ao atualizar insumo.')
     }
   }
 
@@ -376,7 +429,7 @@ export default function Inventory() {
                   </td>
                 </tr>
                 {groupedItems[cat].map(item => (
-                  <tr key={item.id} className="tr">
+                  <tr key={item.id} onClick={() => handleRowClick(item)} className="tr cursor-pointer hover:bg-gray-100/80 group">
                     <td className="td">
                       <div className="flex items-center gap-3">
                         {item.img ? (
@@ -545,6 +598,68 @@ export default function Inventory() {
               <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
                 <button className="btn-secondary" onClick={() => setModalNovo(false)}>Cancelar</button>
                 <button className="btn-primary" onClick={handleCreate}>Salvar Novo Insumo</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {modalEdit && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <Edit2 size={18} className="text-navy-900" />
+                  <div>
+                    <h3 className="font-bold text-gray-900">Editar Insumo</h3>
+                    <p className="text-xs text-gray-500">{modalEdit.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setModalEdit(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Nome do Insumo <span className="text-red-500">*</span></label>
+                    <input type="text" className="input" value={formEdit.nome} onChange={e => setFormEdit(p => ({ ...p, nome: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Categoria</label>
+                      <select className="input" value={formEdit.categoria} onChange={e => setFormEdit(p => ({ ...p, categoria: e.target.value }))}>
+                        <option>Embalagem</option>
+                        <option>Moldura</option>
+                        <option>Vidro/Acrílico</option>
+                        <option>Papel</option>
+                        <option>Cola/Fita</option>
+                        <option>Outros</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Unidade</label>
+                      <select className="input" value={formEdit.unidade} onChange={e => setFormEdit(p => ({ ...p, unidade: e.target.value }))}>
+                        <option value="un">Unidade (un)</option>
+                        <option value="m">Metros (m)</option>
+                        <option value="m²">Metro Quadrado (m²)</option>
+                        <option value="kg">Quilos (kg)</option>
+                        <option value="rolo">Rolo</option>
+                        <option value="cx">Caixa (cx)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 p-4 mt-2 border border-gray-100 bg-gray-50 rounded-xl">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Estoque Atual</label>
+                      <input type="number" className="input bg-white font-bold" min="0" value={formEdit.atual} onChange={e => setFormEdit(p => ({ ...p, atual: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Estoque Mínimo</label>
+                      <input type="number" className="input bg-white" min="0" value={formEdit.minimo} onChange={e => setFormEdit(p => ({ ...p, minimo: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                <button className="btn-secondary" onClick={() => setModalEdit(null)}>Cancelar</button>
+                <button className="btn-primary" onClick={handleSaveEdit}>Salvar Alterações</button>
               </div>
             </motion.div>
           </motion.div>

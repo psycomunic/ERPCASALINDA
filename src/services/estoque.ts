@@ -33,6 +33,13 @@ export async function createItem(data: EstoqueItemInsert): Promise<EstoqueItem |
   return result
 }
 
+export async function updateItem(id: string, data: EstoqueItemUpdate): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const { error } = await supabase.from('estoque_itens').update(data).eq('id', id)
+  if (error) console.error('[estoque] updateItem:', error.message)
+  return !error
+}
+
 export async function fetchItens(): Promise<EstoqueItem[]> {
   if (!isSupabaseConfigured()) return []
 
