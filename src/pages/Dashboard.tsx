@@ -13,6 +13,7 @@ import {
 } from 'recharts'
 import { fetchPedidos, updatePedido } from '../services/pedidos'
 import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
+import { FreightOrderData } from '../magazord'
 
 const cashflow: any[] = []
 
@@ -319,6 +320,184 @@ function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress 
               })}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Analytics de Produtos ──────────────────────────────────────────────────────
+
+function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loadingOrders: boolean }) {
+  const [fperiodo, setFPeriodo] = useState<FreightPeriodo>('Este Mês')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+
+  const [topSizes, setTopSizes] = useState<{name: string, value: number}[]>([])
+  const [topColors, setTopColors] = useState<{name: string, value: number}[]>([])
+
+  useEffect(() => {
+    if (loadingOrders) return
+    const today = new Date(); today.setHours(23, 59, 59, 999)
+
+    const sizesMap = new Map<string, number>()
+    const colorsMap = new Map<string, number>()
+
+    allOrders.forEach(p => {
+      const d = new Date(p.data || new Date())
+      let keep = false
+      if (fperiodo === 'Este Mês') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
+      } else if (fperiodo === '7 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
+      } else if (fperiodo === '15 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 15); keep = d >= s && d <= today
+      } else if (fperiodo === '30 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 30); keep = d >= s && d <= today
+      } else if (fperiodo === '90 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 90); keep = d >= s && d <= today
+      } else if (fperiodo === 'Personalizado' && customStart && customEnd) {
+        keep = d >= new Date(customStart + 'T00:00:00') && d <= new Date(customEnd + 'T23:59:59')
+      }
+      if (!keep) return
+
+      const prods = p.produtos || []
+      prods.forEach((prodName: string) => {
+        const lower = prodName.toLowerCase()
+        
+        // Extract size
+        const sizeMatch = lower.match(/\b(\d+)\s*[xX]\s*(\d+)\b/)
+        if (sizeMatch) {
+          const s1 = parseInt(sizeMatch[1], 10)
+          const s2 = parseInt(sizeMatch[2], 10)
+          const min = Math.min(s1, s2)
+          const max = Math.max(s1, s2)
+          const sizeKey = `${min}x${max}cm`
+          sizesMap.set(sizeKey, (sizesMap.get(sizeKey) || 0) + 1)
+        } else {
+             if (lower.includes('a4')) sizesMap.set('A4 (21x30cm)', (sizesMap.get('A4 (21x30cm)') || 0) + 1)
+             if (lower.includes('a3')) sizesMap.set('A3 (30x42cm)', (sizesMap.get('A3 (30x42cm)') || 0) + 1)
+        }
+
+        // Extract color/moldura
+        let colorKey = null
+        if (lower.includes('preta') || lower.includes('preto')) colorKey = 'Preta'
+        else if (lower.includes('branca') || lower.includes('branco')) colorKey = 'Branca'
+        else if (lower.includes('freijó') || lower.includes('freijo')) colorKey = 'Freijó'
+        else if (lower.includes('madeira')) colorKey = 'Madeira'
+        else if (lower.includes('dourada') || lower.includes('dourado')) colorKey = 'Dourada'
+        else if (lower.includes('prata')) colorKey = 'Prata'
+        else if (lower.includes('nogueira')) colorKey = 'Nogueira'
+
+        if (!colorKey && lower.includes('canvas')) colorKey = 'Canvas (Sem Moldura)'
+        if (!colorKey && lower.includes('chanfrada')) colorKey = 'Chanfrada Especial'
+
+        if (colorKey) {
+          colorsMap.set(colorKey, (colorsMap.get(colorKey) || 0) + 1)
+        }
+      })
+    })
+
+    const sortedSizes = Array.from(sizesMap.entries()).map(([name, value]) => ({name, value})).sort((a,b) => b.value - a.value).slice(0, 7)
+    const sortedColors = Array.from(colorsMap.entries()).map(([name, value]) => ({name, value})).sort((a,b) => b.value - a.value).slice(0, 7)
+
+    setTopSizes(sortedSizes)
+    setTopColors(sortedColors)
+
+  }, [allOrders, fperiodo, customStart, customEnd, loadingOrders])
+
+  const periodoLabel = fperiodo === 'Personalizado' && customStart && customEnd
+    ? `${customStart.split('-').reverse().join('/')} → ${customEnd.split('-').reverse().join('/')}`
+    : fperiodo
+
+  return (
+    <div className="card p-5 mt-5">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0">
+            <ShoppingCart size={20} className="text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-800 text-lg">Inteligência de Produtos</h2>
+            <p className="text-xs text-gray-400">Levantamento Magazord de Medidas e Cores — <span className="font-semibold text-emerald-500">{periodoLabel}</span></p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Filtro de Período ── */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-1">Período:</span>
+        {FREIGHT_PERIODOS.map(p => (
+          <button
+            key={p}
+            onClick={() => setFPeriodo(p)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+              fperiodo === p
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+            }`}
+          >
+            {p === '7 Dias' ? 'Últimos 7 Dias' : p === '15 Dias' ? 'Últimos 15 Dias' : p === '30 Dias' ? 'Últimos 30 Dias' : p === '90 Dias' ? 'Últimos 90 Dias' : p}
+          </button>
+        ))}
+      </div>
+
+      {fperiodo === 'Personalizado' && (
+        <div className="flex flex-wrap items-center gap-3 mb-5 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+          <span className="text-xs font-bold text-emerald-600">De:</span>
+          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+            className="text-xs border border-emerald-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+          <span className="text-xs font-bold text-emerald-600">Até:</span>
+          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+            className="text-xs border border-emerald-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+        </div>
+      )}
+
+      {loadingOrders ? (
+        <div className="flex items-center justify-center py-12 gap-3 text-gray-400 text-sm">
+          <div className="w-5 h-5 rounded-full border-2 border-emerald-300 border-t-emerald-600 animate-spin" />
+          Calculando ranking de produtos...
+        </div>
+      ) : topSizes.length === 0 && topColors.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-2">
+          <ShoppingCart size={28} className="text-gray-200" />
+          <p className="text-gray-400 text-sm">Nenhum pedido analisado para <strong>{periodoLabel}</strong>.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Ranking Tamanhos */}
+          <div className="overflow-hidden">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Dimensões Mais Vendidas (Quadros/Telas)</p>
+            <ResponsiveContainer width="100%" height={Math.max(180, topSizes.length * 38)}>
+              <BarChart data={topSizes} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} width={85} />
+                <RechartsTooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                  {topSizes.map((_, i) => <Cell key={i} fill={CARRIER_COLORS[i % CARRIER_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          
+          {/* Ranking Cores */}
+          <div className="overflow-hidden">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Cores de Moldura Mais Vendidas</p>
+            <ResponsiveContainer width="100%" height={Math.max(180, topColors.length * 38)}>
+              <BarChart data={topColors} layout="vertical" margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} width={105} />
+                <RechartsTooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                  {topColors.map((_, i) => <Cell key={i} fill={['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6', '#14b8a6'][i % 7]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
         </div>
       )}
     </div>
@@ -646,6 +825,9 @@ export default function Dashboard() {
 
       {/* Freight analytics by carrier */}
       <FreightByCarrier allOrders={allOrders} loadingOrders={loadingOrders} enriching={enriching} enrichProgress={enrichProgress} />
+
+      {/* Products analytics by size and color */}
+      <ProductsAnalytics allOrders={allOrders} loadingOrders={loadingOrders} />
 
       <AnimatePresence>
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}

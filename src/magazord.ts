@@ -278,6 +278,7 @@ export interface FreightOrderData {
   data: string
   situacao?: number  // 4=Aprovado, 7=Transporte/Faturado, etc.
   quantidade?: number // Quantos itens há no pedido
+  produtos?: string[] // ARRAY de nomes de produtos (para extração de Analytics)
 }
 
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
@@ -330,14 +331,21 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
     const filtered = allItems.filter(o => allowedSituations.has(o.pedidoSituacao ?? o.situacao ?? -1))
     const toProcess = filtered.length > 0 ? filtered : allItems
 
-    const result: FreightOrderData[] = toProcess.map((o: any) => ({
-      codigo: String(o.codigo || o.id),
-      transportadora: extractTransportadora(o),
-      frete: extractFrete(o),
-      valor: parseFloat(String(o.valorTotal || 0)) || 0,
-      data: o.dataHora || o.data_pedido || new Date().toISOString(),
-      situacao: o.pedidoSituacao ?? o.situacao,
-    }))
+    const result: FreightOrderData[] = toProcess.map((o: any) => {
+      // Tenta achar itens no modelo V1 ou V2
+      const itemsArr = o.itens || o.arrayPedidoItem || o.pedidoItem || []
+      const produtos = itemsArr.map((i: any) => i.nome || i.produtoNome || '').filter(Boolean)
+
+      return {
+        codigo: String(o.codigo || o.id),
+        transportadora: extractTransportadora(o),
+        frete: extractFrete(o),
+        valor: parseFloat(String(o.valorTotal || 0)) || 0,
+        data: o.dataHora || o.data_pedido || new Date().toISOString(),
+        situacao: o.pedidoSituacao ?? o.situacao,
+        produtos
+      }
+    })
 
     setCache(key, result)
     return result
@@ -409,9 +417,14 @@ export async function enrichOrdersWithCarriers(
           if (trans) entry.transportadora = trans
           if (frete > 0) entry.frete = frete
           // Extrair a quantidade real de quadros/itens (volumes)
-          const itemsArr = rastreio.pedidoItem || []
+          const itemsArr = rastreio.pedidoItem || data.arrayPedidoItem || data.pedidoItem || []
           const qtd = itemsArr.reduce((sum: number, it: any) => sum + (Number(it.quantidade) || 1), 0)
           if (qtd > 0) entry.quantidade = qtd
+          
+          // Se não tinhamos produtos ou se o detalhe tem mais garantia sobre os nomes, salvamos
+          if (!entry.produtos || entry.produtos.length === 0) {
+            entry.produtos = itemsArr.map((i: any) => i.nome || i.produtoNome || '').filter(Boolean)
+          }
         }
       } catch { /* ignora */ }
     }))
@@ -460,6 +473,7 @@ async function _fetchAllOrdersPhase1(dias: number): Promise<FreightOrderData[]> 
     data: o.dataHora || o.data_pedido || new Date().toISOString(),
     situacao: o.pedidoSituacao ?? o.situacao,
     quantidade: 1, // Phase 1 assume 1 volume, Phase 2 vai corrigir com o número real
+    produtos: (o.itens || o.arrayPedidoItem || o.pedidoItem || []).map((i: any) => i.nome || i.produtoNome || '').filter(Boolean)
   }))
 }
 
