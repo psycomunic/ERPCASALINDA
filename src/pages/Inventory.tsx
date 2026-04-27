@@ -259,6 +259,45 @@ export default function Inventory() {
     }
   }
 
+  const handlePrint = () => {
+    const printContent = document.getElementById('print-report')
+    if (!printContent) return
+
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    const headHtml = document.head.innerHTML
+
+    printWindow.document.open()
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Imprimir Relatório - Casa Linda</title>
+          ${headHtml}
+          <style>
+            @page { size: A4 portrait; margin: 10mm; }
+            body { background: white !important; padding: 20px; color: black; overflow: visible !important; height: auto !important; }
+            /* Forçar a exibição do bloco oculto na tela */
+            #print-report { display: block !important; visibility: visible !important; }
+          </style>
+        </head>
+        <body class="bg-white">
+          <div id="print-report" class="bg-white text-black min-h-screen">
+            ${printContent.innerHTML}
+          </div>
+          <script>
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+  }
+
   const visibleMovements = showAll ? movements : movements.slice(0, 3)
 
   return (
@@ -270,7 +309,7 @@ export default function Inventory() {
           <p className="text-sm text-gray-500 mt-0.5">Controle de insumos, matérias-primas e gestão de estoque mínimo para a linha de produção Casa Linda.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn-secondary" onClick={() => window.print()}>
+          <button className="btn-secondary" onClick={handlePrint}>
             <Printer size={14} className="text-gray-600" /> Imprimir Relatório
           </button>
           <button className="btn-secondary" onClick={handleExportar}><Download size={14} /> Exportar</button>
@@ -669,8 +708,8 @@ export default function Inventory() {
       </AnimatePresence>
     </div>
 
-    {/* RELATÓRIO P/ IMPRESSÃO (Oculto na tela, vísivel apenas no PDF/Print) */}
-    <div className="hidden print:block bg-white text-black print:p-0 min-h-screen">
+    {/* RELATÓRIO P/ IMPRESSÃO (Oculto na tela, extraído via popup) */}
+    <div id="print-report" className="hidden">
       <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-black uppercase tracking-tighter">Casa Linda</h1>
