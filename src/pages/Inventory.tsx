@@ -56,7 +56,7 @@ export default function Inventory() {
   const [formNovo, setFormNovo] = useState({ nome: '', categoria: 'Embalagem', unidade: 'un', minimo: '' as number | string })
 
   const [modalEdit, setModalEdit] = useState<{ id: string, name: string } | null>(null)
-  const [formEdit, setFormEdit] = useState({ nome: '', categoria: '', unidade: '', atual: 0 as number | string, minimo: 0 as number | string })
+  const [formEdit, setFormEdit] = useState({ nome: '', categoria: '', unidade: '', atual: 0 as number | string, minimo: 0 as number | string, fornecedor: '', codigoFornecedor: '' })
 
   const loadData = async () => {
     const rawItens = await fetchItens()
@@ -215,7 +215,9 @@ export default function Inventory() {
       categoria: item.categoria || 'Outros',
       unidade: item.unidade,
       atual: item.atual,
-      minimo: item.minimo
+      minimo: item.minimo,
+      fornecedor: (item as any).fornecedor || '',
+      codigoFornecedor: (item as any).codigo_fornecedor || '',
     })
     setModalEdit({ id: item.id, name: item.nome })
   }
@@ -247,7 +249,9 @@ export default function Inventory() {
       nome: formEdit.nome.trim(),
       categoria: formEdit.categoria,
       unidade: formEdit.unidade,
-      quantidade_minima: Number(formEdit.minimo) || 0
+      quantidade_minima: Number(formEdit.minimo) || 0,
+      fornecedor: formEdit.fornecedor.trim() || null,
+      codigo_fornecedor: formEdit.codigoFornecedor.trim() || null,
     })
 
     if (successUpdate) {
@@ -695,6 +699,17 @@ export default function Inventory() {
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Estoque Mínimo</label>
                       <input type="number" className="input bg-white" min="0" value={formEdit.minimo} onChange={e => setFormEdit(p => ({ ...p, minimo: e.target.value }))} />
+                    </div>
+                  </div>
+                  {/* Fornecedor */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Nome do Fornecedor</label>
+                      <input type="text" className="input" placeholder="Ex: Distribuidora ABC" value={formEdit.fornecedor} onChange={e => setFormEdit(p => ({ ...p, fornecedor: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Cód. no Fornecedor</label>
+                      <input type="text" className="input font-mono" placeholder="Ex: ML-4521" value={formEdit.codigoFornecedor} onChange={e => setFormEdit(p => ({ ...p, codigoFornecedor: e.target.value }))} />
                     </div>
                   </div>
                 </div>

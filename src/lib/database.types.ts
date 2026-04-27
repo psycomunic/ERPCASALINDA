@@ -253,6 +253,7 @@ export interface Database {
           localizacao: string | null
           preco_unitario: number | null
           fornecedor: string | null
+          codigo_fornecedor: string | null
           created_at: string
           updated_at: string
         }
@@ -268,6 +269,7 @@ export interface Database {
           localizacao?: string | null
           preco_unitario?: number | null
           fornecedor?: string | null
+          codigo_fornecedor?: string | null
         }
         Update: {
           codigo?: string | null
@@ -279,6 +281,7 @@ export interface Database {
           localizacao?: string | null
           preco_unitario?: number | null
           fornecedor?: string | null
+          codigo_fornecedor?: string | null
         }
       }
       estoque_movimentacoes: {
