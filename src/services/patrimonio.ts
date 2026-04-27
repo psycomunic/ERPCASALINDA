@@ -36,7 +36,34 @@ export async function deleteAtivo(id: string): Promise<boolean> {
   return true
 }
 
-/**
- * services/parceiros.ts
- */
-export {}
+export type ManutencaoRow = {
+  id: string
+  ativo: string
+  tipo: string
+  empresa: string
+  obs: string
+  status: 'CONCLUÍDO' | 'PENDENTE'
+  time: string
+  created_at: string
+}
+
+export async function fetchManutencoes(): Promise<ManutencaoRow[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from('patrimonio_manutencoes').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('[patrimonio_manutencoes]', error.message); return [] }
+  return data as ManutencaoRow[]
+}
+
+export async function createManutencao(maint: any): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const { error } = await supabase.from('patrimonio_manutencoes').insert(maint)
+  if (error) { console.error('[patrimonio_manutencoes]', error.message); return false }
+  return true
+}
+
+export async function updateManutencaoStatus(id: string, status: 'CONCLUÍDO' | 'PENDENTE'): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const { error } = await supabase.from('patrimonio_manutencoes').update({ status }).eq('id', id)
+  if (error) { console.error('[patrimonio_manutencoes]', error.message); return false }
+  return true
+}
