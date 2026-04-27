@@ -209,13 +209,17 @@ export default function Inventory() {
   const visibleMovements = showAll ? movements : movements.slice(0, 3)
 
   return (
-    <div className="p-6 space-y-5" onClick={() => setShowFilter(false)}>
+    <>
+    <div className="p-6 space-y-5 print:hidden" onClick={() => setShowFilter(false)}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Almoxarifado</h1>
           <p className="text-sm text-gray-500 mt-0.5">Controle de insumos, matérias-primas e gestão de estoque mínimo para a linha de produção Casa Linda.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" onClick={() => window.print()}>
+            <Printer size={14} className="text-gray-600" /> Imprimir Relatório
+          </button>
           <button className="btn-secondary" onClick={handleExportar}><Download size={14} /> Exportar</button>
           <button onClick={() => setModalNovo(true)} className="btn-secondary text-navy-900 border-navy-900/20 hover:bg-blue-50/50">
             <PackagePlus size={14} /> Novo Insumo
@@ -549,5 +553,68 @@ export default function Inventory() {
         {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
       </AnimatePresence>
     </div>
+
+    {/* RELATÓRIO P/ IMPRESSÃO (Oculto na tela, vísivel apenas no PDF/Print) */}
+    <div className="hidden print:block bg-white text-black print:p-0 min-h-screen">
+      <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">Casa Linda</h1>
+          <h2 className="text-lg font-semibold uppercase tracking-widest text-gray-600 mt-1">Relatório Oficial de Inventário</h2>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-bold">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+          <p className="text-sm text-gray-600">Total de Insumos Cadastrados: {totalItems}</p>
+          <p className="text-sm text-red-600 font-bold">Itens com Estoque Crítico: {criticos}</p>
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        {Object.keys(groupedItems).sort().map(cat => (
+          <div key={cat} className="break-inside-avoid">
+            <h3 className="text-lg font-bold bg-gray-200 px-3 py-1 mb-2 uppercase flex justify-between border border-gray-300">
+              <span>📦 {cat}</span>
+              <span className="text-sm font-normal text-gray-600">{groupedItems[cat].length} itens desta categoria</span>
+            </h3>
+            <table className="w-full text-sm border-collapse border border-gray-300">
+              <thead>
+                <tr className="border-b-2 border-gray-400 bg-gray-50">
+                  <th className="py-2 px-3 text-left w-24">Código</th>
+                  <th className="py-2 px-3 text-left">Produto/Insumo</th>
+                  <th className="py-2 px-3 text-center w-16">Unid.</th>
+                  <th className="py-2 px-3 text-right w-24">Mínimo</th>
+                  <th className="py-2 px-3 text-right w-32 font-bold">Estoque Atual</th>
+                  <th className="py-2 px-3 text-center w-28">Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedItems[cat].map(item => (
+                  <tr key={item.id} className={`border-b border-gray-200 ${item.status === 'CRÍTICO' ? 'bg-red-50/50' : ''}`}>
+                    <td className="py-1.5 px-3 align-middle text-gray-500 text-xs font-mono">{item.ref}</td>
+                    <td className="py-1.5 px-3 align-middle font-medium">{item.nome}</td>
+                    <td className="py-1.5 px-3 align-middle text-center text-gray-500">{item.unidade}</td>
+                    <td className="py-1.5 px-3 align-middle text-right text-gray-500">{item.minimo}</td>
+                    <td className={`py-1.5 px-3 align-middle text-right font-bold text-[15px] ${item.status === 'CRÍTICO' ? 'text-red-700' : ''}`}>
+                      {item.atual}
+                    </td>
+                    <td className="py-1.5 px-3 align-middle text-center text-xs font-bold">
+                      {item.status === 'CRÍTICO' 
+                        ? <span className="text-red-600 border border-red-200 px-2 py-0.5 rounded uppercase inline-block w-full">CRÍTICO</span> 
+                        : item.status === 'ATENÇÃO' 
+                          ? <span className="text-orange-600 border border-orange-200 px-2 py-0.5 rounded uppercase inline-block w-full">ATENÇÃO</span> 
+                          : <span className="text-green-600 border border-green-200 px-2 py-0.5 rounded uppercase inline-block w-full">NORMAL</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-12 text-center text-[10px] text-gray-400 border-t border-gray-200 pt-4 font-mono">
+        Casa Linda Decorações - Relatório Gerado pelo ERP Integrado ({new Date().toLocaleString('pt-BR')}) - Página impressa automaticamente.
+      </div>
+    </div>
+    </>
   )
 }

@@ -90,6 +90,10 @@
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
   aside, nav, header {
     display: none !important;
   }
@@ -113,4 +117,11 @@
   .shadow-sm, .shadow-card, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
     box-shadow: none !important;
   }
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+  }
 }
+
