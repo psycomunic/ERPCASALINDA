@@ -15,11 +15,14 @@ export async function fetchPatrimonio(): Promise<Ativo[]> {
   return data ?? []
 }
 
-export async function createAtivo(ativo: AtivoInsert): Promise<Ativo | null> {
-  if (!isSupabaseConfigured()) return null
+export async function createAtivo(ativo: AtivoInsert): Promise<{ data: Ativo | null, error: string | null }> {
+  if (!isSupabaseConfigured()) return { data: null, error: 'Supabase não configurado' }
   const { data, error } = await supabase.from('patrimonio').insert(ativo).select().single()
-  if (error) { console.error('[patrimonio]', error.message); return null }
-  return data
+  if (error) { 
+    console.error('[patrimonio]', error.message); 
+    return { data: null, error: error.message }
+  }
+  return { data, error: null }
 }
 
 export async function updateAtivo(id: string, updates: AtivoUpdate): Promise<boolean> {

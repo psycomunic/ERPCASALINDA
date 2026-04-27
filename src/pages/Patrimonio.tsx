@@ -105,23 +105,31 @@ export default function Patrimonio() {
 
   const handleSaveAsset = async () => {
     if (!form.nome) return
-    const inserted = await createAtivo({
+    
+    // Convert form values carefully
+    let dataValue = form.data || new Date().toISOString().split('T')[0]
+    
+    // In PostgreSQL, empty strings to numeric can fail sometimes if not handled, but we parsed to float
+    // Number types in JS: if form.serie is empty string '', make it null so it doesn't break UUID or text uniquely?
+    // In DB, `numero_serie` is `text`, so empty string is valid.
+    
+    const { data: inserted, error } = await createAtivo({
       nome: form.nome,
       categoria: form.categoria,
       localizacao: form.localizacao,
       valor_aquisicao: parseFloat(form.valor) || 0,
-      data_aquisicao: form.data || new Date().toISOString().split('T')[0],
-      numero_serie: form.serie,
+      data_aquisicao: dataValue,
+      numero_serie: form.serie || null, // pass null instead of empty string just in case
       status: 'ativo'
     })
     
-    if (inserted) {
+    if (inserted && !error) {
       setModal(false)
       loadData()
       setForm({ nome: '', categoria: 'Maquinário', localizacao: 'Produção A', valor: '', data: '', serie: '' })
       showToast('Ativo cadastrado com sucesso no banco de dados!')
     } else {
-      showToast('Erro ao cadastrar ativo.')
+      showToast(`Erro ao cadastrar: ${error || 'Desconhecido'}`)
     }
   }
 
