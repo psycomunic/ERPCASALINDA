@@ -13,6 +13,26 @@ type MovimentacaoInsert = Database['public']['Tables']['estoque_movimentacoes'][
 
 // ─── Itens ────────────────────────────────────────────────────────────────────
 
+export async function createItem(data: EstoqueItemInsert): Promise<EstoqueItem | null> {
+  if (!isSupabaseConfigured()) return null
+  
+  if (!data.codigo) {
+    data.codigo = `INS-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 100)}`
+  }
+
+  const { data: result, error } = await supabase
+    .from('estoque_itens')
+    .insert([data])
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[estoque] createItem:', error.message)
+    return null
+  }
+  return result
+}
+
 export async function fetchItens(): Promise<EstoqueItem[]> {
   if (!isSupabaseConfigured()) return []
 

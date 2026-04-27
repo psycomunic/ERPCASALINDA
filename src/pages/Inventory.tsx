@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { fetchItens, fetchMovimentacoes, registrarMovimentacao } from '../services/estoque'
+import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem } from '../services/estoque'
 import { fetchPedidos } from '../services/pedidos'
 import { useAuth } from '../contexts/AuthContext'
 import {
   Download, Plus, Filter, ArrowUpCircle, ArrowDownCircle, RefreshCw,
-  X, Lightbulb, Check, ChevronDown
+  X, Lightbulb, Check, ChevronDown, PackagePlus
 } from 'lucide-react'
 import { getFrameImage } from '../lib/frameImages'
 
@@ -50,6 +50,9 @@ export default function Inventory() {
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
   const [showFilter, setShowFilter]     = useState(false)
   const [form, setForm] = useState({ materialId: '', quantidade: '', nf: '', fornecedor: '', obs: '' })
+
+  const [modalNovo, setModalNovo] = useState(false)
+  const [formNovo, setFormNovo] = useState({ nome: '', categoria: 'Embalagem', unidade: 'un', minimo: '' as number | string })
 
   const loadData = async () => {
     const rawItens = await fetchItens()
@@ -173,6 +176,26 @@ export default function Inventory() {
     }
   }
 
+  const handleCreate = async () => {
+    if (!formNovo.nome) return showToast('O nome é obrigatório.')
+    const newItem = await createItem({
+      nome: formNovo.nome.trim(),
+      categoria: formNovo.categoria,
+      unidade: formNovo.unidade,
+      quantidade: 0,
+      quantidade_minima: Number(formNovo.minimo) || 0
+    })
+    
+    if (newItem) {
+      setModalNovo(false)
+      loadData()
+      showToast('Novo insumo cadastrado com sucesso!')
+      setFormNovo({ nome: '', categoria: 'Embalagem', unidade: 'un', minimo: '' })
+    } else {
+      showToast('Erro ao cadastrar novo insumo.')
+    }
+  }
+
   const visibleMovements = showAll ? movements : movements.slice(0, 3)
 
   return (
@@ -184,7 +207,10 @@ export default function Inventory() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" onClick={handleExportar}><Download size={14} /> Exportar</button>
-          <button onClick={() => setModal(true)} className="btn-primary"><Plus size={14} /> Entrada de Insumo</button>
+          <button onClick={() => setModalNovo(true)} className="btn-secondary text-navy-900 border-navy-900/20 hover:bg-blue-50/50">
+            <PackagePlus size={14} /> Novo Insumo
+          </button>
+          <button onClick={() => setModal(true)} className="btn-primary"><Plus size={14} /> Entrada de Reabastecimento</button>
         </div>
       </div>
 
@@ -433,6 +459,59 @@ export default function Inventory() {
                   <button onClick={() => setModal(false)} className="btn-secondary flex-1 justify-center">Cancelar</button>
                   <button onClick={handleRegistrarEntrada} className="btn-primary flex-1 justify-center">Registrar Entrada</button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {modalNovo && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <PackagePlus size={18} className="text-navy-900" /> Cadastrar Novo Insumo
+                </h3>
+                <button onClick={() => setModalNovo(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Nome do Insumo <span className="text-red-500">*</span></label>
+                    <input type="text" className="input" placeholder="Ex: Caixa de Papelão 85x85" value={formNovo.nome} onChange={e => setFormNovo(p => ({ ...p, nome: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Categoria</label>
+                      <select className="input" value={formNovo.categoria} onChange={e => setFormNovo(p => ({ ...p, categoria: e.target.value }))}>
+                        <option>Embalagem</option>
+                        <option>Moldura</option>
+                        <option>Vidro/Acrílico</option>
+                        <option>Papel</option>
+                        <option>Cola/Fita</option>
+                        <option>Outros</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Unidade</label>
+                      <select className="input" value={formNovo.unidade} onChange={e => setFormNovo(p => ({ ...p, unidade: e.target.value }))}>
+                        <option value="un">Unidade (un)</option>
+                        <option value="m">Metros (m)</option>
+                        <option value="m²">Metro Quadrado (m²)</option>
+                        <option value="kg">Quilos (kg)</option>
+                        <option value="rolo">Rolo</option>
+                        <option value="cx">Caixa (cx)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Estoque Mínimo (Alerta)</label>
+                    <input type="number" className="input" min="0" placeholder="0" value={formNovo.minimo} onChange={e => setFormNovo(p => ({ ...p, minimo: e.target.value }))} />
+                    <p className="text-[10px] text-gray-400 mt-1">O sistema alertará automaticamente se ficar abaixo desse valor.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                <button className="btn-secondary" onClick={() => setModalNovo(false)}>Cancelar</button>
+                <button className="btn-primary" onClick={handleCreate}>Salvar Novo Insumo</button>
               </div>
             </motion.div>
           </motion.div>
