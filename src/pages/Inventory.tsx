@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem } from '../services/estoque'
+import { fetchItens, fetchMovimentacoes, registrarMovimentacao, createItem, updateItem } from '../services/estoque'
+import { fetchPedidos } from '../services/pedidos'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Download, Plus, Filter, RefreshCw,
+  Download, Plus, Filter, RefreshCw, ArrowUpCircle, ArrowDownCircle, Lightbulb,
   X, Check, ChevronDown, PackagePlus, Printer, Edit2
 } from 'lucide-react'
 import { getFrameImage } from '../lib/frameImages'
@@ -17,7 +18,7 @@ interface Item {
   minimo: number
   status: 'NORMAL' | 'CRÍTICO' | 'ATENÇÃO'
   img: string | null
-  categoria?: string
+  categoria?: string | null
 }
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
@@ -78,7 +79,7 @@ export default function Inventory() {
     const rawMovs = await fetchMovimentacoes()
     const mappedMovs: Movement[] = rawMovs.map(m => {
       const dataStr = new Date(m.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-      const itemData = m.estoque_itens as any
+      const itemData = (m as any).estoque_itens as any
       const nome = itemData?.nome || 'Item Desconhecido'
       const un = itemData?.unidade || 'un'
       const desc = `${m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'saida' ? 'Saída' : 'Ajuste'} de ${m.quantidade} ${un} de ${nome}`
@@ -94,7 +95,7 @@ export default function Inventory() {
     const aggMold: Record<string, number> = {}
     let comVidro = 0, semVidro = 0
 
-    pedidos.forEach(p => {
+    pedidos.forEach((p: any) => {
       const d = new Date(p.created_at)
       if (d.getMonth() === currMonth) {
         // quantidade
