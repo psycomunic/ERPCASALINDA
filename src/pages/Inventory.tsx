@@ -245,7 +245,9 @@ export default function Inventory() {
     }
 
     // Atualiza metadados do item
-    const successUpdate = await updateItem(modalEdit.id, {
+    // Tenta primeiro com codigo_fornecedor; se a coluna não existir no banco
+    // ainda (migration pendente), faz fallback sem ela.
+    let successUpdate = await updateItem(modalEdit.id, {
       nome: formEdit.nome.trim(),
       categoria: formEdit.categoria,
       unidade: formEdit.unidade,
@@ -254,9 +256,20 @@ export default function Inventory() {
       codigo_fornecedor: formEdit.codigoFornecedor.trim() || null,
     })
 
+    if (!successUpdate) {
+      // Fallback: tenta sem o campo codigo_fornecedor (migration ainda não executada)
+      successUpdate = await updateItem(modalEdit.id, {
+        nome: formEdit.nome.trim(),
+        categoria: formEdit.categoria,
+        unidade: formEdit.unidade,
+        quantidade_minima: Number(formEdit.minimo) || 0,
+        fornecedor: formEdit.fornecedor.trim() || null,
+      })
+    }
+
     if (successUpdate) {
       setModalEdit(null)
-      loadData() // Recarrega para refletir a edição e trigger de ajuste
+      loadData()
       showToast('Insumo atualizado com sucesso!')
     } else {
       showToast('Erro ao atualizar insumo.')
