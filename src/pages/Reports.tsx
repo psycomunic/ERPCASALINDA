@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Download, Printer, Factory, DollarSign,
@@ -650,7 +650,6 @@ export default function Reports() {
   
   const [liveStats, setLiveStats] = useState({ tamanhos: {}, molduras: {}, vidro: { com: 0, sem: 0 } })
 
-  import { useEffect } from 'react'
   useEffect(() => {
     async function loadStats() {
       if (!isSupabaseConfigured()) return
