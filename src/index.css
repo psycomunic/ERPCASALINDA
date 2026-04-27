@@ -97,14 +97,11 @@
   aside, nav, header {
     display: none !important;
   }
-  body, html, main, #root, #app, div {
+  body, html, main, #root, #app {
     background-color: white !important;
     overflow: visible !important;
     height: auto !important;
-    min-height: auto !important;
-    max-height: none !important;
     position: static !important;
-    transform: none !important;
   }
   /* Preserve exact colors for charts and bars */
   * {

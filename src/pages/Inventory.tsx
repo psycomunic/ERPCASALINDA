@@ -266,32 +266,33 @@ export default function Inventory() {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
 
-    const headHtml = document.head.innerHTML
-
     printWindow.document.open()
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>Imprimir Relatório - Casa Linda</title>
-          ${headHtml}
+          <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            @page { size: A4 portrait; margin: 10mm; }
-            body { background: white !important; padding: 20px; color: black; overflow: visible !important; height: auto !important; }
-            /* Forçar a exibição do bloco oculto na tela */
-            #print-report { display: block !important; visibility: visible !important; }
+            @page { size: A4 portrait; margin: 15mm; }
+            body { background: white !important; color: black; font-family: sans-serif; }
+            table { page-break-inside: auto; }
+            tr    { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
           </style>
-        </head>
-        <body class="bg-white">
-          <div id="print-report" class="bg-white text-black min-h-screen">
-            ${printContent.innerHTML}
-          </div>
           <script>
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 500);
+            // Força a impressão somente APÓS o tailwind processar as classes
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+                window.close();
+              }, 500);
+            };
           </script>
+        </head>
+        <body class="bg-white p-2">
+          ${printContent.innerHTML}
         </body>
       </html>
     `)
