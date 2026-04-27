@@ -92,21 +92,19 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 15mm;
+    margin: 10mm;
   }
   aside, nav, header {
     display: none !important;
   }
-  body, html {
+  body, html, main, #root, #app, div {
     background-color: white !important;
-    overflow: visible !important;
-  }
-  main, #root, #app {
-    margin: 0 !important;
-    padding: 0 !important;
     overflow: visible !important;
     height: auto !important;
     min-height: auto !important;
+    max-height: none !important;
+    position: static !important;
+    transform: none !important;
   }
   /* Preserve exact colors for charts and bars */
   * {
@@ -124,4 +122,5 @@
     display: block !important;
   }
 }
+
 
