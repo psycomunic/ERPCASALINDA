@@ -8,11 +8,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Clock, CheckCircle, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
-  RefreshCw, ArrowRight, ChevronDown, Sofa, Upload
+  RefreshCw, ArrowRight, ChevronDown, Sofa, Upload, Trash2,
+  Image as ImageIcon
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE } from '../../carriers'
 import {
-  fetchPedidosLV, createPedidoLV, updatePedidoLV,
+  fetchPedidosLV, createPedidoLV, updatePedidoLV, deletePedidoLV,
   despacharPedidoLV, movePedidoLVEtapa,
   uploadFotoLV, fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
 } from '../../services/pedidosLV'
@@ -46,6 +47,10 @@ export interface LVOrder {
   prazoEntrega?: string
   valor?: number
   frete?: number
+  tipoPedido?: 'producao' | 'crossdocking'
+  itensCama?: Array<{ sku: string; descricao: string; qtd: number }>
+  conferenciaItens?: Array<{ sku: string; conferido: boolean; qtdConferida: number; obs?: string }>
+  imagensDesenho?: Record<string, string> // { 'D01': 'url...', 'D02': 'url...' }
 }
 
 type KanbanStage = 'Novos Pedidos' | 'Pedido ao Fornecedor' | 'Aguardando Chegada' | 'Recebido' | 'Embalagem'
@@ -55,8 +60,13 @@ type Stage = KanbanStage | DeliveryStage
 const KANBAN_STAGES: KanbanStage[] = ['Novos Pedidos', 'Pedido ao Fornecedor', 'Aguardando Chegada', 'Recebido', 'Embalagem']
 const ALL_STAGES: Stage[] = [...KANBAN_STAGES, 'Pronto para Envio', 'Despachados']
 
-const CATEGORIAS_LV = ['Tapete', 'Cortina', 'Almofada', 'Quadro', 'Outros']
+const CATEGORIAS_LV = ['Tapete', 'Cortina', 'Almofada', 'Quadro', 'Cama', 'Outros']
 const CANAIS = ['Site', 'Mercado Livre', 'Shopee', 'Amazon', 'Magazine Luiza', 'WhatsApp', 'Balcão']
+
+// Fornecedores fixos por categoria (crossdocking)
+const FORNECEDOR_SUGERIDO: Record<string, string> = {
+  Cama: 'TELLAIO',
+}
 
 const STAGE_DOT: Record<Stage, string> = {
   'Novos Pedidos':        'bg-amber-500',
@@ -327,6 +337,309 @@ ${order.obs ? `<div class="section"><div class="section-title">Observações</di
   if (w) { w.document.write(html); w.document.close() }
 }
 
+// ─── Conferência de Recebimento (Cama / Crossdocking) ────────────────────────
+
+function inferDesenho(sku: string): string {
+  // Extrai o grupo de desenho do SKU — formato: 000302.003.023
+  // Os últimos 3 dígitos mapeiam para grupos: D01 = 023/025/026, D02 = 027/029/030, etc.
+  // Alternativa: detectar pelo nome da descrição se houver padrão 'D01' ou 'D02'
+  // Aqui usamos range dos últimos dígitos como heurística
+  const parts = sku.split('.')
+  const last = parseInt(parts[parts.length - 1] ?? '0', 10)
+  if (last >= 23 && last <= 26) return 'D01'
+  if (last >= 27 && last <= 30) return 'D02'
+  if (last >= 31 && last <= 34) return 'D03'
+  if (last >= 35 && last <= 38) return 'D04'
+  return `G${last}` // fallback
+}
+
+function ConferenciaTab({ order, onSave }: {
+  order: LVOrder
+  onSave: (conf: LVOrder['conferenciaItens'], imgs: LVOrder['imagensDesenho']) => void
+}) {
+  const itens = order.itensCama ?? []
+
+  // Estado dos checks: {sku -> {conferido, qtdConferida, obs}}
+  const [checks, setChecks] = useState<Record<string, { conferido: boolean; qtdConferida: number; obs: string }>>(() => {
+    const initial: Record<string, { conferido: boolean; qtdConferida: number; obs: string }> = {}
+    const existingConf = order.conferenciaItens ?? []
+    itens.forEach(item => {
+      const found = existingConf.find(c => c.sku === item.sku)
+      initial[item.sku] = {
+        conferido: found?.conferido ?? false,
+        qtdConferida: found?.qtdConferida ?? item.qtd,
+        obs: found?.obs ?? '',
+      }
+    })
+    return initial
+  })
+
+  // Imagens por grupo de desenho
+  const desenhos = [...new Set(itens.map(i => inferDesenho(i.sku)))].sort()
+  const [imagens, setImagens] = useState<Record<string, string>>(order.imagensDesenho ?? {})
+  const [expandedSku, setExpandedSku] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const totalItens = itens.length
+  const conferidos = Object.values(checks).filter(c => c.conferido).length
+  const progresso = totalItens === 0 ? 0 : Math.round((conferidos / totalItens) * 100)
+
+  const toggleCheck = (sku: string) => {
+    setChecks(prev => ({
+      ...prev,
+      [sku]: { ...prev[sku], conferido: !prev[sku].conferido }
+    }))
+  }
+
+  const handleImageUpload = async (desenho: string, file: File) => {
+    const { uploadFotoLV } = await import('../../services/pedidosLV')
+    const url = await uploadFotoLV(file)
+    if (url) setImagens(prev => ({ ...prev, [desenho]: url }))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    const conf: LVOrder['conferenciaItens'] = itens.map(item => ({
+      sku: item.sku,
+      conferido: checks[item.sku]?.conferido ?? false,
+      qtdConferida: checks[item.sku]?.qtdConferida ?? item.qtd,
+      obs: checks[item.sku]?.obs ?? '',
+    }))
+    await onSave(conf, imagens)
+    setSaving(false)
+  }
+
+  const marcarTodos = () => {
+    setChecks(prev => {
+      const next = { ...prev }
+      Object.keys(next).forEach(sku => { next[sku] = { ...next[sku], conferido: true } })
+      return next
+    })
+  }
+
+  if (itens.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-4xl mb-3">📦</p>
+        <p className="text-sm font-semibold text-gray-500">Nenhum item de cama registrado neste pedido.</p>
+        <p className="text-xs text-gray-400 mt-1">A aba de conferência é usada para pedidos da linha Cama (TELLAIO).</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Barra de progresso */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">📋 Conferência de Recebimento</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500">{conferidos}/{totalItens} conferidos</span>
+            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+              progresso === 100 ? 'bg-emerald-100 text-emerald-700' :
+              progresso > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+            }`}>{progresso}%</span>
+          </div>
+        </div>
+        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${progresso}%`,
+              background: progresso === 100 ? '#10b981' : 'linear-gradient(90deg, #b45309, #d97706)'
+            }}
+          />
+        </div>
+        {progresso < 100 && (
+          <button onClick={marcarTodos} className="mt-2 text-[11px] font-semibold text-amber-700 hover:text-amber-900 transition-colors">
+            ✓ Marcar todos como conferidos
+          </button>
+        )}
+      </div>
+
+      {/* Fotos por desenho */}
+      {desenhos.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🖼️ Fotos por Coleção/Desenho</p>
+          <div className="grid grid-cols-2 gap-2">
+            {desenhos.map(des => (
+              <div key={des} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                <div className="bg-gray-50 px-2 py-1.5 flex items-center justify-between border-b border-gray-100">
+                  <span className="text-[10px] font-black text-gray-700 uppercase">{des}</span>
+                  <button
+                    onClick={() => fileRefs.current[des]?.click()}
+                    className="flex items-center gap-1 text-[9px] text-amber-600 font-semibold hover:text-amber-800 transition-colors"
+                  >
+                    <ImageIcon size={10} /> Foto
+                  </button>
+                  <input
+                    ref={el => { fileRefs.current[des] = el }}
+                    type="file" accept="image/*" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(des, f) }}
+                  />
+                </div>
+                {imagens[des] ? (
+                  <div className="relative group">
+                    <img src={imagens[des]} alt={`Desenho ${des}`} className="w-full h-24 object-cover" />
+                    <button
+                      onClick={() => setImagens(prev => { const n = {...prev}; delete n[des]; return n })}
+                      className="absolute top-1 right-1 bg-white/90 rounded-full p-0.5 shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={10} className="text-red-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileRefs.current[des]?.click()}
+                    className="h-16 flex flex-col items-center justify-center gap-1 text-gray-300 cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <ImageIcon size={18} />
+                    <span className="text-[9px]">Adicionar foto</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Lista de SKUs para conferência */}
+      <div>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📦 Itens para Conferir</p>
+        <div className="space-y-1.5">
+          {itens.map(item => {
+            const c = checks[item.sku] ?? { conferido: false, qtdConferida: item.qtd, obs: '' }
+            const isExpanded = expandedSku === item.sku
+            const desenho = inferDesenho(item.sku)
+            const hasImg = !!imagens[desenho]
+            return (
+              <div
+                key={item.sku}
+                className={`border rounded-xl overflow-hidden transition-all ${
+                  c.conferido ? 'border-emerald-200 bg-emerald-50/50' : 'border-gray-200 bg-white'
+                }`}
+              >
+                <div
+                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                  onClick={() => setExpandedSku(isExpanded ? null : item.sku)}
+                >
+                  {/* Checkbox */}
+                  <button
+                    onClick={e => { e.stopPropagation(); toggleCheck(item.sku) }}
+                    className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 transition-all ${
+                      c.conferido ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 bg-white hover:border-emerald-400'
+                    }`}
+                  >
+                    {c.conferido && <Check size={11} className="text-white" strokeWidth={3} />}
+                  </button>
+
+                  {/* Miniatura do desenho */}
+                  {hasImg ? (
+                    <img src={imagens[desenho]} alt={desenho} className="w-7 h-7 rounded object-cover shrink-0 border border-gray-200" />
+                  ) : (
+                    <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center shrink-0">
+                      <span className="text-[7px] font-black text-gray-400">{desenho}</span>
+                    </div>
+                  )}
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-mono text-gray-400 leading-none">{item.sku}</p>
+                    <p className={`text-xs font-semibold leading-tight truncate ${
+                      c.conferido ? 'text-emerald-700 line-through opacity-60' : 'text-gray-800'
+                    }`}>
+                      {item.descricao}
+                    </p>
+                  </div>
+
+                  {/* Qtd esperada vs conferida */}
+                  <div className="text-right shrink-0">
+                    <span className={`text-xs font-black ${
+                      c.qtdConferida === item.qtd ? 'text-gray-700' :
+                      c.qtdConferida < item.qtd ? 'text-red-600' : 'text-orange-500'
+                    }`}>{c.qtdConferida}x</span>
+                    <p className="text-[8px] text-gray-400">esp: {item.qtd}x</p>
+                  </div>
+
+                  <ChevronDown size={12} className={`text-gray-400 shrink-0 transition-transform ${
+                    isExpanded ? 'rotate-180' : ''
+                  }`} />
+                </div>
+
+                {/* Expandido: qtd conferida + obs */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden border-t border-gray-100"
+                    >
+                      <div className="px-3 py-2 space-y-2 bg-gray-50/50">
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-gray-500 font-semibold shrink-0">Qtd recebida:</label>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={e => { e.stopPropagation(); setChecks(p => ({ ...p, [item.sku]: { ...p[item.sku], qtdConferida: Math.max(0, (p[item.sku]?.qtdConferida ?? item.qtd) - 1) } })) }}
+                              className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 text-xs font-bold"
+                            >−</button>
+                            <span className={`w-8 text-center text-sm font-black ${
+                              c.qtdConferida < item.qtd ? 'text-red-600' : 'text-gray-800'
+                            }`}>{c.qtdConferida}</span>
+                            <button
+                              onClick={e => { e.stopPropagation(); setChecks(p => ({ ...p, [item.sku]: { ...p[item.sku], qtdConferida: (p[item.sku]?.qtdConferida ?? item.qtd) + 1 } })) }}
+                              className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 text-xs font-bold"
+                            >+</button>
+                          </div>
+                          {c.qtdConferida !== item.qtd && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              c.qtdConferida < item.qtd ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
+                            }`}>
+                              {c.qtdConferida < item.qtd ? `⚠ Faltam ${item.qtd - c.qtdConferida}` : `+${c.qtdConferida - item.qtd} extra`}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                          placeholder="Observação (opcional — ex: embalagem amassada)"
+                          value={c.obs}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => setChecks(p => ({ ...p, [item.sku]: { ...p[item.sku], obs: e.target.value } }))}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Resumo */}
+      {progresso === 100 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
+          <CheckCircle size={18} className="text-emerald-500 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-emerald-800">Conferência completa!</p>
+            <p className="text-[11px] text-emerald-600">Todos os {totalItens} itens foram conferidos. Salve para registrar.</p>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-bold transition-opacity disabled:opacity-60"
+        style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
+      >
+        {saving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
+        Salvar Conferência
+      </button>
+    </div>
+  )
+}
+
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 
 const FIELD_LABELS: Record<string, string> = {
@@ -340,12 +653,18 @@ const FIELD_LABELS: Record<string, string> = {
   foto_url: 'Foto do Produto',
 }
 
-function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate }: {
+function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate, onDelete }: {
   order: LVOrder; stage: Stage
   onClose: () => void; onConclude: () => void
   onUpdate: (updates: Partial<LVOrder>) => Promise<void>
+  onDelete: () => void
 }) {
-  const [tab, setTab] = useState<'detalhes' | 'editar' | 'historico'>('detalhes')
+  const hasConferencia = (initialOrder.itensCama?.length ?? 0) > 0
+  const showConferenciaTab = hasConferencia && stage === 'Recebido'
+
+  const [tab, setTab] = useState<'detalhes' | 'conferencia' | 'editar' | 'historico'>(
+    showConferenciaTab ? 'conferencia' : 'detalhes'
+  )
   const [historico, setHistorico] = useState<HistoricoEntry[]>([])
   const [loadingH, setLoadingH] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -479,20 +798,52 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100 px-5 mt-3 shrink-0">
-          {(['detalhes', 'editar', 'historico'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors capitalize ${tab === t ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+        <div className="flex border-b border-gray-100 px-5 mt-3 shrink-0 overflow-x-auto scrollbar-hide">
+          {showConferenciaTab && (
+            <button onClick={() => setTab('conferencia')}
+              className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                tab === 'conferencia' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
             >
-              {t === 'detalhes' ? 'Detalhes' : t === 'editar' ? '✏️ Editar' : '📜 Histórico'}
+              ✅ Conferência
             </button>
-          ))}
+          )}
+          <button onClick={() => setTab('detalhes')}
+            className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+              tab === 'detalhes' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            Detalhes
+          </button>
+          <button onClick={() => setTab('editar')}
+            className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+              tab === 'editar' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            ✏️ Editar
+          </button>
+          <button onClick={() => setTab('historico')}
+            className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+              tab === 'historico' ? 'border-amber-500 text-amber-700' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            📜 Histórico
+          </button>
         </div>
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ─── Tab: Detalhes ─── */}
+          {/* ─── Tab: Conferência ─── */}
+          {tab === 'conferencia' && (
+            <ConferenciaTab
+              order={initialOrder}
+              onSave={async (conf, imgs) => {
+                await onUpdate({ conferenciaItens: conf, imagensDesenho: imgs } as any)
+              }}
+            />
+          )}
+
           {tab === 'detalhes' && (
             <div className="p-5 space-y-4">
               {/* Cliente */}
@@ -532,6 +883,29 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
                       <p className="text-sm font-black text-gray-900">{initialOrder.quantidade || 1}x</p>
                     </div>
                   </div>
+
+                  {/* Lista de itens de cama (crossdocking) */}
+                  {initialOrder.itensCama && initialOrder.itensCama.length > 0 && (
+                    <div className="mt-3 border border-blue-100 rounded-xl overflow-hidden">
+                      <div className="bg-blue-50 px-3 py-2 flex items-center justify-between">
+                        <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">🛏️ Itens do Pedido — {initialOrder.itensCama.length} SKUs</p>
+                        <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                          {initialOrder.itensCama.reduce((acc, i) => acc + i.qtd, 0)} unid.
+                        </span>
+                      </div>
+                      <div className="divide-y divide-blue-50 max-h-48 overflow-y-auto">
+                        {initialOrder.itensCama.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between px-3 py-1.5 bg-white hover:bg-blue-50/40 transition-colors">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[9px] font-mono text-gray-400">{item.sku}</p>
+                              <p className="text-[11px] font-semibold text-gray-700 leading-tight truncate">{item.descricao}</p>
+                            </div>
+                            <span className="ml-2 shrink-0 bg-blue-100 text-blue-700 text-[10px] font-black px-1.5 py-0.5 rounded">{item.qtd}x</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -743,6 +1117,13 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
             </>
           ) : (
             <>
+              <button
+                onClick={() => { if (window.confirm('Excluir este pedido permanentemente?')) { onDelete(); onClose() } }}
+                className="p-2 border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors"
+                title="Excluir pedido"
+              >
+                <Trash2 size={15} />
+              </button>
               <button onClick={onClose} className="btn-secondary flex-1 justify-center text-sm">Fechar</button>
               {stage !== 'Despachados' && (
                 <button onClick={() => { onConclude(); onClose() }}
@@ -770,7 +1151,15 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
     quantidade: 1, canal: 'Site', obs: '', endereco: '',
     transportadora: '', prazoEntrega: '', valor: '', frete: '',
   })
-  const set = (field: string, val: any) => setForm(p => ({ ...p, [field]: val }))
+  const set = (field: string, val: any) => {
+    // Auto-preenche fornecedor quando a categoria tem um fornecedor padrão
+    if (field === 'categoria') {
+      const fornecedorSugerido = FORNECEDOR_SUGERIDO[val as string] ?? ''
+      setForm(p => ({ ...p, categoria: val, nomeFornecedor: fornecedorSugerido || p.nomeFornecedor }))
+    } else {
+      setForm(p => ({ ...p, [field]: val }))
+    }
+  }
 
   const handleSave = () => {
     if (!form.cliente.trim() || !form.produto.trim()) return
@@ -1145,6 +1534,10 @@ export default function ProductionLV() {
         prazoEntrega: p.prazo_entrega || undefined,
         valor: p.valor || undefined,
         frete: p.frete || undefined,
+        tipoPedido: (p as any).tipo_pedido || 'producao',
+        itensCama: (p as any).itens_cama ? (p as any).itens_cama as LVOrder['itensCama'] : undefined,
+        conferenciaItens: (p as any).conferencia_cama ? (p as any).conferencia_cama as LVOrder['conferenciaItens'] : undefined,
+        imagensDesenho: (p as any).imagens_desenho ? (p as any).imagens_desenho as LVOrder['imagensDesenho'] : undefined,
       })
     })
 
@@ -1218,10 +1611,23 @@ export default function ProductionLV() {
     if ('tamanho' in updates) payload.tamanho = updates.tamanho || null
     if ('cor' in updates) payload.cor = updates.cor || null
     if ('quantidade' in updates) payload.quantidade = updates.quantidade || null
+    if ('conferenciaItens' in updates) (payload as any).conferencia_cama = updates.conferenciaItens ?? null
+    if ('imagensDesenho' in updates) (payload as any).imagens_desenho = updates.imagensDesenho ?? null
 
     const success = await updatePedidoLV(id, payload)
     if (success) { await loadOrders(); showToast('Pedido atualizado!') }
     else alert('Erro ao salvar no banco de dados. Verifique a configuração do Supabase.')
+  }
+
+  // ── Delete order ──
+  const handleDelete = async (id: string, stage: Stage) => {
+    const ok = await deletePedidoLV(id)
+    if (ok) {
+      setBoard(prev => ({ ...prev, [stage]: prev[stage].filter(o => o.id !== id) }))
+      showToast('Pedido excluído.')
+    } else {
+      alert('Erro ao excluir o pedido.')
+    }
   }
 
   // ── Advance stage ──
@@ -1581,6 +1987,7 @@ export default function ProductionLV() {
             onClose={() => setDetail(null)}
             onConclude={() => conclude(detail.stage, detail.order.id)}
             onUpdate={handleUpdate}
+            onDelete={() => handleDelete(detail.order.id, detail.stage)}
           />
         )}
         {readyModal && (

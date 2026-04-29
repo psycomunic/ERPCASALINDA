@@ -101,6 +101,28 @@ const INITIAL_PARTNERS: Partner[] = [
   { id: 184, nome: 'VS SUPRIMENTOS PARA COMUNICACAO VISUAL S/A (SC)', tipo: 'Transportadora', subtipo: 'CNPJ: 04.187.580/0004-71', contato: 'N/A', email: '', telefone: '', cidade: '', ativo: true },
 ]
 
+// ─── Fornecedores Lar e Vida ───────────────────────────────────────────────
+// Cadastro fixo de fornecedores de crossdocking para a loja Lar e Vida
+const FORNECEDORES_LAR_E_VIDA: Partner[] = [
+  {
+    id: 9001,
+    nome: 'TELLAIO',
+    tipo: 'Fornecedor',
+    subtipo: 'Linha Cama — Crossdocking Lar e Vida',
+    contato: 'Comercial TELLAIO',
+    email: '',
+    telefone: '',
+    cidade: '',
+    ativo: true,
+  },
+]
+
+// Merge no array de parceiros
+const INITIAL_PARTNERS_WITH_SUPPLIERS: Partner[] = [
+  ...FORNECEDORES_LAR_E_VIDA,
+  ...INITIAL_PARTNERS,
+]
+
 const TIPOS = ['TODOS', 'Fornecedor', 'Serviço', 'Transportadora']
 
 function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
@@ -181,7 +203,7 @@ function DetailModal({ partner, onClose, onToggle, onDelete }: {
 }
 
 export default function Partners() {
-  const [partners, setPartners] = useState(INITIAL_PARTNERS)
+  const [partners, setPartners] = useState(INITIAL_PARTNERS_WITH_SUPPLIERS)
   const [search, setSearch]     = useState('')
   const [modal, setModal]       = useState(false)
   const [detail, setDetail]     = useState<Partner | null>(null)
