@@ -1670,7 +1670,7 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
 
 // ─── Delivery Card ─────────────────────────────────────────────────────────────
 
-function CopyNumber({ num }: { num: string }) {
+function CopyNumber({ num, label }: { num: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   const copy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1681,10 +1681,11 @@ function CopyNumber({ num }: { num: string }) {
   }
   return (
     <div className="flex items-center gap-2 mb-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
+      {label && <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0">{label}</span>}
       <span className="font-mono text-base font-black text-gray-800 tracking-tight flex-1 select-all">{num}</span>
       <button
         onClick={copy}
-        title="Copiar número"
+        title={`Copiar ${label ?? 'número'}`}
         className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all ${
           copied
             ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
@@ -1727,8 +1728,16 @@ function DeliveryCard({
         <span className="text-xs font-bold bg-navy-900 text-white px-2 py-0.5 rounded">#{order.id}</span>
         <PrazoTag prazo={order.prazoEntrega} />
       </div>
-      {/* Número grande com copiar */}
-      <CopyNumber num={order.id} />
+      {/* NF grande com copiar */}
+      {order.notaFiscal
+        ? <CopyNumber num={order.notaFiscal} label="NF" />
+        : (
+          <div className="flex items-center gap-1.5 mb-2 bg-gray-50 border border-dashed border-gray-200 rounded-lg px-2.5 py-1.5">
+            <ClipboardList size={11} className="text-gray-300 shrink-0" />
+            <span className="text-xs text-gray-300 italic">NF ainda não emitida</span>
+          </div>
+        )
+      }
 
       <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
       <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
