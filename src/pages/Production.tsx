@@ -2096,13 +2096,27 @@ export default function Production() {
         grouped[stage].forEach(o => validDbIds.add(String(o.id)))
       }
 
-      // Preserve unconfirmed Magazord orders that aren't yet visibly in the DB (i.e. not in validDbIds)
-      const pendingMagazord = prev['Novos Pedidos'].filter(o => !validDbIds.has(String(o.id)))
-
-      return {
-        ...grouped,
-        'Novos Pedidos': [...pendingMagazord, ...grouped['Novos Pedidos']]
+      // Preserve orders that exist locally but haven't been written to DB yet
+      // (e.g. orders just moved to "Prontos para Envio" via markReady before the
+      //  real-time subscription fires from an unrelated UPDATE event)
+      const localOnlyOrders: Record<Stage, Order[]> = {
+        'Novos Pedidos': [], 'Impressão': [], 'Corte Moldura': [],
+        'Entelamento + Vidro': [], 'Acabamento': [], 'Revisão': [], 'Embalagem': [],
+        'Prontos para Envio': [], 'Despachados': [],
       }
+      for (const stage of Object.keys(prev) as Stage[]) {
+        localOnlyOrders[stage] = prev[stage].filter(o => !validDbIds.has(String(o.id)))
+      }
+
+      // Merge: DB data first, then append local-only orders that aren't in DB yet
+      const merged: Record<Stage, Order[]> = { ...grouped }
+      for (const stage of Object.keys(localOnlyOrders) as Stage[]) {
+        if (localOnlyOrders[stage].length > 0) {
+          merged[stage] = [...localOnlyOrders[stage], ...grouped[stage]]
+        }
+      }
+
+      return merged
     })
 
     setDbConnected(true)
