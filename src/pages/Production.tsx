@@ -1670,6 +1670,42 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
 
 // ─── Delivery Card ─────────────────────────────────────────────────────────────
 
+function CopyNumber({ num }: { num: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(num).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    })
+  }
+  return (
+    <div className="flex items-center gap-2 mb-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
+      <span className="font-mono text-base font-black text-gray-800 tracking-tight flex-1 select-all">{num}</span>
+      <button
+        onClick={copy}
+        title="Copiar número"
+        className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all ${
+          copied
+            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+            : 'bg-white border-gray-300 text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'
+        }`}
+      >
+        {copied ? (
+          <>✓ Copiado</>
+        ) : (
+          <>
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+            </svg>
+            Copiar
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
 function DeliveryCard({
   order, stage, onView, onDispatch, onUndo, onDragStart, onDragEnd, onChangeCarrier
 }: {
@@ -1691,6 +1727,9 @@ function DeliveryCard({
         <span className="text-xs font-bold bg-navy-900 text-white px-2 py-0.5 rounded">#{order.id}</span>
         <PrazoTag prazo={order.prazoEntrega} />
       </div>
+      {/* Número grande com copiar */}
+      <CopyNumber num={order.id} />
+
       <p className="text-sm font-semibold text-gray-800 leading-tight">{order.cliente}</p>
       <p className="text-xs text-gray-500 mt-0.5 mb-2">{order.produto}</p>
       <div className="space-y-1 mb-3">
