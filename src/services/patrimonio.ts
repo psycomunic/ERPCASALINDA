@@ -66,7 +66,7 @@ export async function createManutencao(maint: any): Promise<boolean> {
 
 export async function updateManutencaoStatus(id: string, status: 'CONCLUÍDO' | 'PENDENTE'): Promise<boolean> {
   if (!isSupabaseConfigured()) return false
-  const { error } = await supabase.from('patrimonio_manutencoes').update({ status }).eq('id', id)
+  const { error } = await (supabase.from('patrimonio_manutencoes') as any).update({ status }).eq('id', id)
   if (error) { console.error('[patrimonio_manutencoes]', error.message); return false }
   return true
 }

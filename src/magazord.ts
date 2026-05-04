@@ -401,7 +401,7 @@ export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightO
 
   try {
     const phase1 = await _fetchAllOrdersPhase1(dias)
-    setCache(key, phase1)
+    updateFreightCache(key, phase1)
     return phase1
   } catch (err) {
     console.error('[Magazord] fetchOrdersForFreightAnalysis falhou:', err)
