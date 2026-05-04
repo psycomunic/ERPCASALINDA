@@ -4,12 +4,12 @@ import {
   Plus, Clock, CheckCircle, Upload, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
   RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database, ChevronDown,
-  Search
+  Search, Trash2
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder } from '../magazord'
 import {
-  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, subscribePedidos
+  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, subscribePedidos, deletePedido
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -188,9 +188,9 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 // ─── Magazord Order Card ───────────────────────────────────────────────────────
 
 function MagazordCard({
-  order, onView, onConfirm, dragging, onDragStart, onDragEnd
+  order, onView, onConfirm, onDelete, dragging, onDragStart, onDragEnd
 }: {
-  order: Order; onView: () => void; onConfirm: () => void
+  order: Order; onView: () => void; onConfirm: () => void; onDelete: () => void
   dragging: boolean; onDragStart: () => void; onDragEnd: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
@@ -284,6 +284,13 @@ function MagazordCard({
           title="Ver detalhes"
         >
           <Eye size={13} />
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-1.5 border border-red-100 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+          title="Excluir pedido"
+        >
+          <Trash2 size={13} />
         </button>
       </div>
     </motion.div>
@@ -2198,6 +2205,32 @@ export default function Production() {
   // Helper: get UUID for a display-id order
   const getDbId = (displayId: string) => dbIdMap.current.get(displayId)
 
+  // ── Delete order ──
+  const deleteOrder = useCallback(async (order: Order, stage: Stage) => {
+    const label = order.fromMagazord ? `Magazord #${order.id}` : `Pedido #${order.id}`
+    const msg = order.fromMagazord
+      ? `Excluir ${label} do kanban? O pedido continuará na Magazord mas será removido desta visão.`
+      : `Excluir o ${label} permanentemente? Esta ação não pode ser desfeita.`
+    if (!window.confirm(msg)) return
+
+    // Remove do board local
+    setBoard(prev => {
+      const updated = { ...prev }
+      ;(Object.keys(updated) as Stage[]).forEach(s => {
+        updated[s] = updated[s].filter(o => o.id !== order.id)
+      })
+      return updated
+    })
+
+    // Remove do Supabase (só pedidos que foram persistidos)
+    const dbId = getDbId(order.id)
+    if (dbId) {
+      await deletePedido(dbId)
+    }
+
+    showToast(`${label} removido do painel`)
+  }, [getDbId])
+
   // ── Magazord sync ──
   const syncMagazord = useCallback(async (silent = false) => {
     setSyncing(true)
@@ -2208,6 +2241,11 @@ export default function Production() {
 
       setBoard(prev => {
         const allExistingIds = new Set(Object.values(prev).flat().map(o => o.id))
+        // Apenas adiciona pedidos novos — nunca remove automaticamente.
+        // A remoção automática causava falsos positivos: a API filtra por janela
+        // de 3 dias e inclui apenas situações ativas, então pedidos faturados
+        // (situação 6) ou mais antigos que 3 dias saíam da lista e eram
+        // indevidamente apagados do kanban. Use o botão 🗑 para exclusão manual.
         const newOrders = converted.filter(o => !allExistingIds.has(o.id))
         if (newOrders.length === 0) return prev
         return { ...prev, 'Novos Pedidos': [...newOrders, ...prev['Novos Pedidos']] }
@@ -2740,6 +2778,7 @@ export default function Production() {
                           onDragEnd={() => setDragging(null)}
                           onView={() => setDetail({ order, stage })}
                           onConfirm={() => confirmToProducao(order)}
+                          onDelete={() => deleteOrder(order, stage)}
                         />
                       ))
                     : orders.map(order => (
@@ -2865,6 +2904,13 @@ export default function Production() {
                             )}
                             <button onClick={() => setDetail({ order, stage })} className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-navy-900 transition-colors" title="Ver detalhes">
                               <Eye size={13} />
+                            </button>
+                            <button
+                              onClick={() => deleteOrder(order, stage)}
+                              className="p-1.5 border border-red-100 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                              title="Excluir pedido"
+                            >
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </motion.div>

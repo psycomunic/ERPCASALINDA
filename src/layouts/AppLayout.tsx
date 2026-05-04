@@ -346,7 +346,7 @@ function Topbar() {
   const location   = useLocation()
   const navigate   = useNavigate()
   const { tabs, activeTab, setActiveTab } = useLayout()
-  const { can, profile, signOut } = useAuth()
+  const { can, isAdmin, profile, signOut } = useAuth()
   const section    = SECTION_LABELS[location.pathname] ?? ''
 
   const [showNotifs, setShowNotifs] = useState(false)
@@ -383,51 +383,14 @@ function Topbar() {
         console.error('Erro ao buscar notificações de pedidos', e)
       }
 
-      // 2. Contas Fixas
-      mockContasFixas.forEach((cf, i) => {
-        if (cf.situacao !== 'Em aberto' && cf.situacao !== 'Atrasada') return
-        if (!cf.vencimento) return
+      // 2. Contas Fixas (apenas admin)
+      if (isAdmin) {
+        mockContasFixas.forEach((cf, i) => {
+          if (cf.situacao !== 'Em aberto' && cf.situacao !== 'Atrasada') return
+          if (!cf.vencimento) return
 
-        const [d, m, y] = cf.vencimento.split('/').map(Number)
-        if (!y) return
-        const venc = new Date(y, m - 1, d)
-        venc.setHours(0, 0, 0, 0)
-        const diffDays = Math.round((venc.getTime() - todayMs) / (1000 * 60 * 60 * 24))
-        
-        let type = ''
-        let time = ''
-        let title = ''
-        
-        if (diffDays < 0 || cf.situacao === 'Atrasada') {
-           type = 'danger'
-           time = `${Math.abs(diffDays)} dias em atraso`
-           title = 'Conta Fixa Atrasada'
-        } else if (diffDays === 0) {
-           type = 'warning'
-           time = 'Vence Hoje!'
-           title = 'Conta Fixa (Vence Hoje)'
-        } else if (diffDays > 0 && diffDays <= 3) {
-           type = 'info'
-           time = `Vence em ${diffDays} dias`
-           title = 'Aviso de Conta Fixa'
-        } else return
-
-        notifsArr.push({
-           id: `fixa-${cf.id || i}`,
-           type,
-           title,
-           desc: `${cf.descricao} - R$ ${cf.valor.toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
-           time,
-           read: false
-        })
-      })
-
-      // 3. Contas Variáveis
-      try {
-        const transVars = await fetchTransacoes()
-        transVars.filter(t => t.tipo === 'despesa' && t.situacao !== 'pago' && t.situacao !== 'cancelado').forEach((tv, i) => {
-          if (!tv.data_vencimento) return
-          const [y, m, d] = tv.data_vencimento.split('-').map(Number)
+          const [d, m, y] = cf.vencimento.split('/').map(Number)
+          if (!y) return
           const venc = new Date(y, m - 1, d)
           venc.setHours(0, 0, 0, 0)
           const diffDays = Math.round((venc.getTime() - todayMs) / (1000 * 60 * 60 * 24))
@@ -436,38 +399,77 @@ function Topbar() {
           let time = ''
           let title = ''
 
-          if (diffDays < 0 || tv.situacao === 'atrasado') {
-             type = 'danger'
-             time = diffDays < 0 ? `${Math.abs(diffDays)} dias em atraso` : 'Atrasada'
-             title = 'Custo Variável Atrasado'
+          if (diffDays < 0 || cf.situacao === 'Atrasada') {
+            type = 'danger'
+            time = `${Math.abs(diffDays)} dias em atraso`
+            title = 'Conta Fixa Atrasada'
           } else if (diffDays === 0) {
-             type = 'warning'
-             time = 'Vence Hoje!'
-             title = 'Custo Variável (Hoje)'
+            type = 'warning'
+            time = 'Vence Hoje!'
+            title = 'Conta Fixa (Vence Hoje)'
           } else if (diffDays > 0 && diffDays <= 3) {
-             type = 'info'
-             time = `Vence em ${diffDays} dias`
-             title = 'Aviso: Conta Variável'
+            type = 'info'
+            time = `Vence em ${diffDays} dias`
+            title = 'Aviso de Conta Fixa'
           } else return
 
           notifsArr.push({
-             id: `var-${tv.id || i}`,
-             type,
-             title,
-             desc: `${tv.descricao} - R$ ${Number(tv.valor_bruto || 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
-             time,
-             read: false
+            id: `fixa-${cf.id || i}`,
+            type,
+            title,
+            desc: `${cf.descricao} - R$ ${cf.valor.toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+            time,
+            read: false
           })
         })
-      } catch (e) {
-         console.error('Erro ao buscar notificações previsoras', e)
+
+        // 3. Contas Variáveis (apenas admin)
+        try {
+          const transVars = await fetchTransacoes()
+          transVars.filter(t => t.tipo === 'despesa' && t.situacao !== 'pago' && t.situacao !== 'cancelado').forEach((tv, i) => {
+            if (!tv.data_vencimento) return
+            const [y, m, d] = tv.data_vencimento.split('-').map(Number)
+            const venc = new Date(y, m - 1, d)
+            venc.setHours(0, 0, 0, 0)
+            const diffDays = Math.round((venc.getTime() - todayMs) / (1000 * 60 * 60 * 24))
+
+            let type = ''
+            let time = ''
+            let title = ''
+
+            if (diffDays < 0 || tv.situacao === 'atrasado') {
+              type = 'danger'
+              time = diffDays < 0 ? `${Math.abs(diffDays)} dias em atraso` : 'Atrasada'
+              title = 'Custo Variável Atrasado'
+            } else if (diffDays === 0) {
+              type = 'warning'
+              time = 'Vence Hoje!'
+              title = 'Custo Variável (Hoje)'
+            } else if (diffDays > 0 && diffDays <= 3) {
+              type = 'info'
+              time = `Vence em ${diffDays} dias`
+              title = 'Aviso: Conta Variável'
+            } else return
+
+            notifsArr.push({
+              id: `var-${tv.id || i}`,
+              type,
+              title,
+              desc: `${tv.descricao} - R$ ${Number(tv.valor_bruto || 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+              time,
+              read: false
+            })
+          })
+        } catch (e) {
+          console.error('Erro ao buscar notificações previsoras', e)
+        }
       }
 
       setNotifs(notifsArr)
     }
 
     loadNotifications()
-  }, [])
+  }, [isAdmin])
 
   const unread = notifs.filter(n => !n.read).length
 
