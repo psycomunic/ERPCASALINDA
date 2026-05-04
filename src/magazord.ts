@@ -210,9 +210,10 @@ async function mzFetch<T>(path: string, options?: RequestInit): Promise<T> {
 // ─── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Busca pedidos aprovados/em-produção (situações 4, 5, 6 e 23).
- * Inclui situação 6 (Nota Fiscal Emitida) para que pedidos faturados
- * antes da confirmação no kanban não sumam da coluna Novos Pedidos.
+ * Busca pedidos que precisam ser produzidos (situações 4, 5, 6, 7 e 23).
+ * Inclui situação 7 (Transporte) pois ao faturar na Magazord o pedido vai
+ * direto para "Em Transporte" antes mesmo de ser produzido.
+ * A deduplicação no kanban garante que pedidos já confirmados não duplicam.
  * Retorna mock se as credenciais não estiverem configuradas.
  */
 export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
@@ -233,9 +234,9 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
       `/site/pedido?dataPedidoInicial=${dataInicial}&limit=100&order=id&orderDirection=desc`
     )
     
-    // 4=Aprovado (Pago), 5=Aprovado Integrado, 6=Nota Fiscal Emitida, 23=Faturamento Iniciado
-    // Incluímos 6 para que pedidos faturados antes de confirmação no kanban não desapareçam
-    const allowedSituations = [4, 5, 6, 23]
+    // 4=Aprovado, 5=Aprovado e Integrado, 6=Nota Fiscal Emitida,
+    // 7=Transporte (faturado antes da produção), 23=Faturamento Iniciado
+    const allowedSituations = [4, 5, 6, 7, 23]
     const items = json?.data?.items ?? []
     
     const results: MagazordOrder[] = items
