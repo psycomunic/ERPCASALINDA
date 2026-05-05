@@ -337,6 +337,135 @@ ${order.obs ? `<div class="section"><div class="section-title">Observações</di
   if (w) { w.document.write(html); w.document.close() }
 }
 
+// ─── Print PDF Fornecedor (Tapetes) ───────────────────────────────────────────
+
+function printFornecedorPDF(orders: LVOrder[]) {
+  const now = new Date().toLocaleString('pt-BR')
+  const pedidoNum = orders[0]?.id?.slice(-8) ?? '000000'
+  const fornecedor = orders[0]?.nomeFornecedor || orders[0]?.transportadora || '—'
+
+  const rows = orders.map(o => {
+    const foto = o.fotoUrl
+      ? `<img src="${o.fotoUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />`
+      : `<div style="width:64px;height:64px;border-radius:6px;background:#f3f4f6;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-size:22px;">🏠</div>`
+    const total = o.valor ? `R$ ${(o.valor * (o.quantidade ?? 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'
+    return `
+      <tr>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">${foto}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;">
+          <div style="font-size:13px;font-weight:700;color:#111827;">${o.produto}</div>
+          ${o.nomeFornecedor ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;">Ref: ${o.nomeFornecedor}</div>` : ''}
+          ${o.codigoFornecedor ? `<div style="font-size:10px;font-family:monospace;color:#2563eb;">${o.codigoFornecedor}</div>` : ''}
+        </td>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
+          <span style="font-size:12px;font-weight:600;color:#374151;">${o.cor || '—'}</span>
+        </td>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
+          <span style="font-size:12px;font-weight:700;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:6px;border:1px solid #fde68a;">${o.tamanho || '—'}</span>
+        </td>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
+          <span style="font-size:16px;font-weight:900;color:#111827;">${o.quantidade ?? 1}</span>
+        </td>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
+          ${o.valor ? `<div style="font-size:11px;color:#6b7280;">Unit: R$ ${o.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>` : ''}
+          <div style="font-size:12px;font-weight:700;color:#059669;">${total}</div>
+        </td>
+        <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
+          ${o.obs ? `<div style="font-size:10px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:4px 6px;">${o.obs}</div>` : '<span style="color:#d1d5db;font-size:11px;">—</span>'}
+        </td>
+      </tr>`
+  }).join('')
+
+  const totalGeral = orders.reduce((sum, o) => sum + (o.valor ?? 0) * (o.quantidade ?? 1), 0)
+  const totalItens = orders.reduce((sum, o) => sum + (o.quantidade ?? 1), 0)
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Pedido ao Fornecedor — Lar e Vida</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #111; background: #fff; padding: 28px; font-size: 13px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #d97706; padding-bottom: 16px; margin-bottom: 20px; }
+.logo h1 { font-size: 24px; font-weight: 900; color: #d97706; letter-spacing: -0.5px; }
+.logo p { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #9ca3af; margin-top: 2px; }
+.meta { text-align: right; }
+.meta .num { font-size: 20px; font-weight: 900; color: #1e293b; }
+.meta .dt { font-size: 10px; color: #9ca3af; margin-top: 3px; }
+.info-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+.info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+.info-box label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #9ca3af; display: block; margin-bottom: 4px; }
+.info-box span { font-size: 13px; font-weight: 700; color: #111827; }
+.supplier-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+.supplier-box .label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #3b82f6; margin-bottom: 3px; }
+.supplier-box .name { font-size: 16px; font-weight: 900; color: #1e40af; }
+table { width: 100%; border-collapse: collapse; }
+thead th { background: #1e293b; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; padding: 10px 8px; text-align: center; }
+thead th:nth-child(2) { text-align: left; }
+tbody tr:nth-child(even) { background: #f9fafb; }
+.totals { margin-top: 0; border-top: 2px solid #e5e7eb; }
+.totals td { padding: 12px 8px; font-size: 12px; }
+.totals .sum-label { font-weight: 700; color: #374151; text-align: right; }
+.totals .sum-val { font-weight: 900; color: #059669; font-size: 15px; text-align: center; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 28px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+.sig { text-align: center; }
+.sig .line { border-bottom: 1px solid #374151; height: 40px; margin-bottom: 6px; }
+.sig .lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; }
+.footer { margin-top: 20px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+.badge-tapete { display: inline-block; background: #d97706; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; }
+@media print { body { padding: 0; } @page { margin: 16mm; size: A4; } }
+</style></head><body>
+<div class="header">
+  <div class="logo"><h1>Lar e Vida <span class="badge-tapete">Tapetes</span></h1><p>Pedido ao Fornecedor</p></div>
+  <div class="meta"><div class="num">PED #${pedidoNum}</div><div class="dt">Emitido em ${now}</div></div>
+</div>
+
+<div class="supplier-box">
+  <div style="font-size:28px;">🏭</div>
+  <div>
+    <div class="label">Fornecedor</div>
+    <div class="name">${fornecedor}</div>
+  </div>
+</div>
+
+<div class="info-strip">
+  <div class="info-box"><label>Total de Itens</label><span>${orders.length} tapete${orders.length !== 1 ? 's' : ''}</span></div>
+  <div class="info-box"><label>Quantidade Total</label><span>${totalItens} unid.</span></div>
+  <div class="info-box"><label>Data do Pedido</label><span>${new Date().toLocaleDateString('pt-BR')}</span></div>
+  <div class="info-box" style="${totalGeral > 0 ? 'background:#f0fdf4;border-color:#bbf7d0;' : ''}">
+    <label>Valor Total</label>
+    <span style="color:#059669;">${totalGeral > 0 ? 'R$ ' + totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</span>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:80px;">Foto</th>
+      <th style="text-align:left;">Nome / Ref. Fornecedor</th>
+      <th>Desenho / Cor</th>
+      <th>Tamanho</th>
+      <th>Qtd.</th>
+      <th>Valor</th>
+      <th>Obs.</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+  ${totalGeral > 0 ? `<tr class="totals"><td colspan="4" class="sum-label">TOTAL GERAL</td><td class="sum-val">${totalItens}</td><td class="sum-val">R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td><td></td></tr>` : ''}
+</table>
+
+<div class="signatures">
+  <div class="sig"><div class="line"></div><div class="lbl">Comprador / Responsável</div></div>
+  <div class="sig"><div class="line"></div><div class="lbl">Aprovação Gerência</div></div>
+  <div class="sig"><div class="line"></div><div class="lbl">Confirmação Fornecedor</div></div>
+</div>
+<div class="footer">Lar e Vida Decorações · Pedido gerado em ${now}</div>
+<script>window.onload = () => { window.print(); }</script>
+</body></html>`
+
+  const w = window.open('', '_blank', 'width=900,height=1200')
+  if (w) { w.document.write(html); w.document.close() }
+}
+
 // ─── Conferência de Recebimento (Cama / Crossdocking) ────────────────────────
 
 function inferDesenho(sku: string): string {
@@ -785,6 +914,15 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
             <p className="text-xs text-gray-400 mt-0.5">Etapa: <strong className="text-gray-700">{stage}</strong></p>
           </div>
           <div className="flex items-center gap-2">
+            {initialOrder.categoria === 'Tapete' && (
+              <button
+                onClick={() => printFornecedorPDF([initialOrder])}
+                title="PDF para Fornecedor"
+                className="p-1.5 border border-blue-200 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-all text-[10px] font-bold flex items-center gap-1 px-2"
+              >
+                🏠 PDF
+              </button>
+            )}
             <button onClick={() => printOS(initialOrder, stage)} title="Imprimir O.S."
               className="p-1.5 border border-gray-200 rounded-lg text-gray-500 hover:text-amber-700 hover:bg-amber-50 transition-all"
             >
@@ -1265,6 +1403,229 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
   )
 }
 
+// ─── Tapete Order Modal ───────────────────────────────────────────────────────
+
+const TAMANHOS_RAPIDOS = [
+  '1,30 × 2,00', '1,40 × 2,00',
+  '1,90 × 2,50', '2,00 × 2,50',
+  '2,40 × 3,00',
+  '2,40 × 3,50', '2,50 × 3,50',
+  '2,90 × 4,00', '3,00 × 4,00',
+  '3,50 × 4,50',
+  '2,90 × 5,00', '3,00 × 5,00',
+]
+// Coleções — Linha RIOS
+const COLECOES_RIOS = [
+  'ARNO', 'TEJO', 'TÂMISA', 'CONGO', 'GANGES', 'TAPAJÓS', 'RENO',
+  'DANÚBIO', 'TEVERE', 'XINGÚ', 'AMUR', 'NILO', 'LENA', 'TEFÊ',
+  'MADEIRA', 'JAPURÁ', 'TIÊTE', 'SENA', 'SÃO FRANCISCO', 'PARANÁ',
+  'MISSISSIPI', 'EUFRATES', 'TIGRE', 'JURUÁ',
+]
+// Coleções — Linha LAGOS (Tellaio)
+const COLECOES_LAGOS = [
+  'NAKURU', 'GUAÍBA', 'FALKNER', 'ONEGA', 'BATUR',
+  'VENER', 'TITICACA', 'LADDOGA', 'HILLIER', 'BENXI',
+  'TORRENS', 'CÁSPIO', 'TAAL', 'VITÓRIA', 'NIASSA',
+]
+
+const COLECOES_TODAS = [
+  ...COLECOES_RIOS,
+  ...COLECOES_LAGOS,
+]
+
+function TapeteOrderModal({ onClose, onSave }: {
+  onClose: () => void
+  onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => void
+}) {
+  const [form, setForm] = useState({
+    produto: '', nomeFornecedor: '', codigoFornecedor: '',
+    tamanho: '', cor: '', fotoUrl: '',
+    quantidade: 1, valor: '', obs: '',
+    transportadora: '', // usado como nome do fornecedor principal
+  })
+  const [customTamanho, setCustomTamanho] = useState(false)
+  const set = (f: string, v: any) => setForm(p => ({ ...p, [f]: v }))
+
+  const buildOrder = (): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
+    cliente: 'PEDIDO FORNECEDOR',
+    produto: form.produto,
+    categoria: 'Tapete',
+    tamanho: form.tamanho || undefined,
+    cor: form.cor || undefined,
+    fotoUrl: form.fotoUrl || undefined,
+    nomeFornecedor: form.nomeFornecedor || undefined,
+    codigoFornecedor: form.codigoFornecedor || undefined,
+    quantidade: form.quantidade,
+    valor: form.valor ? parseFloat(form.valor) : undefined,
+    obs: form.obs || undefined,
+    transportadora: form.transportadora || undefined,
+    canal: 'WhatsApp',
+    tipoPedido: 'crossdocking',
+  })
+
+  const canSave = form.produto.trim().length > 0
+
+  return (
+    <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="modal" style={{ maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>🏠</div>
+            <div>
+              <h3 className="font-bold text-gray-900">Pedido de Tapete ao Fornecedor</h3>
+              <p className="text-xs text-gray-400">Preencha e salve no Kanban ou imprima o PDF</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Foto */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📷 Foto / Miniatura do Tapete</p>
+            <PhotoZone value={form.fotoUrl} onChange={v => set('fotoUrl', v)} />
+          </div>
+
+          {/* Nome */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🏠 Nome do Tapete</p>
+            <input className="input" placeholder="Ex: Tapete Egípcio Lumière Luxo *" value={form.produto} onChange={e => set('produto', e.target.value)} />
+          </div>
+
+          {/* Tamanho */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📐 Tamanho</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {TAMANHOS_RAPIDOS.map(t => (
+                <button key={t} type="button"
+                  onClick={() => { set('tamanho', t); setCustomTamanho(false) }}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${form.tamanho === t && !customTamanho ? 'text-white border-amber-600' : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'}`}
+                  style={form.tamanho === t && !customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+                >{t}</button>
+              ))}
+              <button type="button"
+                onClick={() => { setCustomTamanho(true); set('tamanho', '') }}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${customTamanho ? 'text-white border-amber-600' : 'border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'}`}
+                style={customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+              >+ Outro</button>
+            </div>
+            {customTamanho && (
+              <input className="input" placeholder="Ex: 1,20 × 1,70m" value={form.tamanho} onChange={e => set('tamanho', e.target.value)} autoFocus />
+            )}
+          </div>
+
+          {/* Desenho / Coleção */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🎨 Coleção (Desenho)</p>
+            {/* Linha RIOS */}
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">— Linha RIOS</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {COLECOES_RIOS.map(d => (
+                <button key={d} type="button"
+                  onClick={() => set('cor', d)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${form.cor === d ? 'text-white border-amber-600' : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'}`}
+                  style={form.cor === d ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+                >{d}</button>
+              ))}
+            </div>
+            {/* Linha LAGOS — será preenchida */}
+            {COLECOES_LAGOS.length > 0 && (
+              <>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 mt-2">— Linha LAGOS</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {COLECOES_LAGOS.map(d => (
+                    <button key={d} type="button"
+                      onClick={() => set('cor', d)}
+                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${form.cor === d ? 'text-white border-blue-600' : 'border-gray-200 text-gray-600 bg-white hover:border-blue-300 hover:text-blue-700'}`}
+                      style={form.cor === d ? { background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)' } : {}}
+                    >{d}</button>
+                  ))}
+                </div>
+              </>
+            )}
+            <input className="input mt-1" placeholder="Ou digite o nome da coleção manualmente..." value={form.cor} onChange={e => set('cor', e.target.value)} />
+          </div>
+
+
+          {/* Fornecedor */}
+          <div className="border border-blue-100 rounded-xl p-4 space-y-3" style={{ background: '#eff6ff' }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#1d4ed8' }}>🏭 Dados do Fornecedor</p>
+            <input className="input" placeholder="Nome do fornecedor (ex: Tapetes Egipcios Ltda)" value={form.transportadora} onChange={e => set('transportadora', e.target.value)} />
+            <div className="grid grid-cols-2 gap-2">
+              <input className="input" placeholder="Nome/ref no fornecedor" value={form.nomeFornecedor} onChange={e => set('nomeFornecedor', e.target.value)} />
+              <input className="input font-mono" placeholder="Código (SKU fornecedor)" value={form.codigoFornecedor} onChange={e => set('codigoFornecedor', e.target.value)} />
+            </div>
+          </div>
+
+          {/* Quantidade e valor */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">💰 Quantidade e Valor</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => set('quantidade', Math.max(1, form.quantidade - 1))}
+                    className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg">−</button>
+                  <span className="flex-1 text-center text-lg font-black text-gray-900">{form.quantidade}</span>
+                  <button type="button" onClick={() => set('quantidade', form.quantidade + 1)}
+                    className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg">+</button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Preço unitário (R$)</label>
+                <input className="input" placeholder="0,00" value={form.valor} onChange={e => set('valor', e.target.value)} type="number" min={0} step={0.01} />
+              </div>
+            </div>
+            {form.valor && parseFloat(form.valor) > 0 && (
+              <div className="mt-2 text-right text-xs text-gray-500">
+                Total: <span className="font-bold text-emerald-600">R$ {(parseFloat(form.valor) * form.quantidade).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Obs */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Observações para o fornecedor</label>
+            <textarea className="input resize-none" rows={2} placeholder="Ex: Urgente — entregar até 10/06. Embalagem reforçada." value={form.obs} onChange={e => set('obs', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 p-4 space-y-2">
+          {/* Print button */}
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={() => printFornecedorPDF([{ ...buildOrder(), id: 'PREV', data: '', hora: '', status: 'Pendente' }])}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-amber-300 text-amber-700 text-sm font-semibold hover:bg-amber-50 transition-colors disabled:opacity-40"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Imprimir PDF (sem salvar)
+          </button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+            <button
+              disabled={!canSave}
+              onClick={() => { onSave(buildOrder()); onClose() }}
+              className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
+              style={{ background: canSave ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
+            >
+              <Check size={16} /> Salvar no Kanban
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Ready Modal ──────────────────────────────────────────────────────────────
 
 function ReadyModal({ order, onClose, onConfirm }: {
@@ -1473,6 +1834,7 @@ export default function ProductionLV() {
   const [board, setBoard]               = useState<Record<Stage, LVOrder[]>>(INITIAL)
   const [dragging, setDragging]         = useState<{ order: LVOrder; from: Stage } | null>(null)
   const [newModal, setNewModal]         = useState(false)
+  const [tapeteModal, setTapeteModal]   = useState(false)
   const [detail, setDetail]             = useState<{ order: LVOrder; stage: Stage } | null>(null)
   const [readyModal, setReadyModal]     = useState<LVOrder | null>(null)
   const [dispatchModal, setDispatchModal] = useState<LVOrder | null>(null)
@@ -1777,6 +2139,9 @@ export default function ProductionLV() {
           <button onClick={() => setNewModal(true)} className="hidden md:inline-flex btn-primary shrink-0" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
             <Plus size={15} /> Novo Pedido
           </button>
+          <button onClick={() => setTapeteModal(true)} className="hidden md:inline-flex btn-primary shrink-0" style={{ background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' }}>
+            🏠 Pedido Tapete
+          </button>
         </div>
       </div>
 
@@ -1981,6 +2346,7 @@ export default function ProductionLV() {
 
       <AnimatePresence>
         {newModal && <NewOrderModal onClose={() => setNewModal(false)} onSave={handleNewOrder} />}
+        {tapeteModal && <TapeteOrderModal onClose={() => setTapeteModal(false)} onSave={handleNewOrder} />}
         {detail && (
           <DetailModal
             order={detail.order} stage={detail.stage}

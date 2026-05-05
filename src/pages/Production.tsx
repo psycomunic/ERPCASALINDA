@@ -471,8 +471,8 @@ function printOS(order: Order, stage: Stage) {
   if (w) { w.document.write(html); w.document.close() }
 }
 
-function DetailModal({ order: initialOrder, stage, onClose, onConclude }: {
-  order: Order; stage: Stage; onClose: () => void; onConclude: () => void
+function DetailModal({ order: initialOrder, stage, onClose, onConclude, onDelete }: {
+  order: Order; stage: Stage; onClose: () => void; onConclude: () => void; onDelete: () => void
 }) {
   const [order, setOrder] = useState<Order>(initialOrder)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -3100,6 +3100,7 @@ export default function Production() {
             stage={detail.stage}
             onClose={() => setDetail(null)}
             onConclude={() => conclude(detail.stage, detail.order.id)}
+            onDelete={() => { deleteOrder(detail.order, detail.stage); setDetail(null) }}
           />
         )}
         {readyModal && (
