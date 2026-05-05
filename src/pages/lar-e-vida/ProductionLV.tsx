@@ -1546,12 +1546,14 @@ function TapeteOrderModal({ onClose, onSave }: {
     tamanho: '', cor: '', fotoUrl: '',
     quantidade: 1, valor: '', obs: '',
     transportadora: '', // usado como nome do fornecedor principal
+    confirmacaoFornecedorUrl: '',
   })
+  const [tipoDestino, setTipoDestino] = useState<'cliente' | 'estoque'>('cliente')
   const [customTamanho, setCustomTamanho] = useState(false)
   const set = (f: string, v: any) => setForm(p => ({ ...p, [f]: v }))
 
   const buildOrder = (): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
-    cliente: 'PEDIDO FORNECEDOR',
+    cliente: tipoDestino === 'estoque' ? 'COMPRA ESTOQUE' : 'PEDIDO FORNECEDOR',
     produto: form.produto,
     categoria: 'Tapete',
     tamanho: form.tamanho || undefined,
@@ -1564,7 +1566,8 @@ function TapeteOrderModal({ onClose, onSave }: {
     obs: form.obs || undefined,
     transportadora: form.transportadora || undefined,
     canal: 'WhatsApp',
-    tipoPedido: 'crossdocking',
+    tipoPedido: tipoDestino === 'estoque' ? 'estoque' : 'crossdocking',
+    confirmacaoFornecedorUrl: form.confirmacaoFornecedorUrl || undefined,
   })
 
   const canSave = form.produto.trim().length > 0
@@ -1581,13 +1584,36 @@ function TapeteOrderModal({ onClose, onSave }: {
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>🏠</div>
             <div>
               <h3 className="font-bold text-gray-900">Pedido de Tapete ao Fornecedor</h3>
-              <p className="text-xs text-gray-400">Preencha e salve no Kanban ou imprima o PDF</p>
+              <p className="text-xs text-gray-400">
+                {tipoDestino === 'estoque' ? 'Compra para estoque — vai para prateleira' : 'Preencha e salve no Kanban ou imprima o PDF'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Toggle: Destino do pedido */}
+          <div className="rounded-xl overflow-hidden border border-gray-200 flex">
+            <button type="button" onClick={() => setTipoDestino('cliente')}
+              className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${tipoDestino === 'cliente' ? 'text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              style={tipoDestino === 'cliente' ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+            >🛒 Para Cliente</button>
+            <button type="button" onClick={() => setTipoDestino('estoque')}
+              className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-l border-gray-200 transition-all ${tipoDestino === 'estoque' ? 'text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              style={tipoDestino === 'estoque' ? { background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' } : {}}
+            >🗄️ Para Estoque</button>
+          </div>
+
+          {/* Confirmação do fornecedor — só para estoque */}
+          {tipoDestino === 'estoque' && (
+            <div className="rounded-xl border border-blue-200 p-3 space-y-2" style={{ background: '#f0f9ff' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#0369a1' }}>📎 Confirmação do Fornecedor</p>
+              <p className="text-[10px] text-blue-500">Anexe o PDF ou print do email de confirmação recebido</p>
+              <ConfirmacaoZone value={form.confirmacaoFornecedorUrl} onChange={v => set('confirmacaoFornecedorUrl', v)} />
+            </div>
+          )}
+
           {/* Foto */}
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📷 Foto / Miniatura do Tapete</p>
@@ -1932,7 +1958,7 @@ function CarrierAccordion({ carrier, orders, stage, critical, setDragging, setDe
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-type ViewMode = 'kanban' | 'delivery'
+type ViewMode = 'kanban' | 'delivery' | 'estoque'
 
 export default function ProductionLV() {
   const [board, setBoard]               = useState<Record<Stage, LVOrder[]>>(INITIAL)
@@ -2004,6 +2030,12 @@ export default function ProductionLV() {
         itensCama: (p as any).itens_cama ? (p as any).itens_cama as LVOrder['itensCama'] : undefined,
         conferenciaItens: (p as any).conferencia_cama ? (p as any).conferencia_cama as LVOrder['conferenciaItens'] : undefined,
         imagensDesenho: (p as any).imagens_desenho ? (p as any).imagens_desenho as LVOrder['imagensDesenho'] : undefined,
+        // Campos de estoque
+        confirmacaoFornecedorUrl: (p as any).confirmacao_fornecedor_url || undefined,
+        localizacaoPrateleira: (p as any).localizacao_prateleira || undefined,
+        dataEntradaEstoque: (p as any).data_entrada_estoque ? new Date((p as any).data_entrada_estoque).toLocaleDateString('pt-BR') : undefined,
+        disponivelSite: (p as any).disponivel_site ?? false,
+        dataPublicacaoSite: (p as any).data_publicacao_site ? new Date((p as any).data_publicacao_site).toLocaleDateString('pt-BR') : undefined,
       })
     })
 
@@ -2079,6 +2111,10 @@ export default function ProductionLV() {
     if ('quantidade' in updates) payload.quantidade = updates.quantidade || null
     if ('conferenciaItens' in updates) (payload as any).conferencia_cama = updates.conferenciaItens ?? null
     if ('imagensDesenho' in updates) (payload as any).imagens_desenho = updates.imagensDesenho ?? null
+    // campos de estoque
+    if ('confirmacaoFornecedorUrl' in updates) (payload as any).confirmacao_fornecedor_url = updates.confirmacaoFornecedorUrl || null
+    if ('localizacaoPrateleira' in updates) (payload as any).localizacao_prateleira = updates.localizacaoPrateleira || null
+    if ('disponivelSite' in updates) (payload as any).disponivel_site = updates.disponivelSite ?? false
 
     const success = await updatePedidoLV(id, payload)
     if (success) { await loadOrders(); showToast('Pedido atualizado!') }
@@ -2099,8 +2135,31 @@ export default function ProductionLV() {
   // ── Advance stage ──
   const conclude = (stage: Stage, id: string) => {
     const order = board[stage].find(o => o.id === id)!
+    // Estoque: ao concluir Recebido, vai para Em Prateleira (e não Embalagem)
+    if (stage === 'Recebido' && order.tipoPedido === 'estoque') {
+      setBoard(prev => ({
+        ...prev,
+        'Recebido': prev['Recebido'].filter(o => o.id !== id),
+        'Em Prateleira': [...prev['Em Prateleira'], { ...order, status: 'OK' as const }],
+      }))
+      marcarEntradaEstoque(id, order.localizacaoPrateleira || '')
+      showToast('Tapete movido para "Em Prateleira"!')
+      return
+    }
     if (stage === 'Embalagem') { setReadyModal(order); return }
     if (stage === 'Pronto para Envio') { setDispatchModal(order); return }
+    if (stage === 'Em Prateleira') {
+      setBoard(prev => ({
+        ...prev,
+        'Em Prateleira': prev['Em Prateleira'].filter(o => o.id !== id),
+        'Disponível no Site': [...prev['Disponível no Site'], { ...order, disponivelSite: true, status: 'OK' as const }],
+      }))
+      marcarDisponivelSite(id)
+      showToast('Tapete marcado como "Disponível no Site"!')
+      return
+    }
+    // Pedidos de estoque não avançam além de 'Disponível no Site'
+    if (stage === 'Disponível no Site') { showToast('Tapete já está disponível no site! ✓'); return }
     const idx = ALL_STAGES.indexOf(stage)
     const next = ALL_STAGES[idx + 1]
     setBoard(prev => ({
@@ -2220,6 +2279,10 @@ export default function ProductionLV() {
               {totalProntos > 0 && (
                 <span className={`ml-0.5 w-3.5 h-3.5 md:w-4 md:h-4 rounded-full text-[8.5px] md:text-[9px] font-bold flex items-center justify-center ${view === 'delivery' ? 'bg-yellow-400 text-gray-900' : 'bg-yellow-500 text-white'}`}>{totalProntos}</span>
               )}
+            </button>
+            <button onClick={() => setView('estoque')} className={`px-2 md:px-3 py-1.5 text-[11px] md:text-xs font-medium transition-colors flex items-center gap-1.5 relative ${view === 'estoque' ? 'text-white' : 'text-gray-600 hover:bg-gray-50'}`} style={view === 'estoque' ? { background: '#0369a1' } : {}}>
+              🗄️ Estoque
+              {(() => { const n = (board['Em Prateleira']?.length ?? 0) + (board['Disponível no Site']?.length ?? 0); return n > 0 ? <span className={`ml-0.5 w-3.5 h-3.5 md:w-4 md:h-4 rounded-full text-[8.5px] md:text-[9px] font-bold flex items-center justify-center ${view === 'estoque' ? 'bg-cyan-300 text-gray-900' : 'bg-cyan-500 text-white'}`}>{n}</span> : null })()}
             </button>
           </div>
 
@@ -2436,6 +2499,89 @@ export default function ProductionLV() {
                   ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ESTOQUE VIEW ── */}
+      {view === 'estoque' && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Summary bar */}
+          <div className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2">
+            {[
+              { label: 'Em Trânsito', value: (board['Novos Pedidos'].filter(o => o.tipoPedido === 'estoque').length + board['Pedido ao Fornecedor'].filter(o => o.tipoPedido === 'estoque').length + board['Aguardando Chegada'].filter(o => o.tipoPedido === 'estoque').length), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', dot: 'bg-blue-500' },
+              { label: 'Em Prateleira', value: board['Em Prateleira'].length, color: 'text-cyan-700', bg: 'bg-cyan-50 border-cyan-200', dot: 'bg-cyan-500' },
+              { label: 'No Site', value: board['Disponível no Site'].length, color: 'text-green-700', bg: 'bg-green-50 border-green-200', dot: 'bg-green-500' },
+            ].map(s => (
+              <div key={s.label} className={`rounded-xl border p-3 ${s.bg}`}>
+                <div className="flex items-center gap-2 mb-1"><span className={`w-2 h-2 rounded-full ${s.dot}`} /><span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{s.label}</span></div>
+                <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Kanban estoque */}
+          <div className="flex gap-4 overflow-x-auto flex-1 px-4 pb-4">
+            {(ESTOQUE_FLOW as Stage[]).map(stage => {
+              const orders = board[stage].filter(o => o.tipoPedido === 'estoque')
+              const isEstoqueOnly = stage === 'Em Prateleira' || stage === 'Disponível no Site'
+              return (
+                <div key={stage} className={`flex-shrink-0 w-72 rounded-xl flex flex-col ${STAGE_BG[stage] ?? 'bg-gray-100 border border-gray-200'}`}>
+                  <div className="flex items-center gap-2 px-3 py-3">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STAGE_DOT[stage]}`} />
+                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex-1">{stage}</span>
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${isEstoqueOnly ? 'bg-cyan-100 text-cyan-800' : 'bg-gray-200 text-gray-700'}`}>{orders.length}</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2">
+                    {orders.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+                        <span className="text-3xl mb-1">{STAGE_ICON[stage]}</span>
+                        <p className="text-[10px]">Nenhum tapete aqui</p>
+                      </div>
+                    )}
+                    {orders.map(order => (
+                      <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => setDetail({ order, stage })}
+                      >
+                        {order.fotoUrl && <img src={order.fotoUrl} alt="" className="w-full h-20 object-cover" />}
+                        <div className="p-2.5">
+                          <p className="text-xs font-bold text-gray-900 truncate">{order.produto}</p>
+                          {order.cor && <p className="text-[10px] text-blue-600 font-semibold">{order.cor}</p>}
+                          {order.tamanho && <span className="inline-block mt-1 text-[9px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">{order.tamanho}</span>}
+                          {order.transportadora && <p className="text-[10px] text-gray-500 mt-1">🏭 {order.transportadora}</p>}
+                          {/* Localização */}
+                          {order.localizacaoPrateleira && (
+                            <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-md px-1.5 py-0.5">
+                              🗄️ {order.localizacaoPrateleira}
+                            </div>
+                          )}
+                          {/* Confirmação do fornecedor */}
+                          {order.confirmacaoFornecedorUrl && (
+                            <a href={order.confirmacaoFornecedorUrl} target="_blank" rel="noopener noreferrer"
+                              className="mt-1.5 flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
+                              onClick={e => e.stopPropagation()}
+                            >📎 Confirmação</a>
+                          )}
+                          {/* Badge "No Site" */}
+                          {order.disponivelSite && (
+                            <div className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                              🌐 No Site
+                            </div>
+                          )}
+                          {/* Action button */}
+                          {stage !== 'Disponível no Site' && (
+                            <button onClick={e => { e.stopPropagation(); conclude(stage, order.id) }}
+                              className="mt-2 w-full text-[10px] font-bold text-white py-1.5 rounded-lg transition-colors"
+                              style={{ background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' }}
+                            >Avançar →</button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
