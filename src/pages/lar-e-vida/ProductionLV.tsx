@@ -15,7 +15,9 @@ import { CARRIERS_BY_TYPE } from '../../carriers'
 import {
   fetchPedidosLV, createPedidoLV, updatePedidoLV, deletePedidoLV,
   despacharPedidoLV, movePedidoLVEtapa,
-  uploadFotoLV, fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
+  uploadFotoLV, uploadConfirmacaoFornecedor,
+  marcarEntradaEstoque, marcarDisponivelSite,
+  fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
 } from '../../services/pedidosLV'
 import type { HistoricoEntry } from '../../services/pedidosLV'
 
@@ -47,18 +49,26 @@ export interface LVOrder {
   prazoEntrega?: string
   valor?: number
   frete?: number
-  tipoPedido?: 'producao' | 'crossdocking'
+  tipoPedido?: 'producao' | 'crossdocking' | 'estoque'
   itensCama?: Array<{ sku: string; descricao: string; qtd: number }>
   conferenciaItens?: Array<{ sku: string; conferido: boolean; qtdConferida: number; obs?: string }>
-  imagensDesenho?: Record<string, string> // { 'D01': 'url...', 'D02': 'url...' }
+  imagensDesenho?: Record<string, string>
+  // ── Campos de Estoque ────────────────────────────────────
+  confirmacaoFornecedorUrl?: string
+  localizacaoPrateleira?: string
+  dataEntradaEstoque?: string
+  disponivelSite?: boolean
+  dataPublicacaoSite?: string
 }
 
 type KanbanStage = 'Novos Pedidos' | 'Pedido ao Fornecedor' | 'Aguardando Chegada' | 'Recebido' | 'Embalagem'
 type DeliveryStage = 'Pronto para Envio' | 'Despachados'
-type Stage = KanbanStage | DeliveryStage
+type EstoqueStage = 'Em Prateleira' | 'Disponível no Site'
+type Stage = KanbanStage | DeliveryStage | EstoqueStage
 
 const KANBAN_STAGES: KanbanStage[] = ['Novos Pedidos', 'Pedido ao Fornecedor', 'Aguardando Chegada', 'Recebido', 'Embalagem']
-const ALL_STAGES: Stage[] = [...KANBAN_STAGES, 'Pronto para Envio', 'Despachados']
+const ESTOQUE_FLOW: Stage[] = ['Novos Pedidos', 'Pedido ao Fornecedor', 'Aguardando Chegada', 'Recebido', 'Em Prateleira', 'Disponível no Site']
+const ALL_STAGES: Stage[] = [...KANBAN_STAGES, 'Pronto para Envio', 'Despachados', 'Em Prateleira', 'Disponível no Site']
 
 const CATEGORIAS_LV = ['Tapete', 'Cortina', 'Almofada', 'Quadro', 'Cama', 'Outros']
 const CANAIS = ['Site', 'Mercado Livre', 'Shopee', 'Amazon', 'Magazine Luiza', 'WhatsApp', 'Balcão']
@@ -76,12 +86,16 @@ const STAGE_DOT: Record<Stage, string> = {
   'Embalagem':            'bg-gray-500',
   'Pronto para Envio':    'bg-yellow-500',
   'Despachados':          'bg-emerald-500',
+  'Em Prateleira':        'bg-cyan-500',
+  'Disponível no Site':   'bg-green-500',
 }
 
 const STAGE_BG: Partial<Record<Stage, string>> = {
-  'Novos Pedidos':     'bg-amber-50 border border-amber-200',
-  'Pronto para Envio': 'bg-yellow-50 border border-yellow-200',
-  'Despachados':       'bg-emerald-50 border border-emerald-200',
+  'Novos Pedidos':      'bg-amber-50 border border-amber-200',
+  'Pronto para Envio':  'bg-yellow-50 border border-yellow-200',
+  'Despachados':        'bg-emerald-50 border border-emerald-200',
+  'Em Prateleira':      'bg-cyan-50 border border-cyan-200',
+  'Disponível no Site': 'bg-green-50 border border-green-200',
 }
 
 const CANAL_ICON: Record<string, string> = {
@@ -97,6 +111,8 @@ const STAGE_ICON: Record<Stage, string> = {
   'Embalagem':            '📦',
   'Pronto para Envio':    '📦',
   'Despachados':          '🚚',
+  'Em Prateleira':        '🗄️',
+  'Disponível no Site':   '🌐',
 }
 
 const INITIAL: Record<Stage, LVOrder[]> = Object.fromEntries(ALL_STAGES.map(s => [s, []])) as unknown as Record<Stage, LVOrder[]>
@@ -236,6 +252,94 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
         )}
       </AnimatePresence>
     </>
+  )
+}
+
+// ─── Confirmação do Fornecedor ────────────────────────────────────────────────
+
+function ConfirmacaoZone({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const isPdf = value.toLowerCase().includes('.pdf') || value.toLowerCase().includes('pdf')
+
+  const handleFile = async (file: File) => {
+    setUploading(true)
+    const url = await uploadConfirmacaoFornecedor(file)
+    setUploading(false)
+    if (url) onChange(url)
+    else {
+      // fallback: base64
+      const r = new FileReader()
+      r.onload = e => onChange(e.target?.result as string)
+      r.readAsDataURL(file)
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) { const f = item.getAsFile(); if (f) { handleFile(f); return } }
+    }
+    const text = e.clipboardData?.getData('text')
+    if (text && (text.startsWith('http') || text.startsWith('data:'))) onChange(text)
+  }
+
+  if (value) {
+    return (
+      <div className="border-2 border-emerald-300 rounded-xl overflow-hidden bg-emerald-50">
+        <div className="flex items-center justify-between px-3 py-2 bg-emerald-100 border-b border-emerald-200">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-600">{isPdf ? '📄' : '🖼️'}</span>
+            <span className="text-xs font-bold text-emerald-800">Confirmação anexada ✓</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <a href={value} target="_blank" rel="noopener noreferrer"
+              className="text-[10px] font-semibold text-blue-600 hover:underline px-2 py-1 rounded bg-white border border-blue-200 hover:bg-blue-50 transition-colors">
+              Abrir ↗
+            </a>
+            <button onClick={() => onChange('')} className="text-[10px] font-semibold text-red-500 hover:text-red-700 px-2 py-1 rounded bg-white border border-red-200 hover:bg-red-50 transition-colors">
+              Remover
+            </button>
+          </div>
+        </div>
+        {!isPdf && (
+          <img src={value} alt="Confirmação fornecedor" className="w-full max-h-40 object-contain bg-white" />
+        )}
+        {isPdf && (
+          <div className="p-4 flex items-center gap-3">
+            <span className="text-3xl">📄</span>
+            <div>
+              <p className="text-sm font-bold text-emerald-800">PDF salvo com sucesso</p>
+              <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Clique para abrir o arquivo</a>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div onPaste={handlePaste}>
+      <button type="button" onClick={() => fileRef.current?.click()}
+        className="w-full rounded-xl border-2 border-dashed border-blue-300 p-4 flex flex-col items-center gap-2 text-blue-500 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
+      >
+        {uploading ? (
+          <><RefreshCw size={20} className="animate-spin text-blue-400" /><p className="text-xs font-semibold">Enviando arquivo...</p></>
+        ) : (
+          <>
+            <span className="text-2xl">📎</span>
+            <div className="text-center">
+              <p className="text-xs font-bold">Cole (Ctrl+V) ou clique para anexar</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">PDF, imagem ou screenshot do email do fornecedor</p>
+            </div>
+          </>
+        )}
+      </button>
+      <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+      />
+    </div>
   )
 }
 

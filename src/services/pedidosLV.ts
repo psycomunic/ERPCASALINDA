@@ -121,6 +121,53 @@ export async function uploadFotoLV(file: File | Blob): Promise<string | null> {
   return data.publicUrl
 }
 
+// ─── Upload de Confirmação do Fornecedor ──────────────────────────────────────
+//
+// PRÉ-REQUISITO: criar bucket "confirmacoes-fornecedor" no Supabase Dashboard
+//   Storage → New Bucket → Name: confirmacoes-fornecedor → Public: ON → Save
+//
+export async function uploadConfirmacaoFornecedor(file: File | Blob): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null
+  const ext  = (file.type.split('/')[1] ?? 'pdf').split('+')[0]
+  const path = `lar-e-vida/confirmacoes/${Date.now()}.${ext}`
+
+  const { error } = await supabase.storage
+    .from('confirmacoes-fornecedor')
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (error) {
+    // Fallback: tenta usar o bucket 'produtos' caso o bucket específico não exista
+    const fallbackPath = `lar-e-vida/confirmacoes/${Date.now()}.${ext}`
+    const { error: e2 } = await supabase.storage
+      .from('produtos')
+      .upload(fallbackPath, file, { upsert: true, contentType: file.type })
+    if (e2) { console.error('[pedidosLV] uploadConfirmacaoFornecedor:', e2.message); return null }
+    const { data: d2 } = supabase.storage.from('produtos').getPublicUrl(fallbackPath)
+    return d2.publicUrl
+  }
+
+  const { data } = supabase.storage.from('confirmacoes-fornecedor').getPublicUrl(path)
+  return data.publicUrl
+}
+
+// ─── Helpers de Estoque ───────────────────────────────────────────────────────
+
+export async function marcarEntradaEstoque(id: string, localizacao: string): Promise<boolean> {
+  return updatePedidoLV(id, {
+    etapa: 'Em Prateleira',
+    localizacao_prateleira: localizacao || null,
+    data_entrada_estoque: new Date().toISOString(),
+  } as any)
+}
+
+export async function marcarDisponivelSite(id: string): Promise<boolean> {
+  return updatePedidoLV(id, {
+    etapa: 'Disponível no Site',
+    disponivel_site: true,
+    data_publicacao_site: new Date().toISOString(),
+  } as any)
+}
+
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 export async function deletePedidoLV(id: string): Promise<boolean> {
