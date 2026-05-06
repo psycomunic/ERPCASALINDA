@@ -20,6 +20,10 @@ import {
   fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
 } from '../../services/pedidosLV'
 import type { HistoricoEntry } from '../../services/pedidosLV'
+import {
+  fetchPendingOrdersLV, isMagazordLVConfigured, lvSituacaoToKanbanCol,
+} from '../../magazordLV'
+import type { MagazordOrder } from '../../magazordLV'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1537,44 +1541,305 @@ const COLECOES_TODAS = [
   ...COLECOES_LAGOS,
 ]
 
+// ─── Tapete Item (sub-form for one rug) ──────────────────────────────────────
+
+interface TapeteItem {
+  uid: string
+  produto: string
+  tamanho: string
+  cor: string
+  fotoUrl: string
+  quantidade: number
+  valor: string
+  customTamanho: boolean
+  collapsed: boolean
+}
+
+function newTapeteItem(): TapeteItem {
+  return {
+    uid: Math.random().toString(36).slice(2),
+    produto: '', tamanho: '', cor: '', fotoUrl: '',
+    quantidade: 1, valor: '', customTamanho: false, collapsed: false,
+  }
+}
+
+function TapeteItemCard({
+  item, index, total,
+  onUpdate, onRemove,
+}: {
+  item: TapeteItem; index: number; total: number
+  onUpdate: (uid: string, patch: Partial<TapeteItem>) => void
+  onRemove: (uid: string) => void
+}) {
+  const set = (k: keyof TapeteItem, v: any) => onUpdate(item.uid, { [k]: v })
+  const subtotal = item.valor && parseFloat(item.valor) > 0
+    ? parseFloat(item.valor) * item.quantidade
+    : null
+
+  const hasContent = item.produto.trim() || item.tamanho || item.cor || item.fotoUrl
+
+  return (
+    <div className="border-2 border-amber-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+      {/* Card Header — always visible */}
+      <div
+        className="flex items-center gap-2.5 px-4 py-3 cursor-pointer select-none hover:bg-amber-50/60 transition-colors"
+        onClick={() => set('collapsed', !item.collapsed)}
+      >
+        {/* Miniatura */}
+        {item.fotoUrl ? (
+          <img src={item.fotoUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-amber-200 shrink-0" />
+        ) : (
+          <div className="w-10 h-10 rounded-lg bg-amber-50 border-2 border-dashed border-amber-200 flex items-center justify-center text-base shrink-0">🏠</div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest leading-none mb-0.5">
+            Tapete {index + 1} {total > 1 ? `de ${total}` : ''}
+          </p>
+          <p className={`text-sm font-semibold leading-tight truncate ${hasContent ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+            {item.produto || 'Sem nome ainda...'}
+          </p>
+          {(item.tamanho || item.cor) && (
+            <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+              {[item.tamanho, item.cor].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {subtotal !== null && (
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          )}
+          <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            {item.quantidade}x
+          </span>
+          {total > 1 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onRemove(item.uid) }}
+              className="p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+              title="Remover este tapete"
+            >
+              <X size={14} />
+            </button>
+          )}
+          <ChevronDown
+            size={14}
+            className={`text-gray-400 transition-transform duration-200 ${item.collapsed ? '' : 'rotate-180'}`}
+          />
+        </div>
+      </div>
+
+      {/* Card Body — collapsible */}
+      <AnimatePresence initial={false}>
+        {!item.collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-1 space-y-4 border-t border-amber-100 bg-amber-50/30">
+
+              {/* Foto */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📷 Foto / Miniatura</p>
+                <PhotoZone value={item.fotoUrl} onChange={v => set('fotoUrl', v)} />
+              </div>
+
+              {/* Nome */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🏠 Nome do Tapete *</p>
+                <input
+                  className="input"
+                  placeholder="Ex: Tapete Egípcio Lumière Luxo"
+                  value={item.produto}
+                  onChange={e => set('produto', e.target.value)}
+                />
+              </div>
+
+              {/* Tamanho */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📐 Tamanho</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {TAMANHOS_RAPIDOS.map(t => (
+                    <button key={t} type="button"
+                      onClick={() => { set('tamanho', t); set('customTamanho', false) }}
+                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${
+                        item.tamanho === t && !item.customTamanho
+                          ? 'text-white border-amber-600'
+                          : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'
+                      }`}
+                      style={item.tamanho === t && !item.customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+                    >{t}</button>
+                  ))}
+                  <button type="button"
+                    onClick={() => { set('customTamanho', true); set('tamanho', '') }}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${
+                      item.customTamanho
+                        ? 'text-white border-amber-600'
+                        : 'border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'
+                    }`}
+                    style={item.customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+                  >+ Outro</button>
+                </div>
+                {item.customTamanho && (
+                  <input
+                    className="input"
+                    placeholder="Ex: 1,20 × 1,70m"
+                    value={item.tamanho}
+                    onChange={e => set('tamanho', e.target.value)}
+                    autoFocus
+                  />
+                )}
+              </div>
+
+              {/* Coleção / Desenho */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🎨 Coleção (Desenho)</p>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">— Linha RIOS</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {COLECOES_RIOS.map(d => (
+                    <button key={d} type="button"
+                      onClick={() => set('cor', item.cor === d ? '' : d)}
+                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${
+                        item.cor === d
+                          ? 'text-white border-amber-600'
+                          : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'
+                      }`}
+                      style={item.cor === d ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+                    >{d}</button>
+                  ))}
+                </div>
+                {COLECOES_LAGOS.length > 0 && (
+                  <>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 mt-2">— Linha LAGOS</p>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {COLECOES_LAGOS.map(d => (
+                        <button key={d} type="button"
+                          onClick={() => set('cor', item.cor === d ? '' : d)}
+                          className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${
+                            item.cor === d
+                              ? 'text-white border-blue-600'
+                              : 'border-gray-200 text-gray-600 bg-white hover:border-blue-300 hover:text-blue-700'
+                          }`}
+                          style={item.cor === d ? { background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)' } : {}}
+                        >{d}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <input
+                  className="input mt-1"
+                  placeholder="Ou digite o nome da coleção manualmente..."
+                  value={item.cor}
+                  onChange={e => set('cor', e.target.value)}
+                />
+              </div>
+
+              {/* Quantidade e valor */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">💰 Quantidade e Valor</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
+                    <div className="flex items-center gap-1">
+                      <button type="button"
+                        onClick={() => set('quantidade', Math.max(1, item.quantidade - 1))}
+                        className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg"
+                      >−</button>
+                      <span className="flex-1 text-center text-lg font-black text-gray-900">{item.quantidade}</span>
+                      <button type="button"
+                        onClick={() => set('quantidade', item.quantidade + 1)}
+                        className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg"
+                      >+</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Preço unitário (R$)</label>
+                    <input
+                      className="input"
+                      placeholder="0,00"
+                      value={item.valor}
+                      onChange={e => set('valor', e.target.value)}
+                      type="number" min={0} step={0.01}
+                    />
+                  </div>
+                </div>
+                {subtotal !== null && (
+                  <div className="mt-2 text-right text-xs text-gray-500">
+                    Subtotal: <span className="font-bold text-emerald-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Tapete Order Modal ───────────────────────────────────────────────────────
+
 function TapeteOrderModal({ onClose, onSave }: {
   onClose: () => void
   onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => void
 }) {
-  const [form, setForm] = useState({
-    produto: '', nomeFornecedor: '', codigoFornecedor: '',
-    tamanho: '', cor: '', fotoUrl: '',
-    quantidade: 1, valor: '', obs: '',
-    transportadora: '', // usado como nome do fornecedor principal
-    confirmacaoFornecedorUrl: '',
-  })
+  // ── Estado: lista de tapetes no pedido ──
+  const [tapetes, setTapetes] = useState<TapeteItem[]>([newTapeteItem()])
   const [tipoDestino, setTipoDestino] = useState<'cliente' | 'estoque'>('cliente')
-  const [customTamanho, setCustomTamanho] = useState(false)
-  const set = (f: string, v: any) => setForm(p => ({ ...p, [f]: v }))
 
-  const buildOrder = (): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
+  // Campos globais (fornecedor + obs aplicam-se a todos)
+  const [fornecedor, setFornecedor] = useState('')
+  const [nomeFornecedor, setNomeFornecedor] = useState('')
+  const [codigoFornecedor, setCodigoFornecedor] = useState('')
+  const [obs, setObs] = useState('')
+  const [confirmacaoUrl, setConfirmacaoUrl] = useState('')
+
+  const updateItem = (uid: string, patch: Partial<TapeteItem>) =>
+    setTapetes(prev => prev.map(t => t.uid === uid ? { ...t, ...patch } : t))
+
+  const removeItem = (uid: string) =>
+    setTapetes(prev => prev.length > 1 ? prev.filter(t => t.uid !== uid) : prev)
+
+  const addItem = () => {
+    // Colapsa todos os anteriores e adiciona novo expandido
+    setTapetes(prev => [...prev.map(t => ({ ...t, collapsed: true })), newTapeteItem()])
+  }
+
+  const totalGeral = tapetes.reduce((sum, t) => {
+    const v = t.valor ? parseFloat(t.valor) : 0
+    return sum + v * t.quantidade
+  }, 0)
+
+  const canSave = tapetes.some(t => t.produto.trim().length > 0)
+
+  // Converte um TapeteItem em shape LVOrder para salvar/imprimir
+  const itemToOrder = (t: TapeteItem): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
     cliente: tipoDestino === 'estoque' ? 'COMPRA ESTOQUE' : 'PEDIDO FORNECEDOR',
-    produto: form.produto,
+    produto: t.produto || '(sem nome)',
     categoria: 'Tapete',
-    tamanho: form.tamanho || undefined,
-    cor: form.cor || undefined,
-    fotoUrl: form.fotoUrl || undefined,
-    nomeFornecedor: form.nomeFornecedor || undefined,
-    codigoFornecedor: form.codigoFornecedor || undefined,
-    quantidade: form.quantidade,
-    valor: form.valor ? parseFloat(form.valor) : undefined,
-    obs: form.obs || undefined,
-    transportadora: form.transportadora || undefined,
+    tamanho: t.tamanho || undefined,
+    cor: t.cor || undefined,
+    fotoUrl: t.fotoUrl || undefined,
+    nomeFornecedor: nomeFornecedor || undefined,
+    codigoFornecedor: codigoFornecedor || undefined,
+    quantidade: t.quantidade,
+    valor: t.valor ? parseFloat(t.valor) : undefined,
+    obs: obs || undefined,
+    transportadora: fornecedor || undefined,
     canal: 'WhatsApp',
     tipoPedido: tipoDestino === 'estoque' ? 'estoque' : 'crossdocking',
-    confirmacaoFornecedorUrl: form.confirmacaoFornecedorUrl || undefined,
+    confirmacaoFornecedorUrl: confirmacaoUrl || undefined,
   })
-
-  const canSave = form.produto.trim().length > 0
 
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="modal" style={{ maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}
+      <motion.div className="modal" style={{ maxWidth: 580, maxHeight: '94vh', overflowY: 'auto' }}
         initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
         onClick={e => e.stopPropagation()}
       >
@@ -1583,16 +1848,16 @@ function TapeteOrderModal({ onClose, onSave }: {
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>🏠</div>
             <div>
-              <h3 className="font-bold text-gray-900">Pedido de Tapete ao Fornecedor</h3>
+              <h3 className="font-bold text-gray-900">Pedido de Tapetes ao Fornecedor</h3>
               <p className="text-xs text-gray-400">
-                {tipoDestino === 'estoque' ? 'Compra para estoque — vai para prateleira' : 'Preencha e salve no Kanban ou imprima o PDF'}
+                {tapetes.length} tapete{tapetes.length !== 1 ? 's' : ''} · {tipoDestino === 'estoque' ? 'Para Estoque' : 'Para Cliente'}
               </p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
 
-        <div className="p-5 space-y-5">
+        <div className="p-4 space-y-4">
           {/* Toggle: Destino do pedido */}
           <div className="rounded-xl overflow-hidden border border-gray-200 flex">
             <button type="button" onClick={() => setTipoDestino('cliente')}
@@ -1610,144 +1875,114 @@ function TapeteOrderModal({ onClose, onSave }: {
             <div className="rounded-xl border border-blue-200 p-3 space-y-2" style={{ background: '#f0f9ff' }}>
               <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#0369a1' }}>📎 Confirmação do Fornecedor</p>
               <p className="text-[10px] text-blue-500">Anexe o PDF ou print do email de confirmação recebido</p>
-              <ConfirmacaoZone value={form.confirmacaoFornecedorUrl} onChange={v => set('confirmacaoFornecedorUrl', v)} />
+              <ConfirmacaoZone value={confirmacaoUrl} onChange={setConfirmacaoUrl} />
             </div>
           )}
 
-          {/* Foto */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📷 Foto / Miniatura do Tapete</p>
-            <PhotoZone value={form.fotoUrl} onChange={v => set('fotoUrl', v)} />
-          </div>
-
-          {/* Nome */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🏠 Nome do Tapete</p>
-            <input className="input" placeholder="Ex: Tapete Egípcio Lumière Luxo *" value={form.produto} onChange={e => set('produto', e.target.value)} />
-          </div>
-
-          {/* Tamanho */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📐 Tamanho</p>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {TAMANHOS_RAPIDOS.map(t => (
-                <button key={t} type="button"
-                  onClick={() => { set('tamanho', t); setCustomTamanho(false) }}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${form.tamanho === t && !customTamanho ? 'text-white border-amber-600' : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'}`}
-                  style={form.tamanho === t && !customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
-                >{t}</button>
-              ))}
-              <button type="button"
-                onClick={() => { setCustomTamanho(true); set('tamanho', '') }}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${customTamanho ? 'text-white border-amber-600' : 'border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'}`}
-                style={customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
-              >+ Outro</button>
-            </div>
-            {customTamanho && (
-              <input className="input" placeholder="Ex: 1,20 × 1,70m" value={form.tamanho} onChange={e => set('tamanho', e.target.value)} autoFocus />
-            )}
-          </div>
-
-          {/* Desenho / Coleção */}
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🎨 Coleção (Desenho)</p>
-            {/* Linha RIOS */}
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">— Linha RIOS</p>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {COLECOES_RIOS.map(d => (
-                <button key={d} type="button"
-                  onClick={() => set('cor', d)}
-                  className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${form.cor === d ? 'text-white border-amber-600' : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'}`}
-                  style={form.cor === d ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
-                >{d}</button>
-              ))}
-            </div>
-            {/* Linha LAGOS — será preenchida */}
-            {COLECOES_LAGOS.length > 0 && (
-              <>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 mt-2">— Linha LAGOS</p>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {COLECOES_LAGOS.map(d => (
-                    <button key={d} type="button"
-                      onClick={() => set('cor', d)}
-                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${form.cor === d ? 'text-white border-blue-600' : 'border-gray-200 text-gray-600 bg-white hover:border-blue-300 hover:text-blue-700'}`}
-                      style={form.cor === d ? { background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)' } : {}}
-                    >{d}</button>
-                  ))}
-                </div>
-              </>
-            )}
-            <input className="input mt-1" placeholder="Ou digite o nome da coleção manualmente..." value={form.cor} onChange={e => set('cor', e.target.value)} />
-          </div>
-
-
-          {/* Fornecedor */}
-          <div className="border border-blue-100 rounded-xl p-4 space-y-3" style={{ background: '#eff6ff' }}>
+          {/* Fornecedor global */}
+          <div className="border border-blue-100 rounded-xl p-3 space-y-2" style={{ background: '#eff6ff' }}>
             <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#1d4ed8' }}>🏭 Dados do Fornecedor</p>
-            <input className="input" placeholder="Nome do fornecedor (ex: Tapetes Egipcios Ltda)" value={form.transportadora} onChange={e => set('transportadora', e.target.value)} />
+            <input className="input" placeholder="Nome do fornecedor (ex: Tapetes Egípcio Ltda)" value={fornecedor} onChange={e => setFornecedor(e.target.value)} />
             <div className="grid grid-cols-2 gap-2">
-              <input className="input" placeholder="Nome/ref no fornecedor" value={form.nomeFornecedor} onChange={e => set('nomeFornecedor', e.target.value)} />
-              <input className="input font-mono" placeholder="Código (SKU fornecedor)" value={form.codigoFornecedor} onChange={e => set('codigoFornecedor', e.target.value)} />
+              <input className="input" placeholder="Nome/ref no fornecedor" value={nomeFornecedor} onChange={e => setNomeFornecedor(e.target.value)} />
+              <input className="input font-mono" placeholder="Código (SKU fornecedor)" value={codigoFornecedor} onChange={e => setCodigoFornecedor(e.target.value)} />
             </div>
           </div>
 
-          {/* Quantidade e valor */}
+          {/* ── Lista de Tapetes ── */}
           <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">💰 Quantidade e Valor</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => set('quantidade', Math.max(1, form.quantidade - 1))}
-                    className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg">−</button>
-                  <span className="flex-1 text-center text-lg font-black text-gray-900">{form.quantidade}</span>
-                  <button type="button" onClick={() => set('quantidade', form.quantidade + 1)}
-                    className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg">+</button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Preço unitário (R$)</label>
-                <input className="input" placeholder="0,00" value={form.valor} onChange={e => set('valor', e.target.value)} type="number" min={0} step={0.01} />
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                🏠 Tapetes do Pedido
+              </p>
+              <span className="text-[10px] text-gray-400">{tapetes.length} item{tapetes.length !== 1 ? 's' : ''}</span>
             </div>
-            {form.valor && parseFloat(form.valor) > 0 && (
-              <div className="mt-2 text-right text-xs text-gray-500">
-                Total: <span className="font-bold text-emerald-600">R$ {(parseFloat(form.valor) * form.quantidade).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
+
+            <div className="space-y-3">
+              {tapetes.map((item, idx) => (
+                <TapeteItemCard
+                  key={item.uid}
+                  item={item}
+                  index={idx}
+                  total={tapetes.length}
+                  onUpdate={updateItem}
+                  onRemove={removeItem}
+                />
+              ))}
+            </div>
+
+            {/* Botão Adicionar Tapete */}
+            <button
+              type="button"
+              onClick={addItem}
+              className="mt-3 w-full py-2.5 rounded-xl border-2 border-dashed border-amber-300 text-amber-600 text-xs font-bold flex items-center justify-center gap-2 hover:bg-amber-50 transition-colors"
+            >
+              <Plus size={14} /> Adicionar Outro Tapete
+            </button>
           </div>
 
-          {/* Obs */}
+          {/* Obs global */}
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Observações para o fornecedor</label>
-            <textarea className="input resize-none" rows={2} placeholder="Ex: Urgente — entregar até 10/06. Embalagem reforçada." value={form.obs} onChange={e => set('obs', e.target.value)} />
+            <textarea
+              className="input resize-none"
+              rows={2}
+              placeholder="Ex: Urgente — entregar até 10/06. Embalagem reforçada."
+              value={obs}
+              onChange={e => setObs(e.target.value)}
+            />
           </div>
         </div>
 
         {/* Footer */}
         <div className="sticky bottom-0 bg-white border-t border-gray-100 p-4 space-y-2">
+          {/* Resumo total */}
+          {totalGeral > 0 && (
+            <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
+              <span className="text-xs font-bold text-amber-700">
+                {tapetes.length} tapete{tapetes.length !== 1 ? 's' : ''} · {tapetes.reduce((s,t)=>s+t.quantidade,0)} unid.
+              </span>
+              <span className="text-sm font-black text-emerald-600">
+                Total: R$ {totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
           {/* Print button */}
           <button
             type="button"
             disabled={!canSave}
-            onClick={() => printFornecedorPDF([{ ...buildOrder(), id: 'PREV', data: '', hora: '', status: 'Pendente' }])}
+            onClick={() => {
+              const previewOrders = tapetes
+                .filter(t => t.produto.trim())
+                .map(t => ({ ...itemToOrder(t), id: 'PREV', data: '', hora: '', status: 'Pendente' as const }))
+              printFornecedorPDF(previewOrders)
+            }}
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-amber-300 text-amber-700 text-sm font-semibold hover:bg-amber-50 transition-colors disabled:opacity-40"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
               <rect x="6" y="14" width="12" height="8"/>
             </svg>
-            Imprimir PDF (sem salvar)
+            Imprimir PDF ({tapetes.filter(t=>t.produto.trim()).length} tapete{tapetes.filter(t=>t.produto.trim()).length!==1?'s':''})
           </button>
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button
               disabled={!canSave}
-              onClick={() => { onSave(buildOrder()); onClose() }}
+              onClick={async () => {
+                const validItems = tapetes.filter(t => t.produto.trim())
+                for (const t of validItems) {
+                  await onSave(itemToOrder(t))
+                }
+                onClose()
+              }}
               className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
               style={{ background: canSave ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
             >
-              <Check size={16} /> Salvar no Kanban
+              <Check size={16} />
+              {tapetes.filter(t=>t.produto.trim()).length > 1
+                ? `Salvar ${tapetes.filter(t=>t.produto.trim()).length} Tapetes`
+                : 'Salvar no Kanban'}
             </button>
           </div>
         </div>
@@ -2053,6 +2288,82 @@ export default function ProductionLV() {
     return () => sub.unsubscribe()
   }, [processFetchedRowsLV])
 
+  // ── Magazord LV sync ────────────────────────────────────────────────────────
+  const [mzLVStatus, setMzLVStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
+
+  const syncMagazordLV = useCallback(async () => {
+    if (!isMagazordLVConfigured()) return
+    setMzLVStatus('syncing')
+    try {
+      const mzOrders = await fetchPendingOrdersLV(5)
+      if (mzOrders.length === 0) { setMzLVStatus('ok'); return }
+
+      setBoard(prev => {
+        // Collect all existing IDs from_magazord (stored in sku as 'MZ-{id}')
+        const existingMzIds = new Set<string>()
+        ALL_STAGES.forEach(st => {
+          prev[st].forEach(o => {
+            if (o.sku?.startsWith('MZ-')) existingMzIds.add(o.sku)
+          })
+        })
+
+        const next = { ...prev }
+        ALL_STAGES.forEach(st => { next[st] = [...prev[st]] })
+
+        mzOrders.forEach((mz: MagazordOrder) => {
+          const mzKey = `MZ-${mz.id}`
+          if (existingMzIds.has(mzKey)) return   // já existe no board
+
+          const situacao = mz.pedidoSituacao ?? mz.situacao ?? 0
+          const targetCol = lvSituacaoToKanbanCol(situacao) as Stage
+          if (!ALL_STAGES.includes(targetCol)) return
+
+          const firstItem = mz.itens?.[0]
+          const now = new Date()
+          const order: LVOrder = {
+            id: `mzlv-${mz.id}`,
+            cliente: mz.cliente?.nome ?? 'Cliente Magazord',
+            clienteEmail: mz.cliente?.email,
+            clienteTelefone: mz.cliente?.telefone,
+            produto: firstItem?.nome ?? 'Produto Magazord',
+            sku: mzKey,
+            canal: mz.canal ?? 'Magazord',
+            categoria: 'Tapete',
+            quantidade: firstItem?.quantidade ?? 1,
+            valor: mz.valor_total,
+            frete: mz.entrega?.frete,
+            transportadora: mz.entrega?.transportadora,
+            prazoEntrega: mz.entrega?.prazo_entrega
+              ? new Date(mz.entrega.prazo_entrega).toLocaleDateString('pt-BR')
+              : undefined,
+            endereco: mz.entrega
+              ? `${mz.entrega.logradouro}, ${mz.entrega.numero} — ${mz.entrega.bairro}, ${mz.entrega.cidade}/${mz.entrega.uf}`
+              : undefined,
+            obs: mz.observacao,
+            data: new Date(mz.data_pedido).toLocaleDateString('pt-BR'),
+            hora: new Date(mz.data_pedido).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            status: calcStatus(mz.entrega?.prazo_entrega),
+            tipoPedido: 'crossdocking',
+          }
+
+          next[targetCol] = [order, ...next[targetCol]]
+        })
+
+        return next
+      })
+      setMzLVStatus('ok')
+    } catch {
+      setMzLVStatus('error')
+    }
+  }, [])
+
+  // Sync on mount + every 5 min
+  useEffect(() => {
+    syncMagazordLV()
+    const interval = setInterval(syncMagazordLV, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [syncMagazordLV])
+
   // ── New order ──
   const handleNewOrder = async (data: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => {
     const num = String(nextId.current++).padStart(6, '0')
@@ -2303,6 +2614,25 @@ export default function ProductionLV() {
             <RefreshCw size={14} className={`hidden md:inline-block ${loading ? 'animate-spin' : ''}`} />
             <RefreshCw size={13} className={`md:hidden ${loading ? 'animate-spin' : ''}`} />
           </button>
+
+          {/* Magazord LV status */}
+          {isMagazordLVConfigured() && (
+            <button
+              onClick={() => syncMagazordLV()}
+              title="Sincronizar pedidos Magazord Lar e Vida"
+              className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all shrink-0 ${
+                mzLVStatus === 'syncing'
+                  ? 'border-amber-300 bg-amber-50 text-amber-700'
+                  : mzLVStatus === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-600'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              }`}
+            >
+              <RefreshCw size={11} className={mzLVStatus === 'syncing' ? 'animate-spin' : ''} />
+              {mzLVStatus === 'syncing' ? 'Sincronizando...' : mzLVStatus === 'error' ? 'Erro MZ' : 'Magazord LV'}
+            </button>
+          )}
+
           <button onClick={() => setNewModal(true)} className="hidden md:inline-flex btn-primary shrink-0" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
             <Plus size={15} /> Novo Pedido
           </button>
@@ -2311,6 +2641,7 @@ export default function ProductionLV() {
           </button>
         </div>
       </div>
+
 
       {/* ── KANBAN VIEW ── */}
       {view === 'kanban' && (

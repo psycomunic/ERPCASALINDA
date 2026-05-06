@@ -6,17 +6,23 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
-  // Build BasicAuth header from env vars (server-side only, never exposed to browser)
+  // ── Casa Linda ─────────────────────────────────────────────────────────────
   const mUser = env.VITE_MAGAZORD_USER ?? ''
   const mPass = env.VITE_MAGAZORD_PASS ?? ''
   const basicAuth = mUser
     ? 'Basic ' + Buffer.from(`${mUser}:${mPass}`).toString('base64')
     : ''
+  const magazordOrigin = (env.VITE_MAGAZORD_BASE_URL ?? 'https://casalinda.painel.magazord.com.br')
+    .replace(/\/api\/?$/, '').replace(/\/$/, '')
 
-  // Base URL of the Magazord store, e.g. https://casalinda.magazord.com.br
-  const magazordOrigin = (env.VITE_MAGAZORD_BASE_URL ?? 'https://casalinda.magazord.com.br')
-    .replace(/\/api\/?$/, '')   // strip trailing /api if present
-    .replace(/\/$/, '')
+  // ── Lar e Vida ──────────────────────────────────────────────────────────────
+  const lvUser = env.VITE_MAGAZORD_LV_USER ?? mUser  // fallback às creds da CL
+  const lvPass = env.VITE_MAGAZORD_LV_PASS ?? mPass
+  const basicAuthLV = lvUser
+    ? 'Basic ' + Buffer.from(`${lvUser}:${lvPass}`).toString('base64')
+    : ''
+  const magazordLVOrigin = (env.VITE_MAGAZORD_LV_BASE_URL ?? 'https://larevida.painel.magazord.com.br')
+    .replace(/\/api\/?$/, '').replace(/\/$/, '')
 
   return {
     plugins: [
@@ -51,7 +57,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        // All requests to /magazord-api/** are forwarded to the real Magazord API
+        // ── Casa Linda ────────────────────────────────────────────────────────
         '/magazord-api': {
           target: magazordOrigin,
           changeOrigin: true,
@@ -59,9 +65,21 @@ export default defineConfig(({ mode }) => {
           rewrite: (p) => p.replace(/^\/magazord-api/, '/api'),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => {
-              if (basicAuth) {
-                proxyReq.setHeader('Authorization', basicAuth)
-              }
+              if (basicAuth) proxyReq.setHeader('Authorization', basicAuth)
+              proxyReq.setHeader('Accept', 'application/json')
+              proxyReq.setHeader('Content-Type', 'application/json')
+            })
+          },
+        },
+        // ── Lar e Vida ────────────────────────────────────────────────────────
+        '/magazord-lv-api': {
+          target: magazordLVOrigin,
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/magazord-lv-api/, '/api'),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq) => {
+              if (basicAuthLV) proxyReq.setHeader('Authorization', basicAuthLV)
               proxyReq.setHeader('Accept', 'application/json')
               proxyReq.setHeader('Content-Type', 'application/json')
             })
