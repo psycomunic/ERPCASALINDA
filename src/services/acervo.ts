@@ -103,10 +103,14 @@ async function compressImage(file: File): Promise<string> {
         let h = img.height
         if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM }
         else if (h > MAX_DIM) { w *= MAX_DIM / h; h = MAX_DIM }
-        canvas.width = w
-        canvas.height = h
+        canvas.width = Math.round(w)
+        canvas.height = Math.round(h)
         const ctx = canvas.getContext('2d')
-        ctx?.drawImage(img, 0, 0, w, h)
+        if (ctx) {
+          ctx.fillStyle = '#FFFFFF'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        }
         // Qualidade 0.6 reduz bastante o tamanho sem perder muita qualidade
         resolve(canvas.toDataURL('image/jpeg', 0.6))
       }
