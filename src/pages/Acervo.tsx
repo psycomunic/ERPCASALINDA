@@ -13,8 +13,11 @@ import { fetchPedidos } from '../services/pedidos'
 // ─── Constants (sincronizados com o Catálogo) ─────────────────────────────────
 
 const CATEGORIAS = [
-  'Abstrato','Floral','Paisagem','Geométrico','Minimalista',
-  'Familiar','Animal','Marítimo','Urbano','Religioso','Personalizado','Outro',
+  'Artistas Famosos', 'Aquarela e Pinceladas', 'Árvores', 'Cidades e Turismo',
+  'Leões', 'Infantil', 'Mosaico', 'Queridinhos dos Arquitetos', 'Natureza',
+  'Pop Arte', 'Street Arte', 'Veículos', 'Profissões', 'Abstratos', 'Animais',
+  'Business', 'Florais', 'Cultura Africana', 'Minimalista', 'Motivacionais',
+  'Mulheres', 'Personalizados', 'Religiosos', 'Paisagens', 'Praia e Mar'
 ]
 
 // Todos os tamanhos do catálogo, agrupados por formato
@@ -140,20 +143,7 @@ function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
     setUploading(true)
     setUploadError('')
     try {
-      // Tenta upload no Storage
-      let url = await uploadFotoAcervo(file)
-
-      // Fallback: se o Storage falhar, usa base64 direto
-      if (!url) {
-        console.warn('[acervo] Storage falhou — usando base64 como fallback')
-        url = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload  = e => resolve(e.target?.result as string)
-          reader.onerror = () => reject(new Error('Falha ao ler arquivo'))
-          reader.readAsDataURL(file)
-        })
-      }
-
+      const url = await uploadFotoAcervo(file)
       if (url) {
         const { error: dbErr } = await supabase
           .from('acervo_quadros')
@@ -180,7 +170,7 @@ function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
       className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       {/* Foto — clicável para adicionar/trocar */}
       <div
-        className="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden cursor-pointer group"
+        className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden cursor-pointer group"
         onClick={() => fileRef.current?.click()}
         title="Clique para adicionar foto"
       >
@@ -368,7 +358,7 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
           <div>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📷 Foto do Quadro</p>
             {preview || form.foto_url ? (
-              <div className="relative rounded-xl overflow-hidden border-2 border-navy-900 h-48">
+              <div className="relative rounded-xl overflow-hidden border-2 border-navy-900 aspect-square">
                 <img src={preview || form.foto_url!} alt="Preview" className="w-full h-full object-cover" />
                 {uploading && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -384,10 +374,10 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
               </div>
             ) : (
               <button onClick={() => fileRef.current?.click()}
-                className="w-full h-36 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-navy-900 hover:text-navy-900 transition-colors">
+                className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-navy-900 hover:text-navy-900 transition-colors">
                 <Camera size={28} />
-                <p className="text-sm font-semibold">Clique para tirar/selecionar foto</p>
-                <p className="text-xs text-gray-400">JPG, PNG — sobe automaticamente</p>
+                <p className="text-sm font-semibold text-center px-4">Clique para tirar/selecionar foto</p>
+                <p className="text-xs text-gray-400">Comprimida automaticamente</p>
               </button>
             )}
             <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
