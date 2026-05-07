@@ -90,77 +90,28 @@ export async function deleteAcervoItem(id: string): Promise<boolean> {
 
 // ─── Upload de Foto ───────────────────────────────────────────────────────────
 
-/** Comprime a imagem para evitar payloads gigantes e erro "Load failed" na API */
-async function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = e => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const MAX_DIM = 800
-        let w = img.width
-        let h = img.height
-        if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM }
-        else if (h > MAX_DIM) { w *= MAX_DIM / h; h = MAX_DIM }
-        canvas.width = Math.round(w)
-        canvas.height = Math.round(h)
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.fillStyle = '#FFFFFF'
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        }
-        // Qualidade 0.6 reduz bastante o tamanho sem perder muita qualidade
-        resolve(canvas.toDataURL('image/jpeg', 0.6))
-      }
-      img.onerror = () => reject(new Error('Erro ao carregar imagem para compressão'))
-      img.src = e.target?.result as string
-    }
-    reader.onerror = () => reject(new Error('Erro ao ler arquivo'))
-    reader.readAsDataURL(file)
-  })
-}
-
-/** Converte Data URL de volta para File/Blob para upload no Storage */
-function dataURLtoFile(dataurl: string, filename: string): File {
-  const arr = dataurl.split(',')
-  const mime = arr[0].match(/:(.*?);/)?.[1]
-  const bstr = atob(arr[1])
-  let n = bstr.length
-  const u8arr = new Uint8Array(n)
-  while (n--) { u8arr[n] = bstr.charCodeAt(n) }
-  return new File([u8arr], filename, { type: mime })
-}
-
 export async function uploadFotoAcervo(file: File): Promise<string | null> {
   if (!isSupabaseConfigured()) return null
   
   try {
-    // 1. Comprime a imagem primeiro
-    const compressedBase64 = await compressImage(file)
-    const ext = 'jpg'
+    const ext = file.name.split('.').pop() || 'jpg'
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const path = `acervo/${filename}`
     
-    // 2. Tenta fazer upload do arquivo comprimido
-    const fileToUpload = dataURLtoFile(compressedBase64, filename)
+    // Tenta fazer upload do arquivo original
     const { error } = await supabase.storage
       .from('pedidos-fotos')
-      .upload(path, fileToUpload, { upsert: true })
+      .upload(path, file, { upsert: true })
 
-    // 3. Se sucesso no Storage, retorna URL pública
-    if (!error) {
-      const { data } = supabase.storage.from('pedidos-fotos').getPublicUrl(path)
-      return data.publicUrl
+    if (error) {
+      console.error('[acervo] Erro no upload no Storage:', error.message)
+      return null
     }
 
-    // 4. Se o Storage falhar (ex: bucket inexistente/RLS bloqueado), faz o FALLBACK para Base64
-    console.warn('[acervo] Storage falhou, usando fallback em Base64 comprimido:', error.message)
-    return compressedBase64
-
+    const { data } = supabase.storage.from('pedidos-fotos').getPublicUrl(path)
+    return data.publicUrl
   } catch (err: any) {
-    console.error('[acervo] Erro no uploadFotoAcervo:', err)
+    console.error('[acervo] Erro inesperado no uploadFotoAcervo:', err)
     return null
   }
 }
