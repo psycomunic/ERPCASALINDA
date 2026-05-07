@@ -2,18 +2,73 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, Check, RefreshCw, Search, Frame, AlertTriangle, Trash2, Camera } from 'lucide-react'
 import {
-  fetchAcervoDisponivel, createAcervoItem, updateAcervoItem, deleteAcervoItem,
+  fetchAcervoDisponivel, deleteAcervoItem,
   marcarComoVendido, uploadFotoAcervo, matchesPCP,
   type AcervoQuadro, type AcervoInsert
 } from '../services/acervo'
+import { supabase } from '../lib/supabase'
 import { fetchPedidos } from '../services/pedidos'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants (sincronizados com o Catálogo) ─────────────────────────────────
 
-const CATEGORIAS = ['Abstrato','Floral','Paisagem','Geométrico','Minimalista','Familiar','Animal','Marítimo','Urbano','Religioso','Personalizado','Outro']
-const TAMANHOS   = ['85x85 cm','115x115 cm','145x145 cm','85x55 cm','115x75 cm','145x95 cm','175x100 cm','Outro']
-const MOLDURAS   = ['Sem Moldura','Caixa Preta','Caixa Branca','Caixa Dourada','Caixa Madeira','Flutuante Preta','Flutuante Branca','Inox','Outro']
-const ORIGENS    = ['Acervo','Gravação','Devolução','Amostra','Exposição']
+const CATEGORIAS = [
+  'Abstrato','Floral','Paisagem','Geométrico','Minimalista',
+  'Familiar','Animal','Marítimo','Urbano','Religioso','Personalizado','Outro',
+]
+
+// Todos os tamanhos do catálogo, agrupados por formato
+const TAMANHOS_GRUPOS = [
+  {
+    grupo: '1 Tela — Quadrado',
+    tamanhos: ['85×85 cm', '115×115 cm', '145×145 cm'],
+  },
+  {
+    grupo: '1 Tela — Retrato',
+    tamanhos: ['85×55 cm', '115×75 cm', '145×95 cm', '175×100 cm'],
+  },
+  {
+    grupo: '2 Telas',
+    tamanhos: ['55×35 cm cada', '85×55 cm cada', '115×75 cm cada', '145×95 cm cada', '175×95 cm cada'],
+  },
+  {
+    grupo: '3 Telas',
+    tamanhos: ['40×20 cm cada', '55×30 cm cada', '70×40 cm cada', '90×50 cm cada', '120×70 cm cada'],
+  },
+]
+
+// Todas as molduras do catálogo
+const MOLDURAS_GRUPOS = [
+  {
+    grupo: 'Sem Moldura',
+    molduras: ['Sem Moldura (Borda Infinita)'],
+  },
+  {
+    grupo: 'Caixa',
+    molduras: ['Caixa Preta', 'Caixa Branca', 'Caixa Dourada', 'Caixa Madeira'],
+  },
+  {
+    grupo: 'Flutuante / Canaleta',
+    molduras: ['Flutuante Preta', 'Flutuante Branca', 'Flutuante Dourada', 'Flutuante Madeira'],
+  },
+  {
+    grupo: 'Côncava',
+    molduras: ['Côncava Preta', 'Côncava Branca', 'Côncava Dourada', 'Côncava Madeira'],
+  },
+  {
+    grupo: 'Inox',
+    molduras: ['Inox'],
+  },
+  {
+    grupo: 'Premium — Clássicas',
+    molduras: ['Trono de Ouro', 'Majestade Negra', 'Galeria Imperial'],
+  },
+  {
+    grupo: 'Premium — Luxo',
+    molduras: ['Roma Moderna', 'Palaciana', 'Realce Imperial', 'Imperial Prata e Ouro', 'Barroco Imperial'],
+  },
+]
+
+const ORIGENS = ['Acervo', 'Gravação', 'Devolução', 'Amostra', 'Exposição']
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +167,10 @@ function QuadroCard({ q, onVendido, onDelete }: { q: AcervoQuadro; onVendido: ()
 
 // ─── Modal de Cadastro ────────────────────────────────────────────────────────
 
-const EMPTY: AcervoInsert = { produto: '', tamanho: '', moldura: '', acabamento: 'Sem Vidro', categoria: '', foto_url: '', obs: '', origem: 'Acervo', status: 'disponivel' }
+const EMPTY: AcervoInsert = {
+  produto: '', tamanho: '', moldura: '', acabamento: 'Sem Vidro',
+  categoria: '', foto_url: '', obs: '', origem: 'Acervo', status: 'disponivel',
+}
 
 function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q: AcervoQuadro) => void }) {
   const [form, setForm] = useState<AcervoInsert>(EMPTY)
@@ -121,6 +179,7 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [tamanhoCustom, setTamanhoCustom] = useState(false)
+  const [molduraCustom, setMolduraCustom] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const set = (k: keyof AcervoInsert, v: any) => setForm(p => ({ ...p, [k]: v }))
@@ -138,10 +197,36 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
   const handleSave = async () => {
     if (!form.produto.trim()) { setError('Informe o nome do quadro.'); return }
     setSaving(true)
-    const created = await createAcervoItem(form)
-    setSaving(false)
-    if (created) onSaved(created)
-    else setError('Erro ao salvar. Verifique a conexão.')
+    setError('')
+    try {
+      // Insert direto para capturar mensagem de erro real do Supabase
+      const { data, error: sbErr } = await supabase
+        .from('acervo_quadros')
+        .insert({
+          produto:    form.produto.trim(),
+          tamanho:    form.tamanho   || null,
+          moldura:    form.moldura   || null,
+          acabamento: form.acabamento || null,
+          categoria:  form.categoria  || null,
+          foto_url:   form.foto_url   || null,
+          obs:        form.obs        || null,
+          origem:     form.origem     || null,
+          status:     form.status,
+        })
+        .select()
+        .single()
+      setSaving(false)
+      if (sbErr) {
+        console.error('[acervo] handleSave:', sbErr.code, sbErr.message, sbErr.details)
+        setError(`Erro ao salvar: ${sbErr.message}`)
+      } else {
+        onSaved(data as AcervoQuadro)
+      }
+    } catch (err: any) {
+      setSaving(false)
+      console.error('[acervo] handleSave exception:', err)
+      setError('Erro inesperado. Verifique a conexão e tente novamente.')
+    }
   }
 
   return (
@@ -194,15 +279,37 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
           {/* Tamanho */}
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Tamanho</label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {TAMANHOS.map(t => (
-                <button key={t} onClick={() => { if (t === 'Outro') { setTamanhoCustom(true); set('tamanho', '') } else { setTamanhoCustom(false); set('tamanho', t) } }}
-                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${form.tamanho === t && !tamanhoCustom ? 'bg-navy-900 text-white border-navy-900' : 'border-gray-200 text-gray-600 hover:border-navy-900'}`}>
-                  {t}
-                </button>
+            <div className="space-y-2">
+              {TAMANHOS_GRUPOS.map(g => (
+                <div key={g.grupo}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{g.grupo}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.tamanhos.map(t => (
+                      <button key={t}
+                        onClick={() => { setTamanhoCustom(false); set('tamanho', t) }}
+                        className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                          form.tamanho === t && !tamanhoCustom
+                            ? 'bg-navy-900 text-white border-navy-900'
+                            : 'border-gray-200 text-gray-600 hover:border-navy-900'
+                        }`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
+              <button
+                onClick={() => { setTamanhoCustom(true); set('tamanho', '') }}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                  tamanhoCustom ? 'bg-navy-900 text-white border-navy-900' : 'border-gray-200 text-gray-600 hover:border-navy-900'
+                }`}>
+                Outro
+              </button>
             </div>
-            {tamanhoCustom && <input className="input" placeholder="Ex: 120x80 cm" value={form.tamanho ?? ''} onChange={e => set('tamanho', e.target.value)} />}
+            {tamanhoCustom && (
+              <input className="input mt-2" placeholder="Ex: 120×80 cm" value={form.tamanho ?? ''}
+                onChange={e => set('tamanho', e.target.value)} />
+            )}
           </div>
 
           {/* Categoria + Moldura */}
@@ -216,10 +323,22 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Moldura</label>
-              <select className="input" value={form.moldura ?? ''} onChange={e => set('moldura', e.target.value)}>
+              <select className="input" value={molduraCustom ? 'Outro' : (form.moldura ?? '')} onChange={e => {
+                if (e.target.value === 'Outro') { setMolduraCustom(true); set('moldura', '') }
+                else { setMolduraCustom(false); set('moldura', e.target.value) }
+              }}>
                 <option value="">Selecione...</option>
-                {MOLDURAS.map(m => <option key={m}>{m}</option>)}
+                {MOLDURAS_GRUPOS.map(g => (
+                  <optgroup key={g.grupo} label={g.grupo}>
+                    {g.molduras.map(m => <option key={m} value={m}>{m}</option>)}
+                  </optgroup>
+                ))}
+                <option value="Outro">Outro</option>
               </select>
+              {molduraCustom && (
+                <input className="input mt-2" placeholder="Ex: Moldura Azul" value={form.moldura ?? ''}
+                  onChange={e => set('moldura', e.target.value)} />
+              )}
             </div>
           </div>
 
