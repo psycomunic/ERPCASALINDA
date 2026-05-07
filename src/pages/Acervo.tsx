@@ -7,6 +7,7 @@ import {
   type AcervoQuadro, type AcervoInsert
 } from '../services/acervo'
 import { supabase } from '../lib/supabase'
+import { getFrameImage } from '../lib/frameImages'
 import { fetchPedidos } from '../services/pedidos'
 
 // ─── Constants (sincronizados com o Catálogo) ─────────────────────────────────
@@ -36,35 +37,64 @@ const TAMANHOS_GRUPOS = [
   },
 ]
 
-// Todas as molduras do catálogo
+// Todas as molduras do catálogo — com cor e emoji para o swatch visual
 const MOLDURAS_GRUPOS = [
   {
     grupo: 'Sem Moldura',
-    molduras: ['Sem Moldura (Borda Infinita)'],
+    modelos: [
+      { nome: 'Sem Moldura (Borda Infinita)', emoji: '⬜', cor: '#e5e7eb' },
+    ],
   },
   {
     grupo: 'Caixa',
-    molduras: ['Caixa Preta', 'Caixa Branca', 'Caixa Dourada', 'Caixa Madeira'],
+    modelos: [
+      { nome: 'Caixa Preta',   emoji: '⬛', cor: '#111111' },
+      { nome: 'Caixa Branca',  emoji: '⬜', cor: '#f5f5f5' },
+      { nome: 'Caixa Dourada', emoji: '🟨', cor: '#c49a2c' },
+      { nome: 'Caixa Madeira', emoji: '🟫', cor: '#7c3f1e' },
+    ],
   },
   {
     grupo: 'Flutuante / Canaleta',
-    molduras: ['Flutuante Preta', 'Flutuante Branca', 'Flutuante Dourada', 'Flutuante Madeira'],
+    modelos: [
+      { nome: 'Flutuante Preta',   emoji: '⬛', cor: '#111111' },
+      { nome: 'Flutuante Branca',  emoji: '⬜', cor: '#f5f5f5' },
+      { nome: 'Flutuante Dourada', emoji: '🟨', cor: '#c49a2c' },
+      { nome: 'Flutuante Madeira', emoji: '🟫', cor: '#7c3f1e' },
+    ],
   },
   {
     grupo: 'Côncava',
-    molduras: ['Côncava Preta', 'Côncava Branca', 'Côncava Dourada', 'Côncava Madeira'],
+    modelos: [
+      { nome: 'Côncava Preta',   emoji: '⬛', cor: '#111111' },
+      { nome: 'Côncava Branca',  emoji: '⬜', cor: '#f5f5f5' },
+      { nome: 'Côncava Dourada', emoji: '🟨', cor: '#c49a2c' },
+      { nome: 'Côncava Madeira', emoji: '🟫', cor: '#7c3f1e' },
+    ],
   },
   {
     grupo: 'Inox',
-    molduras: ['Inox'],
+    modelos: [
+      { nome: 'Inox', emoji: '🔳', cor: '#9ca3af' },
+    ],
   },
   {
     grupo: 'Premium — Clássicas',
-    molduras: ['Trono de Ouro', 'Majestade Negra', 'Galeria Imperial'],
+    modelos: [
+      { nome: 'Trono de Ouro',    emoji: '✨', cor: '#b8860b' },
+      { nome: 'Majestade Negra',  emoji: '✨', cor: '#1a1a2e' },
+      { nome: 'Galeria Imperial', emoji: '✨', cor: '#c49a2c' },
+    ],
   },
   {
     grupo: 'Premium — Luxo',
-    molduras: ['Roma Moderna', 'Palaciana', 'Realce Imperial', 'Imperial Prata e Ouro', 'Barroco Imperial'],
+    modelos: [
+      { nome: 'Roma Moderna',          emoji: '👑', cor: '#c49a2c' },
+      { nome: 'Palaciana',             emoji: '👑', cor: '#d4a017' },
+      { nome: 'Realce Imperial',       emoji: '👑', cor: '#9ca3af' },
+      { nome: 'Imperial Prata e Ouro', emoji: '👑', cor: '#b8860b' },
+      { nome: 'Barroco Imperial',      emoji: '👑', cor: '#c8952c' },
+    ],
   },
 ]
 
@@ -312,34 +342,76 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
             )}
           </div>
 
-          {/* Categoria + Moldura */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Tema / Categoria</label>
-              <select className="input" value={form.categoria ?? ''} onChange={e => set('categoria', e.target.value)}>
-                <option value="">Selecione...</option>
-                {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
-              </select>
+          {/* Categoria */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Tema / Categoria</label>
+            <select className="input" value={form.categoria ?? ''} onChange={e => set('categoria', e.target.value)}>
+              <option value="">Selecione...</option>
+              {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Moldura — picker visual */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 block">Moldura</label>
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {MOLDURAS_GRUPOS.map(g => (
+                <div key={g.grupo}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{g.grupo}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.modelos.map(m => {
+                      const img = getFrameImage(m.nome)
+                      const isSelected = form.moldura === m.nome && !molduraCustom
+                      return (
+                        <button
+                          key={m.nome}
+                          title={m.nome}
+                          onClick={() => { setMolduraCustom(false); set('moldura', m.nome) }}
+                          className={`relative flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-all ${
+                            isSelected
+                              ? 'border-navy-900 bg-blue-50 shadow'
+                              : 'border-gray-200 hover:border-gray-400 bg-white'
+                          }`}
+                          style={{ minWidth: 52 }}
+                        >
+                          <div
+                            className="w-9 h-9 rounded flex items-center justify-center overflow-hidden text-base"
+                            style={{ background: m.cor + '22', border: `2px solid ${m.cor}66` }}
+                          >
+                            {img
+                              ? <img src={img} alt={m.nome} className="w-full h-full object-cover" />
+                              : <span>{m.emoji}</span>
+                            }
+                          </div>
+                          <span className="text-[9px] text-gray-600 leading-tight text-center max-w-[50px] truncate">{m.nome}</span>
+                          {isSelected && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-navy-900 rounded-full flex items-center justify-center">
+                              <Check size={8} className="text-white" />
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              {/* Outro */}
+              <button
+                onClick={() => { setMolduraCustom(true); set('moldura', '') }}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                  molduraCustom ? 'bg-navy-900 text-white border-navy-900' : 'border-dashed border-gray-300 text-gray-500 hover:border-navy-900'
+                }`}
+              >
+                + Outro
+              </button>
             </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Moldura</label>
-              <select className="input" value={molduraCustom ? 'Outro' : (form.moldura ?? '')} onChange={e => {
-                if (e.target.value === 'Outro') { setMolduraCustom(true); set('moldura', '') }
-                else { setMolduraCustom(false); set('moldura', e.target.value) }
-              }}>
-                <option value="">Selecione...</option>
-                {MOLDURAS_GRUPOS.map(g => (
-                  <optgroup key={g.grupo} label={g.grupo}>
-                    {g.molduras.map(m => <option key={m} value={m}>{m}</option>)}
-                  </optgroup>
-                ))}
-                <option value="Outro">Outro</option>
-              </select>
-              {molduraCustom && (
-                <input className="input mt-2" placeholder="Ex: Moldura Azul" value={form.moldura ?? ''}
-                  onChange={e => set('moldura', e.target.value)} />
-              )}
-            </div>
+            {molduraCustom && (
+              <input className="input mt-2" placeholder="Descreva a moldura..." value={form.moldura ?? ''}
+                onChange={e => set('moldura', e.target.value)} />
+            )}
+            {form.moldura && !molduraCustom && (
+              <p className="text-xs text-navy-900 font-semibold mt-1.5">✓ {form.moldura}</p>
+            )}
           </div>
 
           {/* Origem + Obs */}
