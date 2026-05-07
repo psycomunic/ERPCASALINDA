@@ -301,13 +301,14 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
 
       const map = new Map<string, string | undefined>()
       
-      // Prioriza acervo para tentar pegar a foto
+      // Prioriza acervo para tentar pegar a foto (ignora imagens em Base64 antigas)
       if (resA.data) {
         resA.data.forEach(item => {
+          const isValidUrl = item.foto_url && !item.foto_url.startsWith('data:image')
           if (!map.has(item.produto)) {
+            map.set(item.produto, isValidUrl ? (item.foto_url || undefined) : undefined)
+          } else if (isValidUrl) {
             map.set(item.produto, item.foto_url || undefined)
-          } else if (item.foto_url) {
-            map.set(item.produto, item.foto_url)
           }
         })
       }
@@ -345,6 +346,10 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
     if (!form.produto.trim()) { setError('Informe o nome do quadro.'); return }
     setSaving(true)
     setError('')
+    
+    // Garante que não vamos tentar salvar um Base64 gigante na tabela
+    const finalFotoUrl = form.foto_url && form.foto_url.startsWith('data:image') ? null : (form.foto_url || null)
+
     try {
       if (quadroToEdit) {
         const { error: sbErr } = await supabase
@@ -355,7 +360,7 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
             moldura:    form.moldura   || null,
             acabamento: form.acabamento || null,
             categoria:  form.categoria  || null,
-            foto_url:   form.foto_url   || null,
+            foto_url:   finalFotoUrl,
             obs:        form.obs        || null,
             origem:     form.origem     || null,
             status:     form.status,
@@ -378,7 +383,7 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
             moldura:    form.moldura   || null,
             acabamento: form.acabamento || null,
             categoria:  form.categoria  || null,
-            foto_url:   form.foto_url   || null,
+            foto_url:   finalFotoUrl,
             obs:        form.obs        || null,
             origem:     form.origem     || null,
             status:     form.status,
