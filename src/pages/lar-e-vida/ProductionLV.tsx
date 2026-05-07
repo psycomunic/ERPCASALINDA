@@ -469,7 +469,7 @@ function printFornecedorPDF(orders: LVOrder[]) {
           <span style="font-size:12px;font-weight:600;color:#374151;">${o.cor || '—'}</span>
         </td>
         <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
-          <span style="font-size:12px;font-weight:700;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:6px;border:1px solid #fde68a;">${o.tamanho || '—'}</span>
+          <span style="font-size:12px;font-weight:700;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:6px;border:1px solid #fde68a;white-space:nowrap;display:inline-block;">${o.tamanho || '—'}</span>
         </td>
         <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
           <span style="font-size:16px;font-weight:900;color:#111827;">${o.quantidade ?? 1}</span>
