@@ -299,13 +299,17 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
   }, [])
 
   const handleFile = useCallback(async (file: File) => {
-    const reader = new FileReader()
-    reader.onload = e => setPreview(e.target?.result as string)
-    reader.readAsDataURL(file)
+    // Usa ObjectURL para preview instantâneo (evita travamento de memória com Base64 no iOS)
+    const objectUrl = URL.createObjectURL(file)
+    setPreview(objectUrl)
     setUploading(true)
     const url = await uploadFotoAcervo(file)
     setUploading(false)
-    if (url) { set('foto_url', url); setPreview('') }
+    if (url) {
+      set('foto_url', url)
+      setPreview('')
+      URL.revokeObjectURL(objectUrl) // libera a memória
+    }
   }, [])
 
   const handleSave = async () => {
