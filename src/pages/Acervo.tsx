@@ -134,12 +134,43 @@ function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
     onVendido()
   }
 
+  const [uploadError, setUploadError] = useState('')
+
   const handleFotoUpload = async (file: File) => {
     setUploading(true)
-    const url = await uploadFotoAcervo(file)
-    if (url) {
-      await supabase.from('acervo_quadros').update({ foto_url: url }).eq('id', q.id)
-      onFotoUpdated(q.id, url)
+    setUploadError('')
+    try {
+      // Tenta upload no Storage
+      let url = await uploadFotoAcervo(file)
+
+      // Fallback: se o Storage falhar, usa base64 direto
+      if (!url) {
+        console.warn('[acervo] Storage falhou — usando base64 como fallback')
+        url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload  = e => resolve(e.target?.result as string)
+          reader.onerror = () => reject(new Error('Falha ao ler arquivo'))
+          reader.readAsDataURL(file)
+        })
+      }
+
+      if (url) {
+        const { error: dbErr } = await supabase
+          .from('acervo_quadros')
+          .update({ foto_url: url })
+          .eq('id', q.id)
+        if (dbErr) {
+          console.error('[acervo] update foto_url:', dbErr.message)
+          setUploadError('Erro ao salvar: ' + dbErr.message)
+        } else {
+          onFotoUpdated(q.id, url)
+        }
+      } else {
+        setUploadError('Não foi possível processar a imagem.')
+      }
+    } catch (err: any) {
+      console.error('[acervo] handleFotoUpload exception:', err)
+      setUploadError('Erro inesperado ao enviar foto.')
     }
     setUploading(false)
   }
@@ -172,6 +203,7 @@ function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
           <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 group-hover:text-navy-900 transition-colors">
             <Camera size={28} />
             <p className="text-xs mt-2 font-medium">Toque para adicionar foto</p>
+            {uploadError && <p className="text-[10px] text-red-500 mt-1 px-2 text-center">{uploadError}</p>}
           </div>
         )}
         {q.origem && q.origem !== 'Acervo' && (
