@@ -127,7 +127,47 @@ export interface Database {
           cliente_telefone?: string | null
         }
       }
+      acervo_quadros: {
+        Row: {
+          id: string
+          produto: string
+          tamanho: string | null
+          moldura: string | null
+          acabamento: string | null
+          categoria: string | null
+          foto_url: string | null
+          obs: string | null
+          origem: string | null
+          status: 'disponivel' | 'vendido'
+          created_at: string
+          updated_at: string
+        }
+        Relationships: any[]
+        Insert: {
+          produto: string
+          tamanho?: string | null
+          moldura?: string | null
+          acabamento?: string | null
+          categoria?: string | null
+          foto_url?: string | null
+          obs?: string | null
+          origem?: string | null
+          status?: 'disponivel' | 'vendido'
+        }
+        Update: {
+          produto?: string
+          tamanho?: string | null
+          moldura?: string | null
+          acabamento?: string | null
+          categoria?: string | null
+          foto_url?: string | null
+          obs?: string | null
+          origem?: string | null
+          status?: 'disponivel' | 'vendido'
+        }
+      }
       financeiro_lancamentos: {
+
         Row: {
           id: string
           tipo: 'receita' | 'despesa'

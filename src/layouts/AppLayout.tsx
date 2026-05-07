@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Factory, DollarSign, Package,
   Building2, Users, Settings, LogOut, Plus,
   Search, Bell, ChevronDown, Menu, X, Check, FileText, Grid,
-  Sofa, ChevronRight, ChevronLeft, Shield, Lock, Eye, EyeOff
+  Sofa, ChevronRight, ChevronLeft, Shield, Lock, Eye, EyeOff, Frame
 } from 'lucide-react'
 import { LayoutProvider, useLayout } from '../contexts/LayoutContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -108,7 +108,8 @@ const NAV_CL = [
   { to: '/patrimonio', label: 'Patrimônio',       icon: Building2,       module: 'patrimonio' },
   { to: '/partners',   label: 'Parceiros',        icon: Users,           module: 'partners'   },
   { to: '/reports',    label: 'Relatórios',       icon: FileText,        module: 'reports'    },
-  { to: '/catalogo',   label: 'Catálogo',         icon: Grid,            module: 'catalogo'   },
+  { to: '/catalogo',   label: 'Catálogo',         icon: Grid,    module: 'catalogo'   },
+  { to: '/acervo',     label: 'Acervo de Quadros', icon: Frame,   module: 'acervo'     },
 ] as const
 
 // ── Lar e Vida Navigation ─────────────────────────────────────────────────────
@@ -131,6 +132,7 @@ const SECTION_LABELS: Record<string, string> = {
   '/settings':   'Configurações',
   '/reports':    'Relatórios',
   '/catalogo':   'Catálogo de Produtos',
+  '/acervo':     'Acervo de Quadros Prontos',
   '/admin/users':'Gestão de Usuários',
   '/lar-e-vida/dashboard':  'Lar e Vida — Dashboard',
   '/lar-e-vida/production': 'Lar e Vida — Produção PCP',

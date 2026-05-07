@@ -20,6 +20,7 @@ import Partners from './pages/Partners'
 import Settings from './pages/Settings'
 import Reports from './pages/Reports'
 import Catalogo from './pages/Catalogo'
+import Acervo from './pages/Acervo'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import AccessDenied from './pages/AccessDenied'
@@ -113,6 +114,7 @@ export default function App() {
             <Route path="partners"   element={<PermGuard module="partners"><Partners /></PermGuard>} />
             <Route path="reports"    element={<PermGuard module="reports"><Reports /></PermGuard>} />
             <Route path="catalogo"   element={<PermGuard module="catalogo"><Catalogo /></PermGuard>} />
+            <Route path="acervo"     element={<PermGuard module="acervo"><Acervo /></PermGuard>} />
             <Route path="settings"   element={<PermGuard module="settings"><Settings /></PermGuard>} />
 
             {/* Admin */}

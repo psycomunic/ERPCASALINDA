@@ -24,6 +24,7 @@ export type Module =
   | 'reports'
   | 'settings'
   | 'catalogo'
+  | 'acervo'
   | 'users'
 
 export interface UserProfile {
@@ -39,12 +40,12 @@ export interface UserProfile {
 // ─── Permission Map ───────────────────────────────────────────────────────────
 
 const ROLE_MODULES: Record<Role, Module[]> = {
-  admin:        ['dashboard','production','financial','inventory','patrimonio','partners','reports','settings','catalogo','users'],
-  gerente:      ['dashboard','production','financial','inventory','patrimonio','partners','reports','catalogo'],
-  producao:     ['production','inventory'],
-  impressao:    ['production','inventory'],
-  financeiro:   ['dashboard','financial'],
-  almoxarifado: ['inventory','patrimonio'],
+  admin:        ['dashboard','production','financial','inventory','patrimonio','partners','reports','settings','catalogo','acervo','users'],
+  gerente:      ['dashboard','production','financial','inventory','patrimonio','partners','reports','catalogo','acervo'],
+  producao:     ['production','inventory','acervo'],
+  impressao:    ['production','inventory','acervo'],
+  financeiro:   ['dashboard','financial','acervo'],
+  almoxarifado: ['inventory','patrimonio','acervo'],
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
