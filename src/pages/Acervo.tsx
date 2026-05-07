@@ -115,10 +115,17 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-function QuadroCard({ q, onVendido, onDelete }: { q: AcervoQuadro; onVendido: () => void; onDelete: () => void }) {
+function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
+  q: AcervoQuadro
+  onVendido: () => void
+  onDelete: () => void
+  onFotoUpdated: (id: string, url: string) => void
+}) {
   const [confirmVend, setConfirmVend] = useState(false)
   const [confirmDel,  setConfirmDel]  = useState(false)
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const handleVendido = async () => {
     setLoading(true)
@@ -127,22 +134,55 @@ function QuadroCard({ q, onVendido, onDelete }: { q: AcervoQuadro; onVendido: ()
     onVendido()
   }
 
+  const handleFotoUpload = async (file: File) => {
+    setUploading(true)
+    const url = await uploadFotoAcervo(file)
+    if (url) {
+      await supabase.from('acervo_quadros').update({ foto_url: url }).eq('id', q.id)
+      onFotoUpdated(q.id, url)
+    }
+    setUploading(false)
+  }
+
   return (
     <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
       className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-      {/* Foto */}
-      <div className="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
-        {q.foto_url
-          ? <img src={q.foto_url} alt={q.produto} className="w-full h-full object-cover" />
-          : <div className="w-full h-full flex flex-col items-center justify-center text-gray-300">
-              <Frame size={32} /><p className="text-xs mt-2">Sem foto</p>
+      {/* Foto — clicável para adicionar/trocar */}
+      <div
+        className="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden cursor-pointer group"
+        onClick={() => fileRef.current?.click()}
+        title="Clique para adicionar foto"
+      >
+        {uploading ? (
+          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+            <RefreshCw size={26} className="animate-spin" />
+            <p className="text-xs mt-2">Enviando foto...</p>
+          </div>
+        ) : q.foto_url ? (
+          <>
+            <img src={q.foto_url} alt={q.produto} className="w-full h-full object-cover" />
+            {/* Overlay de troca de foto */}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <div className="bg-white/90 rounded-full p-2 shadow">
+                <Camera size={16} className="text-navy-900" />
+              </div>
             </div>
-        }
+          </>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 group-hover:text-navy-900 transition-colors">
+            <Camera size={28} />
+            <p className="text-xs mt-2 font-medium">Toque para adicionar foto</p>
+          </div>
+        )}
         {q.origem && q.origem !== 'Acervo' && (
           <span className="absolute top-2 left-2 bg-navy-900/80 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
             {q.origem}
           </span>
         )}
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFotoUpload(f) }}
+          onClick={e => e.stopPropagation()}
+        />
       </div>
 
       {/* Info */}
@@ -549,6 +589,11 @@ export default function Acervo() {
     setToast('Quadro removido do acervo.')
   }
 
+  const handleFotoUpdated = (id: string, url: string) => {
+    setQuadros(prev => prev.map(q => q.id === id ? { ...q, foto_url: url } : q))
+    setToast('Foto adicionada com sucesso!')
+  }
+
   const filtered = quadros.filter(q => {
     const matchSearch = !search || q.produto.toLowerCase().includes(search.toLowerCase())
     const matchCat    = !filterCat || q.categoria === filterCat
@@ -645,7 +690,7 @@ export default function Acervo() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           <AnimatePresence>
             {filtered.map(q => (
-              <QuadroCard key={q.id} q={q} onVendido={() => handleVendido(q.id)} onDelete={() => handleDelete(q.id)} />
+              <QuadroCard key={q.id} q={q} onVendido={() => handleVendido(q.id)} onDelete={() => handleDelete(q.id)} onFotoUpdated={handleFotoUpdated} />
             ))}
           </AnimatePresence>
         </div>

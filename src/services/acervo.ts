@@ -105,12 +105,32 @@ export async function uploadFotoAcervo(file: File): Promise<string | null> {
 // ─── Match com PCP ────────────────────────────────────────────────────────────
 
 /**
+ * Extrai o código de arte de um título de produto (ex: "V3035", "V1034").
+ * O código é o identificador único da estampa/arte e fica no final do título.
+ */
+function extractArtCode(s: string): string | null {
+  // Busca padrões como V3035, V1034, T001, etc. (letra + dígitos, 3-6 dígitos)
+  const match = s.match(/\b([A-Z]\d{3,6})\b/i)
+  return match ? match[1].toUpperCase() : null
+}
+
+/**
  * Dado o título de um pedido do PCP e um quadro do acervo,
- * retorna true se houver pelo menos 2 palavras relevantes em comum.
+ * retorna true SOMENTE se ambos tiverem o mesmo código de arte (ex: V3035).
+ * Se nenhum dos dois tiver código, cai no fallback de palavras (mínimo 3 palavras).
  */
 export function matchesPCP(produtoPCP: string, quadroAcervo: string): boolean {
-  const STOP_WORDS = new Set(['de', 'da', 'do', 'e', 'em', 'com', 'para', 'por', 'um', 'uma', 'o', 'a', 'os', 'as'])
-  const normalize = (s: string) =>
+  const codePCP    = extractArtCode(produtoPCP)
+  const codeAcervo = extractArtCode(quadroAcervo)
+
+  // Se o acervo tem um código, só dá match se o PCP tiver o mesmo
+  if (codeAcervo) {
+    return codePCP === codeAcervo
+  }
+
+  // Fallback: sem código, exige 3+ palavras relevantes em comum (mais restritivo)
+  const STOP_WORDS = new Set(['de', 'da', 'do', 'e', 'em', 'com', 'para', 'por', 'um', 'uma', 'o', 'a', 'os', 'as', 'quadro', 'moldura', 'tela', 'canvas'])
+  const normalize  = (s: string) =>
     s.toLowerCase()
      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
      .replace(/[^a-z0-9\s]/g, '')
@@ -119,6 +139,5 @@ export function matchesPCP(produtoPCP: string, quadroAcervo: string): boolean {
 
   const wordsPCP    = new Set(normalize(produtoPCP))
   const wordsAcervo = normalize(quadroAcervo)
-  const matches     = wordsAcervo.filter(w => wordsPCP.has(w))
-  return matches.length >= 2
+  return wordsAcervo.filter(w => wordsPCP.has(w)).length >= 3
 }
