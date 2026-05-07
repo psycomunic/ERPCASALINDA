@@ -38,6 +38,10 @@ const TAMANHOS_GRUPOS = [
     grupo: '3 Telas',
     tamanhos: ['40×20 cm cada', '55×30 cm cada', '70×40 cm cada', '90×50 cm cada', '120×70 cm cada'],
   },
+  {
+    grupo: '1 Tela — Panorâmico',
+    tamanhos: ['100×40 cm', '150×60 cm', '200×80 cm', '230×100 cm'],
+  },
 ]
 
 // Todas as molduras do catálogo — com cor e emoji para o swatch visual
