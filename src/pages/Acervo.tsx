@@ -281,7 +281,7 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
   const [tamanhoCustom, setTamanhoCustom] = useState(false)
   const [molduraCustom, setMolduraCustom] = useState(false)
   // Autocomplete
-  const [sugestoes, setSugestoes] = useState<string[]>([])
+  const [sugestoes, setSugestoes] = useState<{ nome: string; foto_url?: string }[]>([])
   const [showSug, setShowSug] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -293,16 +293,37 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (q.trim().length < 2) { setSugestoes([]); setShowSug(false); return }
     debounceRef.current = setTimeout(async () => {
-      const { data } = await supabase
-        .from('pedidos')
-        .select('produto')
-        .ilike('produto', `%${q.trim()}%`)
-        .limit(30)
-      if (data) {
-        const unicos = [...new Set(data.map(r => r.produto as string))].slice(0, 8)
-        setSugestoes(unicos)
-        setShowSug(unicos.length > 0)
+      const qBusca = `%${q.trim()}%`
+      const [resP, resA] = await Promise.all([
+        supabase.from('pedidos').select('produto').ilike('produto', qBusca).limit(20),
+        supabase.from('acervo_quadros').select('produto, foto_url').ilike('produto', qBusca).limit(20)
+      ])
+
+      const map = new Map<string, string | undefined>()
+      
+      // Prioriza acervo para tentar pegar a foto
+      if (resA.data) {
+        resA.data.forEach(item => {
+          if (!map.has(item.produto)) {
+            map.set(item.produto, item.foto_url || undefined)
+          } else if (item.foto_url) {
+            map.set(item.produto, item.foto_url)
+          }
+        })
       }
+      
+      if (resP.data) {
+        resP.data.forEach(item => {
+          if (!map.has(item.produto)) map.set(item.produto, undefined)
+        })
+      }
+
+      const unicos = Array.from(map.entries())
+        .map(([nome, foto_url]) => ({ nome, foto_url }))
+        .slice(0, 8)
+        
+      setSugestoes(unicos)
+      setShowSug(unicos.length > 0)
     }, 250)
   }, [])
 
@@ -442,13 +463,21 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
                     <button
                       type="button"
                       onMouseDown={() => {
-                        set('produto', s)
+                        set('produto', s.nome)
+                        if (!form.foto_url && s.foto_url) set('foto_url', s.foto_url)
                         setSugestoes([])
                         setShowSug(false)
                       }}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-blue-50 hover:text-navy-900 transition-colors truncate"
+                      className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-blue-50 hover:text-navy-900 transition-colors flex items-center gap-2"
                     >
-                      {s}
+                      {s.foto_url ? (
+                        <img src={s.foto_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200 shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 flex items-center justify-center">
+                          <Frame size={14} className="text-gray-400" />
+                        </div>
+                      )}
+                      <span className="truncate">{s.nome}</span>
                     </button>
                   </li>
                 ))}
