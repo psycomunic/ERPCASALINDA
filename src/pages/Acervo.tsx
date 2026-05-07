@@ -210,9 +210,31 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
   const [error, setError] = useState('')
   const [tamanhoCustom, setTamanhoCustom] = useState(false)
   const [molduraCustom, setMolduraCustom] = useState(false)
+  // Autocomplete
+  const [sugestoes, setSugestoes] = useState<string[]>([])
+  const [showSug, setShowSug] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const set = (k: keyof AcervoInsert, v: any) => setForm(p => ({ ...p, [k]: v }))
+
+  // Busca sugestões de produto no histórico de pedidos (Magazord + internos)
+  const buscarSugestoes = useCallback((q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (q.trim().length < 2) { setSugestoes([]); setShowSug(false); return }
+    debounceRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('pedidos')
+        .select('produto')
+        .ilike('produto', `%${q.trim()}%`)
+        .limit(30)
+      if (data) {
+        const unicos = [...new Set(data.map(r => r.produto as string))].slice(0, 8)
+        setSugestoes(unicos)
+        setShowSug(unicos.length > 0)
+      }
+    }, 250)
+  }, [])
 
   const handleFile = useCallback(async (file: File) => {
     const reader = new FileReader()
@@ -300,10 +322,40 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
           </div>
 
-          {/* Nome */}
-          <div>
+          {/* Nome com autocomplete */}
+          <div className="relative">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Nome / Descrição *</label>
-            <input className="input" placeholder="Ex: Árvore da Vida em Canvas Texturizado" value={form.produto} onChange={e => set('produto', e.target.value)} />
+            <input
+              className="input"
+              placeholder="Ex: Árvore da Vida em Canvas Texturizado"
+              value={form.produto}
+              autoComplete="off"
+              onChange={e => {
+                set('produto', e.target.value)
+                buscarSugestoes(e.target.value)
+              }}
+              onFocus={() => { if (sugestoes.length > 0) setShowSug(true) }}
+              onBlur={() => setTimeout(() => setShowSug(false), 150)}
+            />
+            {showSug && (
+              <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                {sugestoes.map((s, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onMouseDown={() => {
+                        set('produto', s)
+                        setSugestoes([])
+                        setShowSug(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-blue-50 hover:text-navy-900 transition-colors truncate"
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Tamanho */}
