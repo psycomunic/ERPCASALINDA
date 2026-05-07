@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Check, RefreshCw, Search, Frame, AlertTriangle, Trash2, Camera } from 'lucide-react'
+import { Plus, X, Check, RefreshCw, Search, Frame, AlertTriangle, Trash2, Camera, Edit2 } from 'lucide-react'
 import {
   fetchAcervoDisponivel, deleteAcervoItem,
   marcarComoVendido, uploadFotoAcervo, matchesPCP,
@@ -118,10 +118,11 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
+function QuadroCard({ q, onVendido, onDelete, onEdit, onFotoUpdated }: {
   q: AcervoQuadro
   onVendido: () => void
   onDelete: () => void
+  onEdit: () => void
   onFotoUpdated: (id: string, url: string) => void
 }) {
   const [confirmVend, setConfirmVend] = useState(false)
@@ -249,6 +250,9 @@ function QuadroCard({ q, onVendido, onDelete, onFotoUpdated }: {
               <button onClick={() => setConfirmDel(true)} className="p-1.5 border border-red-100 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
                 <Trash2 size={13} />
               </button>
+              <button onClick={onEdit} className="p-1.5 border border-blue-100 rounded-lg text-blue-500 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                <Edit2 size={13} />
+              </button>
             </>
           )}
         </div>
@@ -264,8 +268,8 @@ const EMPTY: AcervoInsert = {
   categoria: '', foto_url: '', obs: '', origem: 'Acervo', status: 'disponivel',
 }
 
-function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q: AcervoQuadro) => void }) {
-  const [form, setForm] = useState<AcervoInsert>(EMPTY)
+function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: AcervoQuadro | null; onClose: () => void; onSaved: (q: AcervoQuadro, isEdit?: boolean) => void }) {
+  const [form, setForm] = useState<AcervoInsert>(quadroToEdit ? { ...quadroToEdit } : EMPTY)
   const [preview, setPreview] = useState('')
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -317,28 +321,52 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
     setSaving(true)
     setError('')
     try {
-      // Insert direto para capturar mensagem de erro real do Supabase
-      const { data, error: sbErr } = await supabase
-        .from('acervo_quadros')
-        .insert({
-          produto:    form.produto.trim(),
-          tamanho:    form.tamanho   || null,
-          moldura:    form.moldura   || null,
-          acabamento: form.acabamento || null,
-          categoria:  form.categoria  || null,
-          foto_url:   form.foto_url   || null,
-          obs:        form.obs        || null,
-          origem:     form.origem     || null,
-          status:     form.status,
-        })
-        .select()
-        .single()
-      setSaving(false)
-      if (sbErr) {
-        console.error('[acervo] handleSave:', sbErr.code, sbErr.message, sbErr.details)
-        setError(`Erro ao salvar: ${sbErr.message}`)
+      if (quadroToEdit) {
+        const { error: sbErr } = await supabase
+          .from('acervo_quadros')
+          .update({
+            produto:    form.produto.trim(),
+            tamanho:    form.tamanho   || null,
+            moldura:    form.moldura   || null,
+            acabamento: form.acabamento || null,
+            categoria:  form.categoria  || null,
+            foto_url:   form.foto_url   || null,
+            obs:        form.obs        || null,
+            origem:     form.origem     || null,
+            status:     form.status,
+          })
+          .eq('id', quadroToEdit.id)
+        
+        setSaving(false)
+        if (sbErr) {
+          console.error('[acervo] handleSave edit:', sbErr)
+          setError(`Erro ao atualizar: ${sbErr.message}`)
+        } else {
+          onSaved({ ...quadroToEdit, ...form, produto: form.produto.trim() } as AcervoQuadro, true)
+        }
       } else {
-        onSaved(data as AcervoQuadro)
+        const { data, error: sbErr } = await supabase
+          .from('acervo_quadros')
+          .insert({
+            produto:    form.produto.trim(),
+            tamanho:    form.tamanho   || null,
+            moldura:    form.moldura   || null,
+            acabamento: form.acabamento || null,
+            categoria:  form.categoria  || null,
+            foto_url:   form.foto_url   || null,
+            obs:        form.obs        || null,
+            origem:     form.origem     || null,
+            status:     form.status,
+          })
+          .select()
+          .single()
+        setSaving(false)
+        if (sbErr) {
+          console.error('[acervo] handleSave insert:', sbErr)
+          setError(`Erro ao salvar: ${sbErr.message}`)
+        } else {
+          onSaved(data as AcervoQuadro, false)
+        }
       }
     } catch (err: any) {
       setSaving(false)
@@ -353,7 +381,7 @@ function CadastroModal({ onClose, onSaved }: { onClose: () => void; onSaved: (q:
         initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <h3 className="font-bold text-gray-900 flex items-center gap-2"><Frame size={16} className="text-navy-900" /> Catalogar Quadro</h3>
+          <h3 className="font-bold text-gray-900 flex items-center gap-2"><Frame size={16} className="text-navy-900" /> {quadroToEdit ? 'Editar Quadro' : 'Catalogar Quadro'}</h3>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-700" /></button>
         </div>
 
@@ -574,6 +602,7 @@ export default function Acervo() {
   const [quadros, setQuadros]       = useState<AcervoQuadro[]>([])
   const [loading, setLoading]       = useState(true)
   const [showModal, setShowModal]   = useState(false)
+  const [editingQuadro, setEditingQuadro] = useState<AcervoQuadro | null>(null)
   const [toast, setToast]           = useState('')
   const [search, setSearch]         = useState('')
   const [filterCat, setFilterCat]   = useState('')
@@ -639,7 +668,7 @@ export default function Acervo() {
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">Quadros disponíveis no salão — gravações, devoluções e amostras</p>
         </div>
-        <button onClick={() => setShowModal(true)}
+        <button onClick={() => { setEditingQuadro(null); setShowModal(true); }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm hover:opacity-90 transition-opacity"
           style={{ background: '#0f172a' }}>
           <Plus size={16} /> Catalogar Quadro
@@ -716,7 +745,7 @@ export default function Acervo() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           <AnimatePresence>
             {filtered.map(q => (
-              <QuadroCard key={q.id} q={q} onVendido={() => handleVendido(q.id)} onDelete={() => handleDelete(q.id)} onFotoUpdated={handleFotoUpdated} />
+              <QuadroCard key={q.id} q={q} onVendido={() => handleVendido(q.id)} onDelete={() => handleDelete(q.id)} onEdit={() => { setEditingQuadro(q); setShowModal(true); }} onFotoUpdated={handleFotoUpdated} />
             ))}
           </AnimatePresence>
         </div>
@@ -724,7 +753,20 @@ export default function Acervo() {
 
       {/* Modal */}
       <AnimatePresence>
-        {showModal && <CadastroModal onClose={() => setShowModal(false)} onSaved={handleSaved} />}
+        {showModal && <CadastroModal
+          quadroToEdit={editingQuadro}
+          onClose={() => { setShowModal(false); setEditingQuadro(null); }}
+          onSaved={(novo, isEdit) => {
+            if (isEdit) {
+              setQuadros(p => p.map(x => x.id === novo.id ? novo : x))
+            } else {
+              setQuadros(p => [novo, ...p])
+            }
+            setShowModal(false)
+            setEditingQuadro(null)
+            setToast(isEdit ? 'Quadro atualizado com sucesso!' : 'Quadro catalogado com sucesso!')
+          }}
+        />}
       </AnimatePresence>
 
       {/* Toast */}
