@@ -223,9 +223,10 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
   }
 
   try {
-    // Filtrar os últimos 3 dias para garantir performance e evitar timeouts
+    // Janela de 60 dias — garante que nenhum pedido recente seja perdido ("pedido batido")
+    // O Supabase é o source of truth; a API do Magazord só injeta pedidos ainda não conhecidos.
     const d = new Date()
-    d.setDate(d.getDate() - 3)
+    d.setDate(d.getDate() - 60)
     const dataInicial = d.toISOString().split('T')[0]
 
     // Fazer apenas uma chamada e filtrar os status do lado do cliente
@@ -252,6 +253,114 @@ export async function fetchPendingOrders(): Promise<MagazordOrder[]> {
     _lastStatus = 'error'
     return []
   }
+}
+
+// ─── Mapeamento situação Magazord → etapa do kanban ──────────────────────────
+
+export interface MagazordHistoricoOrder {
+  numero:          string
+  magazordId?:     number
+  cliente:         string
+  produto:         string
+  canal?:          string
+  etapa:           string
+  arquivado:       boolean
+  valor?:          number
+  frete?:          number
+  transportadora?: string
+  prazoEntrega?:   string
+  endereco?:       string
+  moldura?:        string
+  acabamento?:     string
+  obs?:            string
+  situacao:        number
+}
+
+function situacaoToEtapa(situacao: number): { etapa: string; arquivado: boolean } | null {
+  switch (situacao) {
+    case 4:  return { etapa: 'Novos Pedidos',      arquivado: false }
+    case 5:  return { etapa: 'Impressão',           arquivado: false }
+    case 23: return { etapa: 'Impressão',           arquivado: false }
+    case 6:  return { etapa: 'Prontos para Envio',  arquivado: false }
+    case 7:  return { etapa: 'Despachados',         arquivado: false }
+    case 8:  return { etapa: 'Despachados',         arquivado: true  } // Entregue → arquiva
+    case 1:  return { etapa: 'Novos Pedidos',       arquivado: false } // Aguardando Pagamento
+    case 3:  return { etapa: 'Novos Pedidos',       arquivado: false } // Em Análise
+    case 2:  return null // Cancelado — ignora
+    default: return { etapa: 'Novos Pedidos',       arquivado: false }
+  }
+}
+
+/**
+ * Importação histórica completa — busca TODOS os pedidos do Magazord paginando
+ * desde `dataInicio` (padrão: 3 anos atrás). Chama `onProgress` a cada lote.
+ * Use apenas como ação admin única; retorna array de MagazordHistoricoOrder
+ * pronto para upsert no Supabase.
+ */
+export async function fetchAllMagazordOrders(
+  onProgress: (info: { fetched: number; total: number | null; page: number }) => void,
+  dataInicio = '2022-01-01',
+): Promise<MagazordHistoricoOrder[]> {
+  if (!isMagazordConfigured()) return []
+
+  const PAGE_SIZE = 100
+  const allOrders: MagazordHistoricoOrder[] = []
+  let page = 1
+  let totalFromApi: number | null = null
+
+  while (true) {
+    try {
+      const json = await mzFetch<MagazordOrdersResponse>(
+        `/site/pedido?dataPedidoInicial=${dataInicio}&limit=${PAGE_SIZE}&page=${page}&order=id&orderDirection=desc`
+      )
+      const items = (json?.data?.items ?? []) as any[]
+      if (page === 1) totalFromApi = json?.data?.total ?? null
+
+      for (const o of items) {
+        const situacao = o.pedidoSituacao ?? o.situacao ?? 0
+        const mapped = situacaoToEtapa(situacao)
+        if (!mapped) continue // pula cancelados
+
+        const e = o.entrega ?? {}
+        const enderecoList = [o.logradouro, o.numero, o.complemento, o.bairro,
+          o.cidadeNome && o.estadoSigla ? `${o.cidadeNome}/${o.estadoSigla}` : undefined, o.cep
+        ].filter(Boolean)
+
+        allOrders.push({
+          numero:          String(o.codigo || o.id),
+          magazordId:      o.id,
+          cliente:         o.pessoaNome || o.cliente?.nome || 'Cliente não informado',
+          produto:         o.itens?.[0]?.nome || o.arrayPedidoItem?.[0]?.nome || 'Consulte o Painel Mz.',
+          canal:           o.canal,
+          etapa:           mapped.etapa,
+          arquivado:       mapped.arquivado,
+          valor:           parseFloat(String(o.valorTotal || 0)) || undefined,
+          frete:           parseFloat(String(o.valorFreteTransportadora || o.valorFrete || o.pedidoValorFrete || e.frete || 0)) || undefined,
+          transportadora:  o.transportadoraNome || e.transportadora || undefined,
+          prazoEntrega:    o.pedidoPrazoEntregaCliente || o.pedidoDataPrevistaEntrega || e.prazo_entrega || undefined,
+          endereco:        enderecoList.length > 0 ? enderecoList.join(', ') : (e.logradouro ? [e.logradouro, e.numero, e.bairro, `${e.cidade}/${e.uf}`, e.cep].filter(Boolean).join(', ') : undefined),
+          moldura:         undefined,
+          acabamento:      undefined,
+          obs:             o.observacao || undefined,
+          situacao,
+        })
+      }
+
+      onProgress({ fetched: allOrders.length, total: totalFromApi, page })
+
+      // Para quando não há mais páginas
+      if (items.length < PAGE_SIZE || page >= 50) break
+      page++
+
+      // Pequena pausa entre páginas para não sobrecarregar a API
+      await new Promise(r => setTimeout(r, 200))
+    } catch (err) {
+      console.error(`[Magazord] fetchAllMagazordOrders page ${page} falhou:`, err)
+      break
+    }
+  }
+
+  return allOrders
 }
 
 /**

@@ -7,9 +7,10 @@ import {
   Search, Trash2
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
-import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder } from '../magazord'
+import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder, fetchAllMagazordOrders } from '../magazord'
 import {
-  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, subscribePedidos, deletePedido
+  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, subscribePedidos, deletePedido,
+  upsertPedidosMagazord, fetchPedidosHistorico
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -471,8 +472,9 @@ function printOS(order: Order, stage: Stage) {
   if (w) { w.document.write(html); w.document.close() }
 }
 
-function DetailModal({ order: initialOrder, stage, onClose, onConclude, onDelete }: {
+function DetailModal({ order: initialOrder, stage, onClose, onConclude, onDelete, onMoveTo }: {
   order: Order; stage: Stage; onClose: () => void; onConclude: () => void; onDelete: () => void
+  onMoveTo: (targetStage: Stage) => void
 }) {
   const [order, setOrder] = useState<Order>(initialOrder)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -865,29 +867,59 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onDelete
         </div>
 
         {/* ── STICKY FOOTER BUTTONS ── */}
-        <div className="flex gap-2 p-4 pt-3 border-t border-gray-100 sticky bottom-0 bg-white">
-          <button onClick={onClose} className="btn-secondary flex-1 justify-center text-sm">Fechar</button>
-          <button
-            onClick={() => printOS(order, stage)}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-              <rect x="6" y="14" width="12" height="8"/>
-            </svg>
-            Imprimir O.S.
-          </button>
+        <div className="flex flex-col gap-2 p-4 pt-3 border-t border-gray-100 sticky bottom-0 bg-white">
+
+          {/* Mover para qualquer etapa */}
           {stage !== 'Despachados' && (
-            <button
-              onClick={() => { onConclude(); onClose() }}
-              className="btn-primary flex-1 justify-center text-sm"
-              style={isMagazord ? { background: '#7c3aed' } : stage === 'Prontos para Envio' ? { background: '#059669' } : {}}
-            >
-              {isMagazord ? <><ArrowRight size={14} /> Confirmar → Produção</> :
-               stage === 'Prontos para Envio' ? <><Send size={14} /> Confirmar Despacho</> :
-               <><CheckCircle size={14} /> Concluir Etapa</>}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <ArrowRight size={13} className="text-gray-400" />
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Mover para</span>
+              </div>
+              <select
+                className="flex-1 text-xs font-medium border border-gray-200 rounded-lg px-2.5 py-2 bg-gray-50 text-gray-700 hover:border-blue-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all cursor-pointer"
+                defaultValue=""
+                onChange={e => {
+                  if (!e.target.value) return
+                  onMoveTo(e.target.value as Stage)
+                  onClose()
+                }}
+              >
+                <option value="" disabled>Selecionar etapa…</option>
+                {(['Novos Pedidos','Impressão','Corte Moldura','Entelamento + Vidro','Acabamento','Revisão','Embalagem','Prontos para Envio','Despachados'] as Stage[])
+                  .filter(s => s !== stage)
+                  .map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+              </select>
+            </div>
           )}
+
+          {/* Botões de ação principais */}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-secondary flex-1 justify-center text-sm">Fechar</button>
+            <button
+              onClick={() => printOS(order, stage)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimir O.S.
+            </button>
+            {stage !== 'Despachados' && (
+              <button
+                onClick={() => { onConclude(); onClose() }}
+                className="btn-primary flex-1 justify-center text-sm"
+                style={isMagazord ? { background: '#7c3aed' } : stage === 'Prontos para Envio' ? { background: '#059669' } : {}}
+              >
+                {isMagazord ? <><ArrowRight size={14} /> Confirmar → Produção</> :
+                 stage === 'Prontos para Envio' ? <><Send size={14} /> Confirmar Despacho</> :
+                 <><CheckCircle size={14} /> Concluir Etapa</>}
+              </button>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -1928,20 +1960,24 @@ function SearchModal({ board, onClose, onView }: {
   onClose: () => void
   onView: (order: Order, stage: Stage) => void
 }) {
+  const [tab, setTab]     = useState<'kanban' | 'historico'>('kanban')
   const [query, setQuery] = useState('')
+  const [hCliente, setHCliente]   = useState('')
+  const [hNumero, setHNumero]     = useState('')
+  const [hMes, setHMes]           = useState('')   // YYYY-MM
+  const [hResults, setHResults]   = useState<any[]>([])
+  const [hLoading, setHLoading]   = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
   const q = query.trim().toLowerCase()
 
-  // Flatten all orders — defesa total contra stages/campos undefined/null/number
+  // ── Kanban search ──────────────────────────────────────────────────────────
   let allOrders: { order: Order; stage: Stage }[] = []
   try {
     allOrders = ALL_STAGES.flatMap(stage =>
-      (board[stage] ?? [])
-        .filter(o => o != null)                // descarta entradas nulas
-        .map(order => ({ order, stage }))
+      (board[stage] ?? []).filter(o => o != null).map(order => ({ order, stage }))
     )
   } catch { allOrders = [] }
 
@@ -1955,6 +1991,24 @@ function SearchModal({ board, onClose, onView }: {
       (order.itens ?? []).some(it => safeStr(it?.produto).includes(q))
     )
   } catch { results = [] }
+
+  // ── Histórico search ───────────────────────────────────────────────────────
+  const buscarHistorico = async () => {
+    if (!hCliente && !hNumero && !hMes) return
+    setHLoading(true)
+    const filtros: any = {}
+    if (hCliente) filtros.cliente = hCliente
+    if (hNumero)  filtros.numero  = hNumero
+    if (hMes) {
+      filtros.dataInicio = `${hMes}-01`
+      const [y, m] = hMes.split('-').map(Number)
+      const lastDay = new Date(y, m, 0).getDate()
+      filtros.dataFim = `${hMes}-${String(lastDay).padStart(2, '0')}`
+    }
+    const rows = await fetchPedidosHistorico(filtros)
+    setHResults(rows)
+    setHLoading(false)
+  }
 
   const STAGE_COLOR: Partial<Record<Stage, string>> = {
     'Novos Pedidos':       'bg-violet-100 text-violet-700',
@@ -1980,86 +2034,198 @@ function SearchModal({ board, onClose, onView }: {
         initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Search input */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-            <Search size={16} className="text-gray-400 shrink-0" />
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Buscar por NF, nº do pedido, cliente ou produto…"
-              className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400"
-            />
-            {query && (
-              <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <p className="text-[11px] text-gray-400 mt-2 pl-1">
-            Pesquisa em todas as etapas — produção e expedição
-          </p>
+        {/* Tabs */}
+        <div className="flex border-b border-gray-100">
+          {(['kanban', 'historico'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-3 text-xs font-semibold transition-colors ${
+                tab === t
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {t === 'kanban' ? '📋 Kanban (ativo)' : '📦 Histórico'}
+            </button>
+          ))}
         </div>
 
-        {/* Results */}
-        <div className="overflow-y-auto flex-1">
-          {q.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-gray-400">
-              <Search size={32} className="mb-3 opacity-30" />
-              <p className="text-sm font-medium">Digite para buscar pedidos</p>
-              <p className="text-xs mt-1 opacity-70">NF · Nº do pedido · Cliente · Produto</p>
-            </div>
-          ) : results.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-gray-400">
-              <Package size={32} className="mb-3 opacity-30" />
-              <p className="text-sm font-medium">Nenhum pedido encontrado</p>
-              <p className="text-xs mt-1 opacity-70">Tente buscar por outro termo</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              <p className="px-5 py-2 text-[11px] text-gray-400 font-semibold uppercase tracking-wider">
-                {results.length} resultado{results.length !== 1 ? 's' : ''}
-              </p>
-              {results.map(({ order, stage }) => (
-                <div
-                  key={`${order.id}-${stage}`}
-                  className="flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group cursor-pointer"
-                  onClick={() => { onView(order, stage); onClose() }}
-                >
-                  {/* Stage dot */}
-                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${STAGE_DOT[stage] ?? 'bg-gray-300'}`} />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-gray-900">#{order.id}</span>
-                      {order.notaFiscal && (
-                        <span className="text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                          <ClipboardList size={8} /> NF {order.notaFiscal}
-                        </span>
-                      )}
-                      {order.fromMagazord && (
-                        <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">MAGAZORD</span>
-                      )}
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[stage] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {stage}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-gray-800 mt-0.5 truncate">{order.cliente}</p>
-                    <p className="text-[11px] text-gray-500 truncate">{order.produto}</p>
-                    {order.prazoEntrega && (
-                      <p className="text-[10px] text-gray-400 mt-0.5">Prazo: {order.prazoEntrega}</p>
-                    )}
-                  </div>
-
-                  <button className="shrink-0 p-1.5 rounded-lg border border-gray-200 text-gray-400 group-hover:text-navy-900 group-hover:border-blue-200 group-hover:bg-blue-50 transition-all">
-                    <Eye size={13} />
+        {tab === 'kanban' ? (
+          <>
+            {/* Kanban search input */}
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <Search size={16} className="text-gray-400 shrink-0" />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Buscar por NF, nº do pedido, cliente ou produto…"
+                  className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400"
+                />
+                {query && (
+                  <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600">
+                    <X size={14} />
                   </button>
-                </div>
-              ))}
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-2 pl-1">
+                Pesquisa em todas as etapas — produção e expedição
+              </p>
             </div>
-          )}
-        </div>
+
+            {/* Kanban results */}
+            <div className="overflow-y-auto flex-1">
+              {q.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+                  <Search size={32} className="mb-3 opacity-30" />
+                  <p className="text-sm font-medium">Digite para buscar pedidos</p>
+                  <p className="text-xs mt-1 opacity-70">NF · Nº do pedido · Cliente · Produto</p>
+                </div>
+              ) : results.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+                  <Package size={32} className="mb-3 opacity-30" />
+                  <p className="text-sm font-medium">Nenhum pedido encontrado no kanban</p>
+                  <p className="text-xs mt-1 opacity-70">Tente buscar na aba Histórico</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  <p className="px-5 py-2 text-[11px] text-gray-400 font-semibold uppercase tracking-wider">
+                    {results.length} resultado{results.length !== 1 ? 's' : ''}
+                  </p>
+                  {results.map(({ order, stage }) => (
+                    <div
+                      key={`${order.id}-${stage}`}
+                      className="flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group cursor-pointer"
+                      onClick={() => { onView(order, stage); onClose() }}
+                    >
+                      <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${STAGE_DOT[stage] ?? 'bg-gray-300'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-gray-900">#{order.id}</span>
+                          {order.notaFiscal && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                              <ClipboardList size={8} /> NF {order.notaFiscal}
+                            </span>
+                          )}
+                          {order.fromMagazord && (
+                            <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">MAGAZORD</span>
+                          )}
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[stage] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {stage}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-gray-800 mt-0.5 truncate">{order.cliente}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{order.produto}</p>
+                        {order.prazoEntrega && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">Prazo: {order.prazoEntrega}</p>
+                        )}
+                      </div>
+                      <button className="shrink-0 p-1.5 rounded-lg border border-gray-200 text-gray-400 group-hover:text-navy-900 group-hover:border-blue-200 group-hover:bg-blue-50 transition-all">
+                        <Eye size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Histórico filters */}
+            <div className="p-4 border-b border-gray-100 flex flex-col gap-2">
+              <div className="flex gap-2">
+                <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus-within:border-blue-400 transition-all">
+                  <User size={13} className="text-gray-400 shrink-0" />
+                  <input
+                    value={hCliente}
+                    onChange={e => setHCliente(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && buscarHistorico()}
+                    placeholder="Nome do cliente"
+                    className="flex-1 bg-transparent text-xs text-gray-800 outline-none placeholder-gray-400"
+                  />
+                </div>
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus-within:border-blue-400 transition-all" style={{ width: 160 }}>
+                  <Search size={13} className="text-gray-400 shrink-0" />
+                  <input
+                    value={hNumero}
+                    onChange={e => setHNumero(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && buscarHistorico()}
+                    placeholder="Nº pedido"
+                    className="flex-1 bg-transparent text-xs text-gray-800 outline-none placeholder-gray-400"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus-within:border-blue-400 transition-all flex-1">
+                  <Calendar size={13} className="text-gray-400 shrink-0" />
+                  <input
+                    type="month"
+                    value={hMes}
+                    onChange={e => setHMes(e.target.value)}
+                    className="flex-1 bg-transparent text-xs text-gray-800 outline-none"
+                  />
+                </div>
+                <button
+                  onClick={buscarHistorico}
+                  disabled={hLoading || (!hCliente && !hNumero && !hMes)}
+                  className="btn-primary px-4 py-2 text-xs disabled:opacity-50"
+                >
+                  {hLoading ? <RefreshCw size={13} className="animate-spin" /> : <Search size={13} />}
+                  Buscar
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 pl-1">Busca em todos os pedidos salvos no banco, incluindo entregues</p>
+            </div>
+
+            {/* Histórico results */}
+            <div className="overflow-y-auto flex-1">
+              {hLoading ? (
+                <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+                  <RefreshCw size={28} className="mb-3 opacity-30 animate-spin" />
+                  <p className="text-sm font-medium">Buscando no histórico…</p>
+                </div>
+              ) : hResults.length === 0 && !hLoading ? (
+                <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+                  <Package size={32} className="mb-3 opacity-30" />
+                  <p className="text-sm font-medium">
+                    {hCliente || hNumero || hMes ? 'Nenhum pedido encontrado' : 'Use os filtros acima para buscar'}
+                  </p>
+                  <p className="text-xs mt-1 opacity-70">Cliente · Nº do pedido · Mês</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  <p className="px-5 py-2 text-[11px] text-gray-400 font-semibold uppercase tracking-wider">
+                    {hResults.length} resultado{hResults.length !== 1 ? 's' : ''} no histórico
+                  </p>
+                  {hResults.map(row => (
+                    <div key={row.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                      <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${STAGE_DOT[row.etapa as Stage] ?? 'bg-gray-300'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-gray-900">#{row.numero}</span>
+                          {row.arquivado && (
+                            <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Arquivado</span>
+                          )}
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[row.etapa as Stage] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {row.etapa}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-gray-800 mt-0.5 truncate">{row.cliente}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{row.produto}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {new Date(row.created_at).toLocaleDateString('pt-BR')}
+                          {row.valor ? ` · R$ ${Number(row.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   )
@@ -2097,6 +2263,11 @@ export default function Production() {
   const [syncing, setSyncing]       = useState(false)
   const [lastSync, setLastSync]     = useState<Date | null>(null)
   const [syncError, setSyncError]   = useState(false)
+
+  // ── Importação histórica ──
+  const [importing, setImporting]   = useState(false)
+  const [importProgress, setImportProgress] = useState<{ fetched: number; total: number | null; page: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ inseridos: number; erros: number } | null>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
@@ -2240,13 +2411,20 @@ export default function Production() {
       const converted = orders.map(magazordToOrder)
 
       setBoard(prev => {
-        const allExistingIds = new Set(Object.values(prev).flat().map(o => o.id))
-        // Apenas adiciona pedidos novos — nunca remove automaticamente.
-        // A remoção automática causava falsos positivos: a API filtra por janela
-        // de 3 dias e inclui apenas situações ativas, então pedidos faturados
-        // (situação 6) ou mais antigos que 3 dias saíam da lista e eram
-        // indevidamente apagados do kanban. Use o botão 🗑 para exclusão manual.
-        const newOrders = converted.filter(o => !allExistingIds.has(o.id))
+        const allExistingIds  = new Set(Object.values(prev).flat().map(o => o.id))
+        // Deduplicação dupla: por id (codigo Mz.) e por magazordId (id numérico).
+        // Isso evita race condition onde o syncMagazord termina ANTES do Supabase
+        // carregar os pedidos já confirmados — sem essa segunda chave, o pedido
+        // apareceria em "Novos Pedidos" E em outra etapa do kanban simultaneamente.
+        const allMagazordIds  = new Set(
+          Object.values(prev).flat()
+            .map(o => o.magazordId)
+            .filter((id): id is number => id != null)
+        )
+        const newOrders = converted.filter(o =>
+          !allExistingIds.has(o.id) &&
+          !(o.magazordId != null && allMagazordIds.has(o.magazordId))
+        )
         if (newOrders.length === 0) return prev
         return { ...prev, 'Novos Pedidos': [...newOrders, ...prev['Novos Pedidos']] }
       })
@@ -2261,12 +2439,20 @@ export default function Production() {
     }
   }, [])
 
-  // Auto-sync on mount
+  // Auto-sync on mount — aguarda o Supabase terminar de carregar para que a
+  // deduplicação por magazordId tenha os pedidos já confirmados disponíveis.
+  // Isso elimina a race condition onde o board está vazio e o pedido passa pelo filtro.
+  const dbLoadedRef = useRef(false)
   useEffect(() => {
-    syncMagazord(true)
+    if (dbLoading) return // ainda carregando do Supabase, aguarda
+    if (!dbLoadedRef.current) {
+      // Primeira vez que dbLoading vira false → roda o sync inicial
+      dbLoadedRef.current = true
+      syncMagazord(true)
+    }
     const interval = setInterval(() => syncMagazord(true), 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [syncMagazord])
+  }, [dbLoading, syncMagazord])
 
   // ── Background enrichment (imagem + NF) ──
   // Busca dados detalhados da Magazord para cards sem imagem OU sem número de NF
@@ -2432,6 +2618,100 @@ export default function Production() {
     if (dbId) movePedidoEtapa(dbId, next as string)
     showToast(`Pedido #${id} avançou para ${next}`)
   }
+
+  // ── Move direto para qualquer etapa (via seletor no modal de detalhes) ──
+  const moveToStage = useCallback(async (order: Order, fromStage: Stage, toStage: Stage) => {
+    // Se o destino é Novos Pedidos e o pedido é Magazord, usa o fluxo de confirmação
+    if (toStage === 'Novos Pedidos' && !order.fromMagazord) {
+      setBoard(prev => ({
+        ...prev,
+        [fromStage]: prev[fromStage].filter(o => o.id !== order.id),
+        'Novos Pedidos': [{ ...order, status: 'Pendente' }, ...prev['Novos Pedidos']],
+      }))
+      const dbId = getDbId(order.id)
+      if (dbId) movePedidoEtapa(dbId, 'Novos Pedidos')
+      showToast(`Pedido #${order.id} retornou para Novos Pedidos`)
+      return
+    }
+
+    setBoard(prev => ({
+      ...prev,
+      [fromStage]: prev[fromStage].filter(o => o.id !== order.id),
+      [toStage]: [{ ...order, status: 'Pendente' }, ...prev[toStage]],
+    }))
+
+    const dbId = getDbId(order.id)
+    if (dbId) {
+      movePedidoEtapa(dbId, toStage as string)
+    } else if (isSupabaseConfigured() && order.fromMagazord) {
+      // Pedido Magazord ainda não persistido — cria no banco com a etapa destino
+      const created = await createPedido({
+        numero:         order.id,
+        magazord_id:    order.magazordId,
+        cliente:        order.cliente,
+        produto:        order.produto,
+        moldura:        order.moldura,
+        acabamento:     order.acabamento,
+        canal:          order.canal,
+        etapa:          toStage,
+        status:         'Pendente',
+        prazo_entrega:  order.prazoEntrega
+          ? order.prazoEntrega.split('/').reverse().join('-')
+          : undefined,
+        valor:          order.valor,
+        frete:          order.frete,
+        obs:            order.obs,
+        endereco:       order.endereco,
+        transportadora: order.transportadora,
+        from_magazord:  true,
+      })
+      if (created) dbIdMap.current.set(order.id, created.id)
+    }
+    showToast(`Pedido #${order.id} movido para ${toStage}`)
+  }, [getDbId, dbIdMap])
+
+  // ── Importação histórica completa do Magazord → Supabase ──────────────────
+  const importarHistorico = useCallback(async () => {
+    if (importing) return
+    setImporting(true)
+    setImportResult(null)
+    setImportProgress({ fetched: 0, total: null, page: 1 })
+
+    try {
+      const orders = await fetchAllMagazordOrders(prog => setImportProgress(prog))
+
+      const payload = orders.map(o => ({
+        numero:          o.numero,
+        magazord_id:     o.magazordId,
+        cliente:         o.cliente,
+        produto:         o.produto,
+        canal:           o.canal,
+        etapa:           o.etapa,
+        status:          'Pendente' as const,
+        prazo_entrega:   o.prazoEntrega,
+        valor:           o.valor,
+        frete:           o.frete,
+        obs:             o.obs,
+        endereco:        o.endereco,
+        transportadora:  o.transportadora,
+        from_magazord:   true,
+        arquivado:       o.arquivado,
+        store_id:        'casa-linda',
+      }))
+
+      const result = await upsertPedidosMagazord(payload)
+      setImportResult(result)
+      showToast(`Importação concluída: ${result.inseridos} pedidos salvos!`)
+
+      // Recarrega o kanban para refletir novos pedidos não-arquivados
+      fetchPedidos().then(processFetchedRows)
+    } catch (err) {
+      console.error('[Production] importarHistorico falhou:', err)
+      showToast('Erro durante a importação histórica.')
+    } finally {
+      setImporting(false)
+    }
+  }, [importing, processFetchedRows])
 
   // Persist board to local storage on every update as a safe fallback
   useEffect(() => {
@@ -2644,6 +2924,7 @@ export default function Production() {
 
   // Permissão especial: só 'impressao' e 'admin' avançam pedidos da etapa Impressão
   const canConcludeImpressao = profile?.role === 'impressao' || profile?.role === 'admin'
+  const isAdmin = profile?.role === 'admin'
 
   const novosCount  = board['Novos Pedidos'].length
   const totalKanban = KANBAN_STAGES.flatMap(s => board[s]).length
@@ -2719,6 +3000,18 @@ export default function Production() {
                 </button>
               ))}
             </div>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={importarHistorico}
+              disabled={importing}
+              title="Importar todo o histórico do Magazord para o banco (ação admin)"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors disabled:opacity-50"
+            >
+              <Database size={13} className={importing ? 'animate-spin' : ''} />
+              {importing ? 'Importando…' : 'Importar Histórico'}
+            </button>
           )}
 
           <button onClick={() => setNewModal(true)} className="hidden md:inline-flex btn-primary shrink-0"><Plus size={15} /> Novo Pedido</button>
@@ -3086,6 +3379,81 @@ export default function Production() {
       </motion.button>
 
       <AnimatePresence>
+        {/* Modal de progresso da importação histórica */}
+        {importing && importProgress && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          >
+            <motion.div
+              className="modal"
+              style={{ maxWidth: 400 }}
+              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+            >
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+                  <Database size={22} className="text-blue-600 animate-pulse" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Importando Histórico do Magazord</h3>
+                <p className="text-sm text-gray-500 mb-4">Não feche esta janela. Buscando pedidos da API…</p>
+
+                <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all"
+                    style={{
+                      width: importProgress.total
+                        ? `${Math.min(100, (importProgress.fetched / importProgress.total) * 100)}%`
+                        : '60%'
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  {importProgress.fetched} pedidos lidos
+                  {importProgress.total ? ` de ~${importProgress.total}` : ''} · Pág. {importProgress.page}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Modal de resultado da importação */}
+        {!importing && importResult && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            onClick={() => setImportResult(null)}
+          >
+            <motion.div
+              className="modal"
+              style={{ maxWidth: 380 }}
+              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle size={22} className="text-green-600" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900 mb-1">Importação Concluída!</h3>
+                <p className="text-sm text-gray-600 mb-1">
+                  <span className="font-semibold text-gray-900">{importResult.inseridos}</span> pedidos salvos no banco
+                </p>
+                {importResult.erros > 0 && (
+                  <p className="text-xs text-red-500">{importResult.erros} com erro</p>
+                )}
+                <p className="text-xs text-gray-400 mt-2">
+                  O kanban foi atualizado. Pedidos entregues ficam no Histórico.
+                </p>
+                <button
+                  onClick={() => setImportResult(null)}
+                  className="mt-4 btn-primary w-full justify-center"
+                >
+                  OK
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {searchModal && (
           <SearchModal
             board={board}
@@ -3101,6 +3469,7 @@ export default function Production() {
             onClose={() => setDetail(null)}
             onConclude={() => conclude(detail.stage, detail.order.id)}
             onDelete={() => { deleteOrder(detail.order, detail.stage); setDetail(null) }}
+            onMoveTo={(targetStage) => moveToStage(detail.order, detail.stage, targetStage)}
           />
         )}
         {readyModal && (
