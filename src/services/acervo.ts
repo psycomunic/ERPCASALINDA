@@ -90,18 +90,49 @@ export async function deleteAcervoItem(id: string): Promise<boolean> {
 
 // ─── Upload de Foto ───────────────────────────────────────────────────────────
 
-export async function uploadFotoAcervo(file: File): Promise<string | null> {
+/**
+ * Comprime e redimensiona a imagem antes do upload.
+ * Limita a largura/altura máxima a 1200px e qualidade JPEG a 85%.
+ * Isso reduz fotos de celular de 5-12MB para ~150-300KB, tornando o
+ * carregamento do acervo muito mais rápido.
+ */
+export function comprimirImagem(file: File, maxDim = 1200, quality = 0.85): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const { width, height } = img
+      const ratio = Math.min(1, maxDim / Math.max(width, height))
+      const w = Math.round(width  * ratio)
+      const h = Math.round(height * ratio)
+      const canvas = document.createElement('canvas')
+      canvas.width  = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, w, h)
+      canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error('canvas.toBlob falhou')),
+        'image/jpeg',
+        quality
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao carregar imagem')) }
+    img.src = url
+  })
+}
+
+export async function uploadFotoAcervo(file: File | Blob): Promise<string | null> {
   if (!isSupabaseConfigured()) return null
   
   try {
-    const ext = file.name.split('.').pop() || 'jpg'
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
     const path = `acervo/${filename}`
     
-    // Tenta fazer upload do arquivo original
+    // O arquivo já chegou comprimido pelo chamador (comprimirImagem)
     const { error } = await supabase.storage
       .from('pedidos-fotos')
-      .upload(path, file, { upsert: true })
+      .upload(path, file as Blob, { upsert: true, contentType: 'image/jpeg' })
 
     if (error) {
       console.error('[acervo] Erro no upload no Storage:', error.message)

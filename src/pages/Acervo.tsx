@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, Check, RefreshCw, Search, Frame, AlertTriangle, Trash2, Camera, Edit2 } from 'lucide-react'
 import {
   fetchAcervoDisponivel, deleteAcervoItem,
-  marcarComoVendido, uploadFotoAcervo, matchesPCP,
+  marcarComoVendido, uploadFotoAcervo, matchesPCP, comprimirImagem,
   type AcervoQuadro, type AcervoInsert
 } from '../services/acervo'
 import { supabase } from '../lib/supabase'
@@ -147,8 +147,13 @@ function QuadroCard({ q, onVendido, onDelete, onEdit, onFotoUpdated }: {
   const handleFotoUpload = async (file: File) => {
     setUploading(true)
     setUploadError('')
+    // Reseta o input para garantir que o próximo onChange dispare mesmo
+    // que o usuário escolha/tire a mesma foto (bug no iOS)
+    if (fileRef.current) fileRef.current.value = ''
     try {
-      const url = await uploadFotoAcervo(file)
+      // Comprime a imagem antes de enviar (iOS fotos chegam em 5-12MB)
+      const compressed = await comprimirImagem(file)
+      const url = await uploadFotoAcervo(compressed)
       if (url) {
         const { error: dbErr } = await supabase
           .from('acervo_quadros')
@@ -206,9 +211,16 @@ function QuadroCard({ q, onVendido, onDelete, onEdit, onFotoUpdated }: {
             {q.origem}
           </span>
         )}
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleFotoUpload(f) }}
-          onClick={e => e.stopPropagation()}
+        {/* Input sem capture fixo — deixa o sistema operacional escolher câmera/galeria */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0]
+            if (f) handleFotoUpload(f)
+          }}
         />
       </div>
 
@@ -333,7 +345,11 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
     const objectUrl = URL.createObjectURL(file)
     setPreview(objectUrl)
     setUploading(true)
-    const url = await uploadFotoAcervo(file)
+    // Reseta o input para que o iOS dispare onChange na próxima foto
+    if (fileRef.current) fileRef.current.value = ''
+    // Comprime antes de enviar (fotos de celular chegam em 5-12MB)
+    const compressed = await comprimirImagem(file)
+    const url = await uploadFotoAcervo(compressed)
     setUploading(false)
     if (url) {
       set('foto_url', url)
