@@ -4,7 +4,7 @@ import {
   Plus, Clock, CheckCircle, Upload, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
   RefreshCw, ShoppingBag, ArrowRight, Wifi, WifiOff, Store, Database, ChevronDown,
-  Search, Trash2
+  Search, Trash2, Frame
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder, fetchAllMagazordOrders } from '../magazord'
@@ -16,6 +16,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { deductInventoryForProduction } from '../services/estoque'
 import { getFrameImage } from '../lib/frameImages'
+import { fetchAcervoDisponivel, matchesPCP, type AcervoQuadro } from '../services/acervo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2269,6 +2270,12 @@ export default function Production() {
   const [importProgress, setImportProgress] = useState<{ fetched: number; total: number | null; page: number } | null>(null)
   const [importResult, setImportResult] = useState<{ inseridos: number; erros: number } | null>(null)
 
+  // ── Acervo do salão: quadros disponíveis para cross-sell com PCP ──
+  const [acervoQuadros, setAcervoQuadros] = useState<AcervoQuadro[]>([])
+  useEffect(() => {
+    fetchAcervoDisponivel().then(setAcervoQuadros).catch(() => {})
+  }, [])
+
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
   const processFetchedRows = useCallback((rows: any[]) => {
@@ -3149,6 +3156,14 @@ export default function Production() {
 
                           {order.moldura && <span className="badge badge-gray text-[10px] mb-1">{order.moldura}</span>}
                           {order.material && !order.moldura && <span className="badge badge-gray text-[10px] mb-2">{order.material}</span>}
+
+                          {/* Badge acervo: quadro dispon\u00edvel no sal\u00e3o */}
+                          {acervoQuadros.some(q => matchesPCP(order.produto, q.produto)) && (
+                            <div className="mb-2 flex items-center gap-1.5 bg-emerald-500 text-white rounded-lg px-2.5 py-1.5 shadow-sm">
+                              <Frame size={11} className="shrink-0" />
+                              <span className="text-[11px] font-black tracking-wide">QUADRO NO SAL\u00c3O</span>
+                            </div>
+                          )}
                           {/* Badge de reprovação */}
                           {order.revisaoStatus === 'reprovado' && (
                             <div className="mb-2 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1.5">

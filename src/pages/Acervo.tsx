@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Check, RefreshCw, Search, Frame, AlertTriangle, Trash2, Camera, Edit2 } from 'lucide-react'
+import { Plus, X, Check, RefreshCw, Search, Frame, Trash2, Camera, Edit2, ClipboardList } from 'lucide-react'
 import {
   fetchAcervoDisponivel, deleteAcervoItem,
   marcarComoVendido, uploadFotoAcervo, matchesPCP, comprimirImagem,
@@ -661,7 +661,11 @@ export default function Acervo() {
   const [search, setSearch]         = useState('')
   const [filterCat, setFilterCat]   = useState('')
   const [filterTam, setFilterTam]   = useState('')
-  const [pcpMatches, setPcpMatches] = useState<{ pedido: string; quadros: AcervoQuadro[] }[]>([])
+  // Agrupado por quadro do acervo: cada quadro lista todos os pedidos que batem
+  const [pcpMatches, setPcpMatches] = useState<{
+    quadro: AcervoQuadro
+    pedidos: { numero: string; cliente: string; produto: string; notaFiscal?: string }[]
+  }[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -669,14 +673,24 @@ export default function Acervo() {
     setQuadros(data)
     setLoading(false)
 
-    // Cross-match with PCP orders
+    // Cross-match com pedidos do PCP — agrupado por quadro do acervo
     const pedidos = await fetchPedidos()
     const ativos  = pedidos.filter(p => p.etapa !== 'Despachados' && p.etapa !== 'Prontos para Envio')
-    const matches = ativos.flatMap(p => {
-      const qs = data.filter(q => matchesPCP(p.produto, q.produto))
-      return qs.length > 0 ? [{ pedido: `${p.produto} (Cliente: ${p.cliente})`, quadros: qs }] : []
+
+    const byQuadro = new Map<string, { quadro: AcervoQuadro; pedidos: { numero: string; cliente: string; produto: string; notaFiscal?: string }[] }>()
+    ativos.forEach(p => {
+      data.forEach(q => {
+        if (!matchesPCP(p.produto, q.produto)) return
+        if (!byQuadro.has(q.id)) byQuadro.set(q.id, { quadro: q, pedidos: [] })
+        byQuadro.get(q.id)!.pedidos.push({
+          numero:     (p as any).numero || p.id,
+          cliente:    p.cliente,
+          produto:    p.produto,
+          notaFiscal: (p as any).nota_fiscal || (p as any).notaFiscal || undefined,
+        })
+      })
     })
-    setPcpMatches(matches)
+    setPcpMatches(Array.from(byQuadro.values()))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -689,7 +703,7 @@ export default function Acervo() {
 
   const handleVendido = (id: string) => {
     setQuadros(prev => prev.filter(q => q.id !== id))
-    setPcpMatches(prev => prev.map(m => ({ ...m, quadros: m.quadros.filter(q => q.id !== id) })).filter(m => m.quadros.length > 0))
+    setPcpMatches(prev => prev.filter(m => m.quadro.id !== id))
     setToast('Quadro marcado como vendido!')
   }
 
@@ -729,26 +743,73 @@ export default function Acervo() {
         </button>
       </div>
 
-      {/* PCP Matches */}
+      {/* PCP Matches — agrupado por quadro do acervo */}
       {pcpMatches.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={16} className="text-amber-600 shrink-0" />
-            <p className="text-sm font-black text-amber-800">🎯 {pcpMatches.length} pedido(s) em produção têm quadros disponíveis no acervo!</p>
+        <div className="rounded-2xl border-2 border-emerald-300 overflow-hidden shadow-sm">
+          {/* Header */}
+          <div className="bg-emerald-600 px-4 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <span className="text-lg">🎯</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-black text-sm leading-tight">
+                {pcpMatches.length} quadro{pcpMatches.length > 1 ? 's' : ''} do sal\u00e3o podem atender pedidos em produ\u00e7\u00e3o!
+              </p>
+              <p className="text-emerald-100 text-xs mt-0.5">
+                {pcpMatches.reduce((acc, m) => acc + m.pedidos.length, 0)} pedido(s) no PCP com correspond\u00eancia
+              </p>
+            </div>
           </div>
-          <div className="space-y-2">
-            {pcpMatches.map((m, i) => (
-              <div key={i} className="bg-white border border-amber-200 rounded-xl p-3">
-                <p className="text-xs font-bold text-gray-800 mb-2 truncate">📋 {m.pedido}</p>
-                <div className="flex flex-wrap gap-2">
-                  {m.quadros.map(q => (
-                    <div key={q.id} className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">
-                      {q.foto_url && <img src={q.foto_url} alt="" className="w-7 h-7 rounded object-cover border border-emerald-200" />}
-                      <div>
-                        <p className="text-[11px] font-bold text-emerald-800 leading-none">{q.produto}</p>
-                        <p className="text-[10px] text-emerald-600">{q.tamanho} · {q.categoria}</p>
+
+          {/* Lista de quadros */}
+          <div className="bg-emerald-50 divide-y divide-emerald-200">
+            {pcpMatches.map(({ quadro: q, pedidos }) => (
+              <div key={q.id} className="p-4">
+                {/* Quadro header */}
+                <div className="flex items-center gap-3 mb-3">
+                  {q.foto_url ? (
+                    <img src={q.foto_url} alt={q.produto} className="w-14 h-14 rounded-xl object-cover border-2 border-emerald-300 shrink-0 shadow-sm" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-emerald-100 border-2 border-emerald-200 flex items-center justify-center shrink-0">
+                      <Frame size={20} className="text-emerald-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-gray-900 text-sm leading-tight truncate">{q.produto}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {q.tamanho && <span className="bg-white border border-emerald-200 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{q.tamanho}</span>}
+                      {q.categoria && <span className="bg-white border border-amber-200 text-amber-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">{q.categoria}</span>}
+                      <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">NO SAL\u00c3O ✓</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-center bg-white border border-emerald-200 rounded-xl px-3 py-1.5">
+                    <p className="text-2xl font-black text-emerald-600">{pedidos.length}</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">pedido{pedidos.length > 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+
+                {/* Lista de pedidos que batem */}
+                <div className="space-y-2 ml-1">
+                  {pedidos.map((p, i) => (
+                    <div key={i} className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 flex items-start gap-3">
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <span className="inline-flex items-center gap-1 bg-navy-900 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                          #{p.numero}
+                        </span>
+                        {p.notaFiscal ? (
+                          <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-300 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                            <ClipboardList size={9} /> NF {p.notaFiscal}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-gray-100 border border-gray-200 text-gray-400 text-[10px] font-semibold px-2 py-0.5 rounded-lg">
+                            Sem NF
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase ml-1">No Salão ✓</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800 leading-tight truncate">{p.cliente}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">{p.produto}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
