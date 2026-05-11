@@ -3157,13 +3157,20 @@ export default function Production() {
                           {order.moldura && <span className="badge badge-gray text-[10px] mb-1">{order.moldura}</span>}
                           {order.material && !order.moldura && <span className="badge badge-gray text-[10px] mb-2">{order.material}</span>}
 
-                          {/* Badge acervo: quadro dispon\u00edvel no sal\u00e3o */}
-                          {acervoQuadros.some(q => matchesPCP(order.produto, q.produto)) && (
-                            <div className="mb-2 flex items-center gap-1.5 bg-emerald-500 text-white rounded-lg px-2.5 py-1.5 shadow-sm">
-                              <Frame size={11} className="shrink-0" />
-                              <span className="text-[11px] font-black tracking-wide">QUADRO NO SAL\u00c3O</span>
-                            </div>
-                          )}
+                          {/* Badge acervo: quadro disponível no salão */}
+                          {(() => {
+                            const acervoMatch = acervoQuadros.find(q => matchesPCP(order.produto, q.produto))
+                            if (!acervoMatch) return null
+                            return (
+                              <div className="mb-2 flex flex-col gap-0.5 bg-emerald-500 text-white rounded-lg px-2.5 py-1.5 shadow-sm">
+                                <div className="flex items-center gap-1.5">
+                                  <Frame size={11} className="shrink-0" />
+                                  <span className="text-[11px] font-black tracking-wide">QUADRO NO SALÃO</span>
+                                </div>
+                                <span className="text-[10px] font-medium opacity-90 leading-tight line-clamp-2 pl-0.5">{acervoMatch.produto}</span>
+                              </div>
+                            )
+                          })()}
                           {/* Badge de reprovação */}
                           {order.revisaoStatus === 'reprovado' && (
                             <div className="mb-2 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1.5">
