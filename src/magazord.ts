@@ -393,6 +393,7 @@ export interface FreightOrderData {
   quantidade?: number // Quantos itens há no pedido
   produtos?: {nome: string, qtd: number}[] // ARRAY de nomes de produtos (para extração de Analytics)
   fullyEnriched?: boolean // Marca se já passamos pela Fase 2 para extrair produtos precisos
+  canal?: string  // Canal de venda: "Site", "Mercado Livre", "Magazine Luiza", etc.
 }
 
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
@@ -466,6 +467,9 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
         return nomeFinal ? { nome: nomeFinal, qtd } : null
       }).filter(Boolean) as {nome: string, qtd: number}[]
 
+      // Resolve canal de venda
+      const canal: string = o.canal || o.canalNome || o.lojaIntegracaoNome || o.canalVenda || 'Site'
+
       // Se temos no DB Permanente, damos override nas info da Fase 1 usando o Enriquecido
       return {
         codigo: baseCodigo,
@@ -476,7 +480,8 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
         situacao: o.pedidoSituacao ?? o.situacao,
         quantidade: cachedDetail?.quantidade || undefined,
         produtos: cachedDetail?.produtos || calcProdutos,
-        fullyEnriched: cachedDetail?.fullyEnriched || false
+        fullyEnriched: cachedDetail?.fullyEnriched || false,
+        canal,
       }
     })
 
@@ -624,7 +629,8 @@ async function _fetchAllOrdersPhase1(dias: number): Promise<FreightOrderData[]> 
     data: o.dataHora || o.data_pedido || new Date().toISOString(),
     situacao: o.pedidoSituacao ?? o.situacao,
     quantidade: 1, // Phase 1 assume 1 volume, Phase 2 vai corrigir com o número real
-    produtos: (o.itens || o.arrayPedidoItem || o.pedidoItem || []).map((i: any) => i.nome || i.produtoNome || '').filter(Boolean)
+    produtos: (o.itens || o.arrayPedidoItem || o.pedidoItem || []).map((i: any) => i.nome || i.produtoNome || '').filter(Boolean),
+    canal: o.canal || o.canalNome || o.lojaIntegracaoNome || o.canalVenda || 'Site',
   }))
 }
 

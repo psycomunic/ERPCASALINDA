@@ -5,11 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, AlertTriangle, Clock,
   ShoppingCart, UserPlus, Receipt, ArrowRight, Download, X,
-  Check, ChevronDown, Truck
+  Check, ChevronDown, Truck, BarChart2
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell, LabelList
+  ResponsiveContainer, BarChart, Bar, Cell, LabelList, PieChart, Pie, Legend
 } from 'recharts'
 import { fetchPedidos, updatePedido } from '../services/pedidos'
 import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, updateFreightCache, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
@@ -509,6 +509,274 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
   )
 }
 
+// ── Canais de Venda ────────────────────────────────────────────────────────────
+
+const CHANNEL_META: Record<string, { color: string; bg: string; border: string; icon: string }> = {
+  'Site':           { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', icon: '🛒' },
+  'Loja':           { color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc', icon: '🏪' },
+  'Mercado Livre':  { color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', icon: '🛍️' },
+  'Magazine Luiza': { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', icon: '🛍️' },
+  'Shopee':         { color: '#ea580c', bg: '#fff7ed', border: '#fed7aa', icon: '🧡' },
+  'Amazon':         { color: '#0ea5e9', bg: '#f0f9ff', border: '#bae6fd', icon: '📦' },
+  'Americanas':     { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: '🛒' },
+  'Shoptime':       { color: '#9333ea', bg: '#faf5ff', border: '#e9d5ff', icon: '🎁' },
+  'B2W':            { color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', icon: '🌐' },
+}
+
+function getChannelMeta(canal: string) {
+  // Busca o mais próximo (case insensitive, partial match)
+  const key = Object.keys(CHANNEL_META).find(k =>
+    canal.toLowerCase().includes(k.toLowerCase()) ||
+    k.toLowerCase().includes(canal.toLowerCase())
+  )
+  return key ? CHANNEL_META[key] : { color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', icon: '📊' }
+}
+
+function normalizeChannel(canal?: string): string {
+  if (!canal || canal.trim() === '') return 'Site'
+  const c = canal.trim()
+  // Normaliza alguns aliases comuns
+  if (/mercado.?livre/i.test(c)) return 'Mercado Livre'
+  if (/magazine.?luiza/i.test(c)) return 'Magazine Luiza'
+  if (/shopee/i.test(c)) return 'Shopee'
+  if (/amazon/i.test(c)) return 'Amazon'
+  if (/americana/i.test(c)) return 'Americanas'
+  if (/shoptime/i.test(c)) return 'Shoptime'
+  if (/b2w/i.test(c)) return 'B2W'
+  if (/loja|balcão|balcao|físic/i.test(c)) return 'Loja'
+  if (/site|web|e.?commerce/i.test(c)) return 'Site'
+  return c
+}
+
+interface ChannelStat {
+  canal: string
+  valor: number
+  pedidos: number
+  ticket: number
+  perc: number
+}
+
+function SalesByChannel({ allOrders, loadingOrders }: { allOrders: any[]; loadingOrders: boolean }) {
+  const [fperiodo, setFPeriodo] = useState<FreightPeriodo>('Este Mês')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [stats, setStats] = useState<ChannelStat[]>([])
+  const [totalGeral, setTotalGeral] = useState(0)
+
+  useEffect(() => {
+    if (loadingOrders) return
+    const today = new Date(); today.setHours(23, 59, 59, 999)
+    const map = new Map<string, { valor: number; pedidos: number }>()
+
+    allOrders.forEach(p => {
+      const d = new Date(p.data || new Date())
+      let keep = false
+      if (fperiodo === 'Este Mês') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
+      } else if (fperiodo === '7 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
+      } else if (fperiodo === '15 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 15); keep = d >= s && d <= today
+      } else if (fperiodo === '30 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 30); keep = d >= s && d <= today
+      } else if (fperiodo === '90 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 90); keep = d >= s && d <= today
+      } else if (fperiodo === 'Personalizado' && customStart && customEnd) {
+        keep = d >= new Date(customStart + 'T00:00:00') && d <= new Date(customEnd + 'T23:59:59')
+      }
+      if (!keep) return
+
+      const canal = normalizeChannel(p.canal)
+      const cur = map.get(canal) || { valor: 0, pedidos: 0 }
+      cur.valor += (p.valor || 0)
+      cur.pedidos++
+      map.set(canal, cur)
+    })
+
+    let total = 0
+    const result: ChannelStat[] = []
+    map.forEach((v, canal) => {
+      total += v.valor
+      result.push({ canal, valor: v.valor, pedidos: v.pedidos, ticket: v.pedidos > 0 ? v.valor / v.pedidos : 0, perc: 0 })
+    })
+    result.forEach(r => r.perc = total > 0 ? (r.valor / total) * 100 : 0)
+    result.sort((a, b) => b.valor - a.valor)
+    setStats(result)
+    setTotalGeral(total)
+  }, [allOrders, fperiodo, customStart, customEnd, loadingOrders])
+
+  const periodoLabel = fperiodo === 'Personalizado' && customStart && customEnd
+    ? `${customStart.split('-').reverse().join('/')} → ${customEnd.split('-').reverse().join('/')}`
+    : fperiodo
+
+  // Pie data
+  const pieData = stats.slice(0, 6).map(s => ({ name: s.canal, value: s.valor }))
+  const pieColors = stats.slice(0, 6).map(s => getChannelMeta(s.canal).color)
+
+  return (
+    <div className="card p-5">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center shrink-0">
+            <BarChart2 size={20} className="text-violet-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-800 text-lg">Vendas por Canal</h2>
+            <p className="text-xs text-gray-400">Faturamento por marketplace e loja — <span className="font-semibold text-violet-500">{periodoLabel}</span></p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total do Período</p>
+          <p className="text-xl font-black text-violet-600">{fmt(totalGeral)}</p>
+        </div>
+      </div>
+
+      {/* Filtro de Período */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-1">Período:</span>
+        {FREIGHT_PERIODOS.map(p => (
+          <button
+            key={p}
+            onClick={() => setFPeriodo(p)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+              fperiodo === p
+                ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-violet-300 hover:text-violet-600'
+            }`}
+          >
+            {p === '7 Dias' ? 'Últimos 7 Dias' : p === '15 Dias' ? 'Últimos 15 Dias' : p === '30 Dias' ? 'Últimos 30 Dias' : p === '90 Dias' ? 'Últimos 90 Dias' : p}
+          </button>
+        ))}
+      </div>
+
+      {fperiodo === 'Personalizado' && (
+        <div className="flex flex-wrap items-center gap-3 mb-5 p-3 bg-violet-50 rounded-xl border border-violet-100">
+          <span className="text-xs font-bold text-violet-600">De:</span>
+          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+            className="text-xs border border-violet-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-300" />
+          <span className="text-xs font-bold text-violet-600">Até:</span>
+          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+            className="text-xs border border-violet-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-300" />
+        </div>
+      )}
+
+      {loadingOrders ? (
+        <div className="flex items-center justify-center py-12 gap-3 text-gray-400 text-sm">
+          <div className="w-5 h-5 rounded-full border-2 border-violet-300 border-t-violet-600 animate-spin" />
+          Analisando canais de venda...
+        </div>
+      ) : stats.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-2">
+          <BarChart2 size={28} className="text-gray-200" />
+          <p className="text-gray-400 text-sm">Nenhum dado para <strong>{periodoLabel}</strong>.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+          {/* Cards por canal */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Ranking de Canais</p>
+            {stats.map((s, i) => {
+              const meta = getChannelMeta(s.canal)
+              return (
+                <div key={s.canal} className="rounded-xl border p-4 transition-all hover:shadow-sm" style={{ borderColor: meta.border, backgroundColor: meta.bg }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg leading-none">{meta.icon}</span>
+                      <div>
+                        <p className="font-bold text-gray-800 text-sm">{s.canal}</p>
+                        <p className="text-[10px] text-gray-500">{s.pedidos} pedido{s.pedidos !== 1 ? 's' : ''} · ticket {fmt(s.ticket)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-base" style={{ color: meta.color }}>{fmt(s.valor)}</p>
+                      <p className="text-[10px] font-bold text-gray-400">{s.perc.toFixed(1)}% do total</p>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-1.5 w-full bg-white rounded-full overflow-hidden" style={{ opacity: 0.7 }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${Math.min(100, s.perc)}%`, backgroundColor: meta.color }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Pie chart */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Participação em Faturamento</p>
+            {pieData.length > 0 && (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%" cy="50%"
+                    innerRadius={55} outerRadius={95}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
+                    labelLine={false}
+                  >
+                    {pieData.map((_, i) => <Cell key={i} fill={pieColors[i]} />)}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number) => [fmt(v), 'Faturamento']}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                  />
+                  <Legend
+                    formatter={(value) => <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+
+            {/* Summary table */}
+            <div className="mt-4 border border-gray-100 rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-3 py-2 font-bold text-gray-500 uppercase tracking-widest text-[10px]">Canal</th>
+                    <th className="text-right px-3 py-2 font-bold text-gray-500 uppercase tracking-widest text-[10px]">Pedidos</th>
+                    <th className="text-right px-3 py-2 font-bold text-gray-500 uppercase tracking-widest text-[10px]">Faturamento</th>
+                    <th className="text-right px-3 py-2 font-bold text-gray-500 uppercase tracking-widest text-[10px]">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.map((s, i) => {
+                    const meta = getChannelMeta(s.canal)
+                    return (
+                      <tr key={s.canal} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                        <td className="px-3 py-2 font-semibold text-gray-700 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+                          {s.canal}
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-600">{s.pedidos}</td>
+                        <td className="px-3 py-2 text-right font-bold" style={{ color: meta.color }}>{fmt(s.valor)}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">{s.perc.toFixed(1)}%</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t border-gray-200">
+                    <td className="px-3 py-2 font-black text-gray-700" colSpan={2}>Total</td>
+                    <td className="px-3 py-2 text-right font-black text-violet-700">{fmt(totalGeral)}</td>
+                    <td className="px-3 py-2 text-right font-bold text-gray-500">100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { activeTab } = useLayout()
   const navigate = useNavigate()
@@ -828,6 +1096,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Sales by channel (Site, Mercado Livre, Magazine Luiza, etc.) */}
+      <SalesByChannel allOrders={allOrders} loadingOrders={loadingOrders} />
 
       {/* Freight analytics by carrier */}
       <FreightByCarrier allOrders={allOrders} loadingOrders={loadingOrders} enriching={enriching} enrichProgress={enrichProgress} />
