@@ -2835,7 +2835,7 @@ export default function ProductionLV() {
                             ],
                           }
                         })
-                        allOrders.forEach(o => movePedidoLVEtapa(o.id, 'Aguardando Chegada'))
+                        await Promise.all(allOrders.map(o => movePedidoLVEtapa(o.id, 'Aguardando Chegada')))
                         showToast(`${allOrders.length} pedido(s) impressos e movidos para "Aguardando Chegada"!`)
                       }}
                       className="w-full flex items-center justify-center gap-1.5 text-white text-[11px] font-bold py-1.5 rounded-lg transition-all hover:opacity-90 active:scale-95"
@@ -2919,15 +2919,15 @@ export default function ProductionLV() {
                         {/* Botão especial para Novos Pedidos: Imprimir e avançar para Aguardando Chegada */}
                         {stage === 'Novos Pedidos' ? (
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               printPedidoFornecedor(order)
-                              // Avança direto para "Aguardando Chegada"
+                              // Aguarda o banco salvar ANTES de atualizar o board local
+                              await movePedidoLVEtapa(order.id, 'Aguardando Chegada')
                               setBoard(prev => ({
                                 ...prev,
                                 'Novos Pedidos': prev['Novos Pedidos'].filter(o => o.id !== order.id),
                                 'Aguardando Chegada': [...prev['Aguardando Chegada'], { ...order, status: 'OK' as const }],
                               }))
-                              movePedidoLVEtapa(order.id, 'Aguardando Chegada')
                               showToast(`Pedido #${order.id.slice(-8)} enviado ao fornecedor e movido para "Aguardando Chegada"!`)
                             }}
                             className="flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
