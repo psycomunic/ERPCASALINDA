@@ -2858,9 +2858,24 @@ export default function ProductionLV() {
                         <span className="badge badge-critico text-[10px] mb-2 flex items-center gap-1 w-fit"><AlertTriangle size={9} />Atrasado</span>
                       )}
 
-                      {/* Campo Desenho — apenas para Tapete */}
+                      {/* Campos Tamanho e Desenho — apenas para Tapete */}
                       {order.categoria === 'Tapete' && (
-                        <div className="mt-2 mb-1">
+                        <div className="mt-2 mb-1 flex flex-col gap-1.5">
+                          <input
+                            className="w-full text-xs border border-blue-200 bg-blue-50 rounded-lg px-2 py-1.5 text-blue-900 placeholder-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium"
+                            placeholder="📐 Tamanho (ex: 2,50m x 3,50m)"
+                            defaultValue={order.tamanho ?? ''}
+                            onBlur={async e => {
+                              const novoTamanho = e.target.value.trim()
+                              if (novoTamanho === (order.tamanho ?? '').trim()) return
+                              setBoard(prev => ({
+                                ...prev,
+                                [stage]: prev[stage].map(o => o.id === order.id ? { ...o, tamanho: novoTamanho || undefined } : o)
+                              }))
+                              await updatePedidoLV(order.id, { tamanho: novoTamanho || null } as any)
+                            }}
+                            onClick={e => e.stopPropagation()}
+                          />
                           <input
                             className="w-full text-xs border border-amber-200 bg-amber-50 rounded-lg px-2 py-1.5 text-amber-900 placeholder-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
                             placeholder="🎨 Desenho (ex: Desenho 01)"
