@@ -446,6 +446,30 @@ ${order.obs ? `<div class="section"><div class="section-title">Observações</di
   if (w) { w.document.write(html); w.document.close() }
 }
 
+// ─── InlineEdit — campo controlado que mantém valor após re-render ──────────────
+
+function InlineEdit({
+  value, placeholder, className, onSave
+}: {
+  value: string | undefined
+  placeholder: string
+  className: string
+  onSave: (v: string) => void
+}) {
+  const [local, setLocal] = React.useState(value ?? '')
+  React.useEffect(() => { setLocal(value ?? '') }, [value])
+  return (
+    <input
+      className={className}
+      placeholder={placeholder}
+      value={local}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={() => onSave(local.trim())}
+      onClick={e => e.stopPropagation()}
+    />
+  )
+}
+
 // ─── Print PDF Pedido Único ao Fornecedor ────────────────────────────────────
 
 function printPedidoFornecedor(order: LVOrder) {
@@ -2861,35 +2885,31 @@ export default function ProductionLV() {
                       {/* Campos Tamanho e Desenho — apenas para Tapete */}
                       {order.categoria === 'Tapete' && (
                         <div className="mt-2 mb-1 flex flex-col gap-1.5">
-                          <input
+                          <InlineEdit
+                            value={order.tamanho}
+                            placeholder="📏 Tamanho (ex: 2,50m x 3,50m)"
                             className="w-full text-xs border border-blue-200 bg-blue-50 rounded-lg px-2 py-1.5 text-blue-900 placeholder-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium"
-                            placeholder="📐 Tamanho (ex: 2,50m x 3,50m)"
-                            defaultValue={order.tamanho ?? ''}
-                            onBlur={async e => {
-                              const novoTamanho = e.target.value.trim()
-                              if (novoTamanho === (order.tamanho ?? '').trim()) return
+                            onSave={async v => {
+                              if (v === (order.tamanho ?? '')) return
                               setBoard(prev => ({
                                 ...prev,
-                                [stage]: prev[stage].map(o => o.id === order.id ? { ...o, tamanho: novoTamanho || undefined } : o)
+                                [stage]: prev[stage].map(o => o.id === order.id ? { ...o, tamanho: v || undefined } : o)
                               }))
-                              await updatePedidoLV(order.id, { tamanho: novoTamanho || null } as any)
+                              await updatePedidoLV(order.id, { tamanho: v || null } as any)
                             }}
-                            onClick={e => e.stopPropagation()}
                           />
-                          <input
-                            className="w-full text-xs border border-amber-200 bg-amber-50 rounded-lg px-2 py-1.5 text-amber-900 placeholder-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
+                          <InlineEdit
+                            value={order.desenho}
                             placeholder="🎨 Desenho (ex: Desenho 01)"
-                            defaultValue={order.desenho ?? ''}
-                            onBlur={async e => {
-                              const novoDesenho = e.target.value.trim()
-                              if (novoDesenho === (order.desenho ?? '').trim()) return
+                            className="w-full text-xs border border-amber-200 bg-amber-50 rounded-lg px-2 py-1.5 text-amber-900 placeholder-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
+                            onSave={async v => {
+                              if (v === (order.desenho ?? '')) return
                               setBoard(prev => ({
                                 ...prev,
-                                [stage]: prev[stage].map(o => o.id === order.id ? { ...o, desenho: novoDesenho || undefined } : o)
+                                [stage]: prev[stage].map(o => o.id === order.id ? { ...o, desenho: v || undefined } : o)
                               }))
-                              await updatePedidoLV(order.id, { desenho: novoDesenho || null } as any)
+                              await updatePedidoLV(order.id, { desenho: v || null } as any)
                             }}
-                            onClick={e => e.stopPropagation()}
                           />
                         </div>
                       )}
