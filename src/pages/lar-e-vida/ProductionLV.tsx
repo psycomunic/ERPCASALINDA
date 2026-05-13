@@ -456,8 +456,8 @@ function InlineEdit({
   className: string
   onSave: (v: string) => void
 }) {
-  const [local, setLocal] = React.useState(value ?? '')
-  React.useEffect(() => { setLocal(value ?? '') }, [value])
+  const [local, setLocal] = useState(value ?? '')
+  useEffect(() => { setLocal(value ?? '') }, [value])
   return (
     <input
       className={className}
