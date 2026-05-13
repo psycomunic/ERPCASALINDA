@@ -9,7 +9,7 @@ import {
   Plus, Clock, CheckCircle, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
   RefreshCw, ArrowRight, ChevronDown, Sofa, Upload, Trash2,
-  Image as ImageIcon
+  Image as ImageIcon, Printer
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE } from '../../carriers'
 import {
@@ -57,6 +57,7 @@ export interface LVOrder {
   itensCama?: Array<{ sku: string; descricao: string; qtd: number }>
   conferenciaItens?: Array<{ sku: string; conferido: boolean; qtdConferida: number; obs?: string }>
   imagensDesenho?: Record<string, string>
+  desenho?: string
   // ── Campos de Estoque ────────────────────────────────────
   confirmacaoFornecedorUrl?: string
   localizacaoPrateleira?: string
@@ -442,6 +443,133 @@ ${order.obs ? `<div class="section"><div class="section-title">Observações</di
 <script>window.onload = () => { window.print(); }</script>
 </body></html>`
   const w = window.open('', '_blank', 'width=850,height=1100')
+  if (w) { w.document.write(html); w.document.close() }
+}
+
+// ─── Print PDF Pedido Único ao Fornecedor ────────────────────────────────────
+
+function printPedidoFornecedor(order: LVOrder) {
+  const now = new Date().toLocaleString('pt-BR')
+  const fornecedor = order.nomeFornecedor || order.transportadora || '—'
+
+  const fotoHtml = order.fotoUrl
+    ? `<img src="${order.fotoUrl}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;display:block;" />`
+    : `<div style="width:100%;height:120px;border-radius:8px;background:#f3f4f6;border:1px dashed #e5e7eb;display:flex;align-items:center;justify-content:center;font-size:36px;">🏠</div>`
+
+  const total = order.valor ? `R$ ${(order.valor * (order.quantidade ?? 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Pedido ao Fornecedor — Lar e Vida #${order.id.slice(-8)}</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #111; background: #fff; padding: 28px; font-size: 13px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #d97706; padding-bottom: 16px; margin-bottom: 20px; }
+.logo h1 { font-size: 24px; font-weight: 900; color: #d97706; letter-spacing: -0.5px; }
+.logo p { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #9ca3af; margin-top: 2px; }
+.meta { text-align: right; }
+.meta .num { font-size: 20px; font-weight: 900; color: #1e293b; }
+.meta .dt { font-size: 10px; color: #9ca3af; margin-top: 3px; }
+.section { margin-bottom: 16px; }
+.section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #6b7280; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+.supplier-box { background: #eff6ff; border: 2px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; }
+.supplier-box .label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #3b82f6; margin-bottom: 3px; }
+.supplier-box .name { font-size: 18px; font-weight: 900; color: #1e40af; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.field { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+.field label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #9ca3af; display: block; margin-bottom: 4px; }
+.field span { font-size: 14px; font-weight: 700; color: #111827; }
+.field.highlight { background: #fef3c7; border-color: #fde68a; }
+.field.blue { background: #eff6ff; border-color: #bfdbfe; }
+.field.green { background: #f0fdf4; border-color: #bbf7d0; }
+.produto-box { display: grid; grid-template-columns: 200px 1fr; gap: 16px; margin-bottom: 16px; }
+.produto-info { display: flex; flex-direction: column; gap: 8px; }
+.desenho-box { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 10px 14px; }
+.desenho-box .label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #b45309; margin-bottom: 4px; }
+.desenho-box .val { font-size: 18px; font-weight: 900; color: #92400e; }
+.obs-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 10px 14px; }
+.obs-box label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #f97316; display: block; margin-bottom: 4px; }
+.obs-box span { font-size: 12px; color: #7c2d12; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 28px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+.sig { text-align: center; }
+.sig .line { border-bottom: 1px solid #374151; height: 40px; margin-bottom: 6px; }
+.sig .lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; }
+.footer { margin-top: 20px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+.badge { display: inline-block; background: #d97706; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 1px; vertical-align: middle; margin-left: 8px; }
+.status-badge { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+@media print { body { padding: 0; } @page { margin: 16mm; size: A4; } }
+</style></head><body>
+<div class="header">
+  <div class="logo"><h1>Lar e Vida <span class="badge">Tapetes</span></h1><p>Pedido ao Fornecedor</p></div>
+  <div class="meta"><div class="num">PED #${order.id.slice(-8)}</div><div class="dt">Emitido em ${now}</div></div>
+</div>
+
+<div class="supplier-box">
+  <div style="font-size:32px;">🏭</div>
+  <div>
+    <div class="label">Fornecedor</div>
+    <div class="name">${fornecedor}</div>
+    ${order.codigoFornecedor ? `<div style="font-size:11px;font-family:monospace;color:#2563eb;margin-top:3px;">Ref: ${order.codigoFornecedor}</div>` : ''}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Dados do Cliente / Pedido</div>
+  <div class="grid-3">
+    <div class="field highlight"><label>Cliente</label><span>${order.cliente}</span></div>
+    ${order.canal ? `<div class="field"><label>Canal de Venda</label><span>${order.canal}</span></div>` : ''}
+    ${order.prazoEntrega ? `<div class="field"><label>Prazo de Entrega</label><span>${order.prazoEntrega}</span></div>` : ''}
+    ${order.sku ? `<div class="field"><label>SKU da Loja</label><span style="font-family:monospace;">${order.sku}</span></div>` : ''}
+    ${order.valor ? `<div class="field green"><label>Valor do Pedido</label><span style="color:#059669;">${total}</span></div>` : ''}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Produto</div>
+  <div class="produto-box">
+    <div>${fotoHtml}</div>
+    <div class="produto-info">
+      <div class="field" style="background:#fff;border-color:#d97706;"><label>Descrição do Produto</label><span style="font-size:16px;font-weight:900;">${order.produto}</span></div>
+      <div class="grid-2">
+        ${order.categoria ? `<div class="field"><label>Categoria</label><span>${order.categoria}</span></div>` : ''}
+        ${order.tamanho ? `<div class="field blue"><label>Tamanho</label><span style="color:#1d4ed8;">${order.tamanho}</span></div>` : ''}
+        ${order.cor ? `<div class="field"><label>Cor / Desenho</label><span>${order.cor}</span></div>` : ''}
+        <div class="field" style="background:#e0f2fe;border-color:#bae6fd;"><label>Quantidade</label><span style="font-size:20px;font-weight:900;color:#0369a1;">${order.quantidade ?? 1}x</span></div>
+      </div>
+      ${order.desenho ? `
+      <div class="desenho-box">
+        <div class="label">🎨 Desenho / Padrão</div>
+        <div class="val">${order.desenho}</div>
+      </div>` : ''}
+    </div>
+  </div>
+</div>
+
+${order.obs ? `
+<div class="section">
+  <div class="section-title">Observações</div>
+  <div class="obs-box"><label>⚠ Atenção</label><span>${order.obs}</span></div>
+</div>` : ''}
+
+<div class="section">
+  <div class="section-title">Status do Pedido</div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span class="status-badge">✅ Pedido Enviado ao Fornecedor</span>
+    <span style="font-size:11px;color:#9ca3af;">Emitido em ${now}</span>
+  </div>
+</div>
+
+<div class="signatures">
+  <div class="sig"><div class="line"></div><div class="lbl">Comprador / Responsável</div></div>
+  <div class="sig"><div class="line"></div><div class="lbl">Aprovação Gerência</div></div>
+  <div class="sig"><div class="line"></div><div class="lbl">Confirmação Fornecedor</div></div>
+</div>
+<div class="footer">Lar e Vida Decorações · PED #${order.id.slice(-8)} · Gerado em ${now}</div>
+<script>window.onload = () => { window.print(); }</script>
+</body></html>`
+
+  const w = window.open('', '_blank', 'width=900,height=1200')
   if (w) { w.document.write(html); w.document.close() }
 }
 
@@ -2265,6 +2393,7 @@ export default function ProductionLV() {
         itensCama: (p as any).itens_cama ? (p as any).itens_cama as LVOrder['itensCama'] : undefined,
         conferenciaItens: (p as any).conferencia_cama ? (p as any).conferencia_cama as LVOrder['conferenciaItens'] : undefined,
         imagensDesenho: (p as any).imagens_desenho ? (p as any).imagens_desenho as LVOrder['imagensDesenho'] : undefined,
+        desenho: (p as any).desenho || undefined,
         // Campos de estoque
         confirmacaoFornecedorUrl: (p as any).confirmacao_fornecedor_url || undefined,
         localizacaoPrateleira: (p as any).localizacao_prateleira || undefined,
@@ -2422,6 +2551,7 @@ export default function ProductionLV() {
     if ('quantidade' in updates) payload.quantidade = updates.quantidade || null
     if ('conferenciaItens' in updates) (payload as any).conferencia_cama = updates.conferenciaItens ?? null
     if ('imagensDesenho' in updates) (payload as any).imagens_desenho = updates.imagensDesenho ?? null
+    if ('desenho' in updates) (payload as any).desenho = updates.desenho || null
     // campos de estoque
     if ('confirmacaoFornecedorUrl' in updates) (payload as any).confirmacao_fornecedor_url = updates.confirmacaoFornecedorUrl || null
     if ('localizacaoPrateleira' in updates) (payload as any).localizacao_prateleira = updates.localizacaoPrateleira || null
@@ -2698,15 +2828,57 @@ export default function ProductionLV() {
                         <span className="badge badge-critico text-[10px] mb-2 flex items-center gap-1 w-fit"><AlertTriangle size={9} />Atrasado</span>
                       )}
 
+                      {/* Campo Desenho — apenas para Tapete */}
+                      {order.categoria === 'Tapete' && (
+                        <div className="mt-2 mb-1">
+                          <input
+                            className="w-full text-xs border border-amber-200 bg-amber-50 rounded-lg px-2 py-1.5 text-amber-900 placeholder-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
+                            placeholder="🎨 Desenho (ex: Desenho 01)"
+                            defaultValue={order.desenho ?? ''}
+                            onBlur={async e => {
+                              const novoDesenho = e.target.value.trim()
+                              if (novoDesenho === (order.desenho ?? '').trim()) return
+                              setBoard(prev => ({
+                                ...prev,
+                                [stage]: prev[stage].map(o => o.id === order.id ? { ...o, desenho: novoDesenho || undefined } : o)
+                              }))
+                              await updatePedidoLV(order.id, { desenho: novoDesenho || null } as any)
+                            }}
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
+
                       <div className="flex gap-1.5 mt-2">
-                        <button onClick={() => conclude(stage, order.id)}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
-                          style={{ background: stage === 'Embalagem' ? '#d97706' : '#b45309' }}
-                        >
-                          {stage === 'Embalagem'
-                            ? <><ClipboardList size={13} /> Pronto p/ Envio</>
-                            : <><CheckCircle size={13} /> Avançar Etapa</>}
-                        </button>
+                        {/* Botão especial para Novos Pedidos: Imprimir e avançar para Aguardando Chegada */}
+                        {stage === 'Novos Pedidos' ? (
+                          <button
+                            onClick={() => {
+                              printPedidoFornecedor(order)
+                              // Avança direto para "Aguardando Chegada"
+                              setBoard(prev => ({
+                                ...prev,
+                                'Novos Pedidos': prev['Novos Pedidos'].filter(o => o.id !== order.id),
+                                'Aguardando Chegada': [...prev['Aguardando Chegada'], { ...order, status: 'OK' as const }],
+                              }))
+                              movePedidoLVEtapa(order.id, 'Aguardando Chegada')
+                              showToast(`Pedido #${order.id.slice(-8)} enviado ao fornecedor e movido para "Aguardando Chegada"!`)
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
+                            style={{ background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' }}
+                          >
+                            <Printer size={13} /> Imprimir Pedido
+                          </button>
+                        ) : (
+                          <button onClick={() => conclude(stage, order.id)}
+                            className="flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
+                            style={{ background: stage === 'Embalagem' ? '#d97706' : '#b45309' }}
+                          >
+                            {stage === 'Embalagem'
+                              ? <><ClipboardList size={13} /> Pronto p/ Envio</>
+                              : <><CheckCircle size={13} /> Avançar Etapa</>}
+                          </button>
+                        )}
                         <button onClick={() => setDetail({ order, stage })}
                           className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-amber-700 transition-colors" title="Ver detalhes"
                         >
