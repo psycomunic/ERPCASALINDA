@@ -2792,6 +2792,36 @@ export default function ProductionLV() {
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isNew ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-400'}`}>{orders.length}</span>
                 </div>
 
+                {/* Botão Imprimir Todos — apenas em Novos Pedidos quando há pedidos */}
+                {isNew && orders.length > 0 && (
+                  <div className="px-2 pb-2">
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(`Imprimir pedido agrupado com ${orders.length} item(ns) e mover todos para "Aguardando Chegada"?`)) return
+                        printFornecedorPDF(orders)
+                        // Move todos para Aguardando Chegada
+                        setBoard(prev => {
+                          const ids = new Set(orders.map(o => o.id))
+                          return {
+                            ...prev,
+                            'Novos Pedidos': prev['Novos Pedidos'].filter(o => !ids.has(o.id)),
+                            'Aguardando Chegada': [
+                              ...orders.map(o => ({ ...o, status: 'OK' as const })),
+                              ...prev['Aguardando Chegada'],
+                            ],
+                          }
+                        })
+                        orders.forEach(o => movePedidoLVEtapa(o.id, 'Aguardando Chegada'))
+                        showToast(`${orders.length} pedido(s) impressos e movidos para "Aguardando Chegada"!`)
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 text-white text-[11px] font-bold py-1.5 rounded-lg transition-all hover:opacity-90 active:scale-95"
+                      style={{ background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' }}
+                    >
+                      <Printer size={12} /> Imprimir Todos ({orders.length})
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex-1 px-2 pb-2 space-y-2 overflow-y-auto">
                   {orders.map(order => (
                     <motion.div key={order.id} layout
