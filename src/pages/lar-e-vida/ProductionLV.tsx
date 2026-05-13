@@ -2778,7 +2778,8 @@ export default function ProductionLV() {
         <div className="flex gap-4 overflow-x-auto pb-4 flex-1 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           {KANBAN_STAGES.map(stage => {
             const isNew = stage === 'Novos Pedidos'
-            const orders = filterOrders(board[stage])
+            const allOrders = board[stage]           // todos, sem filtro
+            const orders = filterOrders(allOrders)   // filtrados para exibição
             return (
               <div key={stage}
                 className={`flex-shrink-0 w-80 md:w-64 max-w-[85vw] snap-center md:snap-align-none rounded-xl flex flex-col transition-all border shadow-sm ${isNew ? 'bg-amber-50/80 border-amber-200' : `bg-gray-100/80 border-gray-200 ${dragging && dragging.from !== stage ? 'ring-2 ring-amber-200 ring-offset-1' : ''}`}`}
@@ -2789,35 +2790,34 @@ export default function ProductionLV() {
                 <div className="flex items-center gap-2 px-3 py-2.5">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${STAGE_DOT[stage]}`} />
                   <span className={`text-xs font-semibold uppercase tracking-wider flex-1 ${isNew ? 'text-amber-700' : 'text-gray-600'}`}>{stage}</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isNew ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-400'}`}>{orders.length}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isNew ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-400'}`}>{allOrders.length}</span>
                 </div>
 
                 {/* Botão Imprimir Todos — apenas em Novos Pedidos quando há pedidos */}
-                {isNew && orders.length > 0 && (
+                {isNew && allOrders.length > 0 && (
                   <div className="px-2 pb-2">
                     <button
                       onClick={() => {
-                        if (!window.confirm(`Imprimir pedido agrupado com ${orders.length} item(ns) e mover todos para "Aguardando Chegada"?`)) return
-                        printFornecedorPDF(orders)
-                        // Move todos para Aguardando Chegada
+                        if (!window.confirm(`Imprimir pedido agrupado com ${allOrders.length} item(ns) e mover todos para "Aguardando Chegada"?`)) return
+                        printFornecedorPDF(allOrders)
                         setBoard(prev => {
-                          const ids = new Set(orders.map(o => o.id))
+                          const ids = new Set(allOrders.map(o => o.id))
                           return {
                             ...prev,
                             'Novos Pedidos': prev['Novos Pedidos'].filter(o => !ids.has(o.id)),
                             'Aguardando Chegada': [
-                              ...orders.map(o => ({ ...o, status: 'OK' as const })),
+                              ...allOrders.map(o => ({ ...o, status: 'OK' as const })),
                               ...prev['Aguardando Chegada'],
                             ],
                           }
                         })
-                        orders.forEach(o => movePedidoLVEtapa(o.id, 'Aguardando Chegada'))
-                        showToast(`${orders.length} pedido(s) impressos e movidos para "Aguardando Chegada"!`)
+                        allOrders.forEach(o => movePedidoLVEtapa(o.id, 'Aguardando Chegada'))
+                        showToast(`${allOrders.length} pedido(s) impressos e movidos para "Aguardando Chegada"!`)
                       }}
                       className="w-full flex items-center justify-center gap-1.5 text-white text-[11px] font-bold py-1.5 rounded-lg transition-all hover:opacity-90 active:scale-95"
                       style={{ background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' }}
                     >
-                      <Printer size={12} /> Imprimir Todos ({orders.length})
+                      <Printer size={12} /> Imprimir Todos ({allOrders.length})
                     </button>
                   </div>
                 )}
