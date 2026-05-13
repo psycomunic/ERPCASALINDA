@@ -2872,6 +2872,7 @@ export default function ProductionLV() {
                       <div className="flex items-center gap-1 flex-wrap mb-1.5">
                         {order.categoria && <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{order.categoria}</span>}
                         {order.tamanho && <span className="text-[9px] border border-amber-300 text-amber-700 px-1.5 py-0.5 rounded bg-amber-50">{order.tamanho}</span>}
+                        {order.desenho && <span className="text-[9px] border border-amber-400 text-amber-800 px-1.5 py-0.5 rounded bg-amber-100 font-semibold">{order.desenho}</span>}
                         {order.canal && <span className="text-[9px] text-gray-500">{CANAL_ICON[order.canal]}</span>}
                       </div>
 
