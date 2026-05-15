@@ -604,7 +604,11 @@ function printFornecedorPDF(orders: LVOrder[]) {
   const pedidoNum = orders[0]?.id?.slice(-8) ?? '000000'
   const fornecedor = orders[0]?.nomeFornecedor || orders[0]?.transportadora || '—'
 
-  const rows = orders.map(o => {
+  // Separa tapetes (cards individuais) de camas (cards com itensCama)
+  const tapeteOrders = orders.filter(o => o.categoria !== 'Cama')
+  const camaOrders = orders.filter(o => o.categoria === 'Cama')
+
+  const tapeteRows = tapeteOrders.map(o => {
     const foto = o.fotoUrl
       ? `<img src="${o.fotoUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;" />`
       : `<div style="width:64px;height:64px;border-radius:6px;background:#f3f4f6;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;font-size:22px;">🏠</div>`
@@ -634,6 +638,43 @@ function printFornecedorPDF(orders: LVOrder[]) {
           ${o.obs ? `<div style="font-size:10px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:4px 6px;">${o.obs}</div>` : '<span style="color:#d1d5db;font-size:11px;">—</span>'}
         </td>
       </tr>`
+  }).join('')
+
+  // Bloco de camas: cada cama vira uma sub-tabela com seus SKUs
+  const camaBlocks = camaOrders.map(o => {
+    const foto = o.fotoUrl
+      ? `<img src="${o.fotoUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #bfdbfe;" />`
+      : `<div style="width:56px;height:56px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;display:flex;align-items:center;justify-content:center;font-size:22px;">🛏️</div>`
+    const skus = o.itensCama ?? []
+    const totalUnid = skus.reduce((s, i) => s + i.qtd, 0)
+    const subtotal = o.valor ? o.valor * totalUnid : 0
+    const skuRows = skus.map(s => `
+      <tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;font-family:monospace;font-size:11px;color:#1e40af;">${s.sku}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;font-size:11px;color:#374151;">${s.descricao || '—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;text-align:center;font-size:12px;font-weight:700;color:#111827;">${s.qtd}</td>
+      </tr>`).join('')
+    return `
+      <div style="margin-top:18px;border:2px solid #bfdbfe;border-radius:10px;overflow:hidden;page-break-inside:avoid;">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#eff6ff;border-bottom:1px solid #bfdbfe;">
+          ${foto}
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:900;color:#1e40af;">${o.produto}</div>
+            <div style="font-size:10px;color:#3b82f6;margin-top:2px;">${skus.length} SKUs · ${totalUnid} unid.${subtotal > 0 ? ` · R$ ${subtotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : ''}</div>
+          </div>
+        </div>
+        ${skus.length > 0 ? `
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#1e293b;color:#fff;">
+                <th style="padding:8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">SKU</th>
+                <th style="padding:8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Descrição</th>
+                <th style="padding:8px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:60px;">Qtd</th>
+              </tr>
+            </thead>
+            <tbody>${skuRows}</tbody>
+          </table>` : ''}
+      </div>`
   }).join('')
 
   const totalGeral = orders.reduce((sum, o) => sum + (o.valor ?? 0) * (o.quantidade ?? 1), 0)
@@ -675,7 +716,7 @@ tbody tr:nth-child(even) { background: #f9fafb; }
 @media print { body { padding: 0; } @page { margin: 16mm; size: A4; } }
 </style></head><body>
 <div class="header">
-  <div class="logo"><h1>Lar e Vida <span class="badge-tapete">Tapetes</span></h1><p>Pedido ao Fornecedor</p></div>
+  <div class="logo"><h1>Lar e Vida ${camaOrders.length > 0 && tapeteOrders.length > 0 ? '<span class="badge-tapete">Tapetes + Camas</span>' : camaOrders.length > 0 ? '<span class="badge-tapete" style="background:#1e40af;">Camas</span>' : '<span class="badge-tapete">Tapetes</span>'}</h1><p>Pedido ao Fornecedor</p></div>
   <div class="meta"><div class="num">PED #${pedidoNum}</div><div class="dt">Emitido em ${now}</div></div>
 </div>
 
@@ -688,7 +729,7 @@ tbody tr:nth-child(even) { background: #f9fafb; }
 </div>
 
 <div class="info-strip">
-  <div class="info-box"><label>Total de Itens</label><span>${orders.length} tapete${orders.length !== 1 ? 's' : ''}</span></div>
+  <div class="info-box"><label>Total de Itens</label><span>${tapeteOrders.length > 0 ? `${tapeteOrders.length} tap.` : ''}${tapeteOrders.length > 0 && camaOrders.length > 0 ? ' + ' : ''}${camaOrders.length > 0 ? `${camaOrders.length} col.` : ''}</span></div>
   <div class="info-box"><label>Quantidade Total</label><span>${totalItens} unid.</span></div>
   <div class="info-box"><label>Data do Pedido</label><span>${new Date().toLocaleDateString('pt-BR')}</span></div>
   <div class="info-box" style="${totalGeral > 0 ? 'background:#f0fdf4;border-color:#bbf7d0;' : ''}">
@@ -697,6 +738,8 @@ tbody tr:nth-child(even) { background: #f9fafb; }
   </div>
 </div>
 
+${tapeteOrders.length > 0 ? `
+<h2 style="font-size:13px;font-weight:900;color:#b45309;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">🏠 Tapetes (${tapeteOrders.length})</h2>
 <table>
   <thead>
     <tr>
@@ -709,9 +752,17 @@ tbody tr:nth-child(even) { background: #f9fafb; }
       <th>Obs.</th>
     </tr>
   </thead>
-  <tbody>${rows}</tbody>
-  ${totalGeral > 0 ? `<tr class="totals"><td colspan="4" class="sum-label">TOTAL GERAL</td><td class="sum-val">${totalItens}</td><td class="sum-val">R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td><td></td></tr>` : ''}
-</table>
+  <tbody>${tapeteRows}</tbody>
+</table>` : ''}
+
+${camaOrders.length > 0 ? `
+<h2 style="font-size:13px;font-weight:900;color:#1e40af;text-transform:uppercase;letter-spacing:2px;margin-top:24px;margin-bottom:8px;">🛏️ Camas (${camaOrders.length})</h2>
+${camaBlocks}` : ''}
+
+${totalGeral > 0 ? `<div style="margin-top:18px;padding:12px 16px;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+  <span style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:1.5px;">Total Geral · ${totalItens} unid.</span>
+  <span style="font-size:18px;font-weight:900;color:#059669;">R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+</div>` : ''}
 
 <div class="signatures">
   <div class="sig"><div class="line"></div><div class="lbl">Comprador / Responsável</div></div>
@@ -1935,14 +1986,218 @@ function TapeteItemCard({
   )
 }
 
+// ─── Cama Item (sub-form for one bed collection) ─────────────────────────────
+
+interface CamaItem {
+  uid: string
+  produto: string        // Nome da coleção (ex: "Coleção BAMBU")
+  descricao: string      // Subtítulo (ex: "Colchas e Lençóis")
+  fotoUrl: string
+  valor: string          // Preço unitário (opcional)
+  skusText: string       // Lista de SKUs em texto livre — parse on save
+  collapsed: boolean
+}
+
+function newCamaItem(): CamaItem {
+  return {
+    uid: Math.random().toString(36).slice(2),
+    produto: '', descricao: '', fotoUrl: '',
+    valor: '', skusText: '', collapsed: false,
+  }
+}
+
+// Parser: cada linha vira { sku, descricao, qtd }
+// Formatos aceitos por linha (separadores: tab, ponto-e-vírgula, ou múltiplos espaços):
+//   000302.003.023
+//   000302.003.023  Colcha BAMBU D01
+//   000302.003.023  Colcha BAMBU D01  2
+//   000302.003.023;Colcha BAMBU D01;2
+function parseSkusText(text: string): Array<{ sku: string; descricao: string; qtd: number }> {
+  return text.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0)
+    .map(line => {
+      const parts = line.split(/[;\t]|\s{2,}/).map(p => p.trim()).filter(Boolean)
+      const sku = parts[0] ?? ''
+      // último elemento pode ser qtd numérica
+      let qtd = 1
+      let descricao = ''
+      if (parts.length >= 2) {
+        const lastNum = parseInt(parts[parts.length - 1], 10)
+        if (!isNaN(lastNum) && String(lastNum) === parts[parts.length - 1]) {
+          qtd = lastNum
+          descricao = parts.slice(1, -1).join(' ')
+        } else {
+          descricao = parts.slice(1).join(' ')
+        }
+      }
+      return { sku, descricao, qtd }
+    })
+    .filter(i => i.sku.length > 0)
+}
+
+function CamaItemCard({
+  item, index, total,
+  onUpdate, onRemove,
+}: {
+  item: CamaItem; index: number; total: number
+  onUpdate: (uid: string, patch: Partial<CamaItem>) => void
+  onRemove: (uid: string) => void
+}) {
+  const set = (k: keyof CamaItem, v: any) => onUpdate(item.uid, { [k]: v })
+  const skus = parseSkusText(item.skusText)
+  const totalUnid = skus.reduce((s, i) => s + i.qtd, 0)
+  const subtotal = item.valor && parseFloat(item.valor) > 0 && totalUnid > 0
+    ? parseFloat(item.valor) * totalUnid
+    : null
+  const hasContent = item.produto.trim() || item.descricao.trim() || item.fotoUrl || skus.length > 0
+
+  return (
+    <div className="border-2 border-blue-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+      {/* Card Header — always visible */}
+      <div
+        className="flex items-center gap-2.5 px-4 py-3 cursor-pointer select-none hover:bg-blue-50/60 transition-colors"
+        onClick={() => set('collapsed', !item.collapsed)}
+      >
+        {item.fotoUrl ? (
+          <img src={item.fotoUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-blue-200 shrink-0" />
+        ) : (
+          <div className="w-10 h-10 rounded-lg bg-blue-50 border-2 border-dashed border-blue-200 flex items-center justify-center text-base shrink-0">🛏️</div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest leading-none mb-0.5">
+            Cama {index + 1} {total > 1 ? `de ${total}` : ''}
+          </p>
+          <p className={`text-sm font-semibold leading-tight truncate ${hasContent ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+            {item.produto || 'Sem nome ainda...'}
+          </p>
+          {(item.descricao || skus.length > 0) && (
+            <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+              {[item.descricao, skus.length > 0 ? `${skus.length} SKUs` : ''].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {subtotal !== null && (
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          )}
+          {totalUnid > 0 && (
+            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              {totalUnid}x
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onRemove(item.uid) }}
+            className="p-1 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+            title="Remover esta cama"
+          >
+            <X size={14} />
+          </button>
+          <ChevronDown
+            size={14}
+            className={`text-gray-400 transition-transform duration-200 ${item.collapsed ? '' : 'rotate-180'}`}
+          />
+        </div>
+      </div>
+
+      {/* Card Body — collapsible */}
+      <AnimatePresence initial={false}>
+        {!item.collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-1 space-y-4 border-t border-blue-100 bg-blue-50/30">
+
+              {/* Foto */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">📷 Foto / Miniatura</p>
+                <PhotoZone value={item.fotoUrl} onChange={v => set('fotoUrl', v)} />
+              </div>
+
+              {/* Nome da coleção */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🛏️ Nome da Coleção *</p>
+                <input
+                  className="input"
+                  placeholder="Ex: Coleção BAMBU"
+                  value={item.produto}
+                  onChange={e => set('produto', e.target.value)}
+                />
+              </div>
+
+              {/* Descrição */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📝 Descrição / Categoria</p>
+                <input
+                  className="input"
+                  placeholder="Ex: Colchas e Lençóis"
+                  value={item.descricao}
+                  onChange={e => set('descricao', e.target.value)}
+                />
+              </div>
+
+              {/* Lista de SKUs */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📦 Lista de SKUs (1 por linha)</p>
+                <p className="text-[10px] text-gray-400 mb-1.5">
+                  Formato: <code className="bg-gray-100 px-1 rounded">SKU descrição qtd</code> — separe por tab, ponto-e-vírgula ou 2+ espaços.
+                </p>
+                <textarea
+                  className="input resize-y font-mono text-xs"
+                  rows={6}
+                  placeholder={`000302.003.023  Colcha BAMBU D01  2\n000302.003.024  Colcha BAMBU D01 King  1\n000302.003.025;Lençol BAMBU D01;3`}
+                  value={item.skusText}
+                  onChange={e => set('skusText', e.target.value)}
+                />
+                {skus.length > 0 && (
+                  <p className="text-[10px] text-blue-600 mt-1.5 font-semibold">
+                    ✓ {skus.length} SKU{skus.length !== 1 ? 's' : ''} reconhecido{skus.length !== 1 ? 's' : ''} · {totalUnid} unid. no total
+                  </p>
+                )}
+              </div>
+
+              {/* Valor */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">💰 Preço Unitário (R$)</p>
+                <input
+                  className="input"
+                  placeholder="0,00"
+                  value={item.valor}
+                  onChange={e => set('valor', e.target.value)}
+                  type="number" min={0} step={0.01}
+                />
+                {subtotal !== null && (
+                  <div className="mt-2 text-right text-xs text-gray-500">
+                    Subtotal: <span className="font-bold text-emerald-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ─── Tapete Order Modal ───────────────────────────────────────────────────────
 
 function TapeteOrderModal({ onClose, onSave }: {
   onClose: () => void
   onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => void
 }) {
-  // ── Estado: lista de tapetes no pedido ──
+  // ── Estado: listas de itens no pedido ──
   const [tapetes, setTapetes] = useState<TapeteItem[]>([newTapeteItem()])
+  const [camas, setCamas] = useState<CamaItem[]>([])
   const [tipoDestino, setTipoDestino] = useState<'cliente' | 'estoque'>('cliente')
 
   // Campos globais (fornecedor + obs aplicam-se a todos)
@@ -1952,26 +2207,48 @@ function TapeteOrderModal({ onClose, onSave }: {
   const [obs, setObs] = useState('')
   const [confirmacaoUrl, setConfirmacaoUrl] = useState('')
 
+  // ── Tapetes ──
   const updateItem = (uid: string, patch: Partial<TapeteItem>) =>
     setTapetes(prev => prev.map(t => t.uid === uid ? { ...t, ...patch } : t))
 
   const removeItem = (uid: string) =>
-    setTapetes(prev => prev.length > 1 ? prev.filter(t => t.uid !== uid) : prev)
+    setTapetes(prev => prev.filter(t => t.uid !== uid))
 
   const addItem = () => {
-    // Colapsa todos os anteriores e adiciona novo expandido
     setTapetes(prev => [...prev.map(t => ({ ...t, collapsed: true })), newTapeteItem()])
   }
 
-  const totalGeral = tapetes.reduce((sum, t) => {
+  // ── Camas ──
+  const updateCama = (uid: string, patch: Partial<CamaItem>) =>
+    setCamas(prev => prev.map(c => c.uid === uid ? { ...c, ...patch } : c))
+
+  const removeCama = (uid: string) =>
+    setCamas(prev => prev.filter(c => c.uid !== uid))
+
+  const addCama = () => {
+    setCamas(prev => [...prev.map(c => ({ ...c, collapsed: true })), newCamaItem()])
+    setTapetes(prev => prev.map(t => ({ ...t, collapsed: true })))
+  }
+
+  // ── Totais ──
+  const totalTapetes = tapetes.reduce((sum, t) => {
     const v = t.valor ? parseFloat(t.valor) : 0
     return sum + v * t.quantidade
   }, 0)
+  const totalCamas = camas.reduce((sum, c) => {
+    const v = c.valor ? parseFloat(c.valor) : 0
+    const unid = parseSkusText(c.skusText).reduce((s, i) => s + i.qtd, 0)
+    return sum + v * unid
+  }, 0)
+  const totalGeral = totalTapetes + totalCamas
 
-  const canSave = tapetes.some(t => t.produto.trim().length > 0)
+  const validTapetes = tapetes.filter(t => t.produto.trim().length > 0)
+  const validCamas = camas.filter(c => c.produto.trim().length > 0)
+  const totalCards = validTapetes.length + validCamas.length
+  const canSave = totalCards > 0
 
-  // Converte um TapeteItem em shape LVOrder para salvar/imprimir
-  const itemToOrder = (t: TapeteItem): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
+  // Converte TapeteItem → LVOrder
+  const tapeteToOrder = (t: TapeteItem): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
     cliente: tipoDestino === 'estoque' ? 'COMPRA ESTOQUE' : 'PEDIDO FORNECEDOR',
     produto: t.produto || '(sem nome)',
     categoria: 'Tapete',
@@ -1989,6 +2266,31 @@ function TapeteOrderModal({ onClose, onSave }: {
     confirmacaoFornecedorUrl: confirmacaoUrl || undefined,
   })
 
+  // Converte CamaItem → LVOrder (com itensCama populado)
+  const camaToOrder = (c: CamaItem): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => {
+    const skus = parseSkusText(c.skusText)
+    const totalUnid = skus.reduce((s, i) => s + i.qtd, 0) || 1
+    const produto = c.descricao
+      ? `${c.produto} — ${c.descricao} (${skus.length} SKUs)`
+      : `${c.produto} (${skus.length} SKUs)`
+    return {
+      cliente: tipoDestino === 'estoque' ? 'COMPRA ESTOQUE' : 'PEDIDO FORNECEDOR',
+      produto: produto || '(sem nome)',
+      categoria: 'Cama',
+      fotoUrl: c.fotoUrl || undefined,
+      nomeFornecedor: nomeFornecedor || 'TELLAIO',
+      codigoFornecedor: codigoFornecedor || undefined,
+      quantidade: totalUnid,
+      valor: c.valor ? parseFloat(c.valor) : undefined,
+      obs: obs || undefined,
+      transportadora: fornecedor || undefined,
+      canal: 'WhatsApp',
+      tipoPedido: tipoDestino === 'estoque' ? 'estoque' : 'crossdocking',
+      confirmacaoFornecedorUrl: confirmacaoUrl || undefined,
+      itensCama: skus.length > 0 ? skus : undefined,
+    }
+  }
+
   return (
     <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
       <motion.div className="modal" style={{ maxWidth: 580, maxHeight: '94vh', overflowY: 'auto' }}
@@ -1998,11 +2300,15 @@ function TapeteOrderModal({ onClose, onSave }: {
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>🏠</div>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>📦</div>
             <div>
-              <h3 className="font-bold text-gray-900">Pedido de Tapetes ao Fornecedor</h3>
+              <h3 className="font-bold text-gray-900">Pedido ao Fornecedor</h3>
               <p className="text-xs text-gray-400">
-                {tapetes.length} tapete{tapetes.length !== 1 ? 's' : ''} · {tipoDestino === 'estoque' ? 'Para Estoque' : 'Para Cliente'}
+                {validTapetes.length > 0 && `${validTapetes.length} tapete${validTapetes.length !== 1 ? 's' : ''}`}
+                {validTapetes.length > 0 && validCamas.length > 0 && ' · '}
+                {validCamas.length > 0 && `${validCamas.length} cama${validCamas.length !== 1 ? 's' : ''}`}
+                {totalCards === 0 && 'Sem itens'}
+                {' · '}{tipoDestino === 'estoque' ? 'Para Estoque' : 'Para Cliente'}
               </p>
             </div>
           </div>
@@ -2044,24 +2350,28 @@ function TapeteOrderModal({ onClose, onSave }: {
           {/* ── Lista de Tapetes ── */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">
                 🏠 Tapetes do Pedido
               </p>
               <span className="text-[10px] text-gray-400">{tapetes.length} item{tapetes.length !== 1 ? 's' : ''}</span>
             </div>
 
-            <div className="space-y-3">
-              {tapetes.map((item, idx) => (
-                <TapeteItemCard
-                  key={item.uid}
-                  item={item}
-                  index={idx}
-                  total={tapetes.length}
-                  onUpdate={updateItem}
-                  onRemove={removeItem}
-                />
-              ))}
-            </div>
+            {tapetes.length > 0 ? (
+              <div className="space-y-3">
+                {tapetes.map((item, idx) => (
+                  <TapeteItemCard
+                    key={item.uid}
+                    item={item}
+                    index={idx}
+                    total={tapetes.length}
+                    onUpdate={updateItem}
+                    onRemove={removeItem}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-400 italic py-2">Nenhum tapete adicionado.</p>
+            )}
 
             {/* Botão Adicionar Tapete */}
             <button
@@ -2069,7 +2379,42 @@ function TapeteOrderModal({ onClose, onSave }: {
               onClick={addItem}
               className="mt-3 w-full py-2.5 rounded-xl border-2 border-dashed border-amber-300 text-amber-600 text-xs font-bold flex items-center justify-center gap-2 hover:bg-amber-50 transition-colors"
             >
-              <Plus size={14} /> Adicionar Outro Tapete
+              <Plus size={14} /> Adicionar {tapetes.length > 0 ? 'Outro' : ''} Tapete
+            </button>
+          </div>
+
+          {/* ── Lista de Camas ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                🛏️ Camas do Pedido
+              </p>
+              <span className="text-[10px] text-gray-400">{camas.length} item{camas.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {camas.length > 0 ? (
+              <div className="space-y-3">
+                {camas.map((item, idx) => (
+                  <CamaItemCard
+                    key={item.uid}
+                    item={item}
+                    index={idx}
+                    total={camas.length}
+                    onUpdate={updateCama}
+                    onRemove={removeCama}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-400 italic py-2">Nenhuma cama adicionada.</p>
+            )}
+
+            <button
+              type="button"
+              onClick={addCama}
+              className="mt-3 w-full py-2.5 rounded-xl border-2 border-dashed border-blue-300 text-blue-600 text-xs font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors"
+            >
+              <Plus size={14} /> Adicionar {camas.length > 0 ? 'Outra' : ''} Cama
             </button>
           </div>
 
@@ -2092,39 +2437,41 @@ function TapeteOrderModal({ onClose, onSave }: {
           {totalGeral > 0 && (
             <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
               <span className="text-xs font-bold text-amber-700">
-                {tapetes.length} tapete{tapetes.length !== 1 ? 's' : ''} · {tapetes.reduce((s,t)=>s+t.quantidade,0)} unid.
+                {totalCards} card{totalCards !== 1 ? 's' : ''} no kanban
               </span>
               <span className="text-sm font-black text-emerald-600">
                 Total: R$ {totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </span>
             </div>
           )}
-          {/* Print button */}
-          <button
-            type="button"
-            disabled={!canSave}
-            onClick={() => {
-              const previewOrders = tapetes
-                .filter(t => t.produto.trim())
-                .map(t => ({ ...itemToOrder(t), id: 'PREV', data: '', hora: '', status: 'Pendente' as const }))
-              printFornecedorPDF(previewOrders)
-            }}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-amber-300 text-amber-700 text-sm font-semibold hover:bg-amber-50 transition-colors disabled:opacity-40"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-              <rect x="6" y="14" width="12" height="8"/>
-            </svg>
-            Imprimir PDF ({tapetes.filter(t=>t.produto.trim()).length} tapete{tapetes.filter(t=>t.produto.trim()).length!==1?'s':''})
-          </button>
+          {/* Print button — só imprime tapetes (PDF atual é específico para tapetes) */}
+          {validTapetes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const previewOrders = validTapetes
+                  .map(t => ({ ...tapeteToOrder(t), id: 'PREV', data: '', hora: '', status: 'Pendente' as const }))
+                printFornecedorPDF(previewOrders)
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-amber-300 text-amber-700 text-sm font-semibold hover:bg-amber-50 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimir PDF Tapetes ({validTapetes.length})
+            </button>
+          )}
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button
               disabled={!canSave}
               onClick={async () => {
-                const validItems = tapetes.filter(t => t.produto.trim())
-                for (const t of validItems) {
-                  await onSave(itemToOrder(t))
+                for (const t of validTapetes) {
+                  await onSave(tapeteToOrder(t))
+                }
+                for (const c of validCamas) {
+                  await onSave(camaToOrder(c))
                 }
                 onClose()
               }}
@@ -2132,9 +2479,7 @@ function TapeteOrderModal({ onClose, onSave }: {
               style={{ background: canSave ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
             >
               <Check size={16} />
-              {tapetes.filter(t=>t.produto.trim()).length > 1
-                ? `Salvar ${tapetes.filter(t=>t.produto.trim()).length} Tapetes`
-                : 'Salvar no Kanban'}
+              {totalCards > 1 ? `Salvar ${totalCards} Itens` : 'Salvar no Kanban'}
             </button>
           </div>
         </div>
@@ -2544,7 +2889,11 @@ export default function ProductionLV() {
       cor: data.cor || null,
       categoria: data.categoria || null,
       quantidade: data.quantidade || null,
-    })
+      // Campos específicos de crossdocking/estoque/cama:
+      tipo_pedido: data.tipoPedido || null,
+      confirmacao_fornecedor_url: data.confirmacaoFornecedorUrl || null,
+      itens_cama: data.itensCama ?? null,
+    } as any)
     if (inserted) { await loadOrders(); showToast('Pedido adicionado com sucesso!') }
     setNewModal(false)
   }
@@ -2791,7 +3140,7 @@ export default function ProductionLV() {
             <Plus size={15} /> Novo Pedido
           </button>
           <button onClick={() => setTapeteModal(true)} className="hidden md:inline-flex btn-primary shrink-0" style={{ background: 'linear-gradient(135deg, #0369a1, #0ea5e9)' }}>
-            🏠 Pedido Tapete
+            📦 Pedido Fornecedor
           </button>
         </div>
       </div>
@@ -2821,7 +3170,7 @@ export default function ProductionLV() {
                 {isNew && allOrders.length > 0 && (
                   <div className="px-2 pb-2">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!window.confirm(`Imprimir pedido agrupado com ${allOrders.length} item(ns) e mover todos para "Aguardando Chegada"?`)) return
                         printFornecedorPDF(allOrders)
                         setBoard(prev => {
