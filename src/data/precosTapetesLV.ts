@@ -246,10 +246,9 @@ const RIOS: PrecoColecao[] = [
       { tamanho: '3,00 × 4,00', valor: 1158.51 },
       { tamanho: '3,00 × 5,00', valor: 1448.13 },
       { tamanho: '3,50 × 4,50', valor: 1520.54 },
-      // Imagem cortou o desenho — desenhos: a confirmar
-      { tamanho: '1,50 × 1,50', valor: 217.22 },
-      { tamanho: '2,00 × 2,00', valor: 386.17 },
-      { tamanho: '2,50 × 2,50', valor: 603.39 },
+      { tamanho: '1,50 × 1,50', valor: 217.22, desenhos: ['01'] },
+      { tamanho: '2,00 × 2,00', valor: 386.17, desenhos: ['01'] },
+      { tamanho: '2,50 × 2,50', valor: 603.39, desenhos: ['01'] },
     ],
   },
   {
