@@ -28,6 +28,10 @@ import {
   colecoesDaLinha, tamanhosDaColecao, findPreco, findColecao,
 } from '../../data/precosTapetesLV'
 import type { PrecoTamanho } from '../../data/precosTapetesLV'
+import {
+  MODELOS_CAMA, findModelo, findVariante,
+} from '../../data/camasLV'
+import type { DisponibilidadeTamanho } from '../../data/camasLV'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2045,52 +2049,51 @@ function TapeteItemCard({
 
 // ─── Cama Item (sub-form for one bed collection) ─────────────────────────────
 
+interface CamaSkuRow {
+  uid: string
+  variante: string       // nome da variante no catálogo (ex: "Des. 1 - Branco") OU texto livre
+  tamanho: string        // tamanho específico (ex: "Queen")
+  sku: string            // SKU livre (opcional)
+  qtd: number
+}
+
 interface CamaItem {
   uid: string
-  produto: string        // Nome da coleção (ex: "Coleção BAMBU")
-  descricao: string      // Subtítulo (ex: "Colchas e Lençóis")
+  produto: string        // Nome do modelo (do catálogo ou texto livre)
+  modeloLivre: boolean   // true = produto não veio do catálogo
+  descricao: string      // Subtítulo opcional
   fotoUrl: string
   valor: string          // Preço unitário (opcional)
-  skusText: string       // Lista de SKUs em texto livre — parse on save
+  itens: CamaSkuRow[]    // Lista estruturada de itens
   collapsed: boolean
 }
 
 function newCamaItem(): CamaItem {
   return {
     uid: Math.random().toString(36).slice(2),
-    produto: '', descricao: '', fotoUrl: '',
-    valor: '', skusText: '', collapsed: false,
+    produto: '', modeloLivre: false, descricao: '', fotoUrl: '',
+    valor: '', itens: [], collapsed: false,
   }
 }
 
-// Parser: cada linha vira { sku, descricao, qtd }
-// Formatos aceitos por linha (separadores: tab, ponto-e-vírgula, ou múltiplos espaços):
-//   000302.003.023
-//   000302.003.023  Colcha BAMBU D01
-//   000302.003.023  Colcha BAMBU D01  2
-//   000302.003.023;Colcha BAMBU D01;2
-function parseSkusText(text: string): Array<{ sku: string; descricao: string; qtd: number }> {
-  return text.split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 0)
-    .map(line => {
-      const parts = line.split(/[;\t]|\s{2,}/).map(p => p.trim()).filter(Boolean)
-      const sku = parts[0] ?? ''
-      // último elemento pode ser qtd numérica
-      let qtd = 1
-      let descricao = ''
-      if (parts.length >= 2) {
-        const lastNum = parseInt(parts[parts.length - 1], 10)
-        if (!isNaN(lastNum) && String(lastNum) === parts[parts.length - 1]) {
-          qtd = lastNum
-          descricao = parts.slice(1, -1).join(' ')
-        } else {
-          descricao = parts.slice(1).join(' ')
-        }
-      }
-      return { sku, descricao, qtd }
-    })
-    .filter(i => i.sku.length > 0)
+function newCamaSkuRow(): CamaSkuRow {
+  return {
+    uid: Math.random().toString(36).slice(2),
+    variante: '', tamanho: '', sku: '', qtd: 1,
+  }
+}
+
+// Serializa rows estruturados em { sku, descricao, qtd } para gravar em itensCama
+function camaRowsToSkus(
+  modelo: string, rows: CamaSkuRow[],
+): Array<{ sku: string; descricao: string; qtd: number }> {
+  return rows
+    .filter(r => r.qtd > 0 && (r.variante.trim() || r.tamanho.trim() || r.sku.trim()))
+    .map(r => ({
+      sku: r.sku.trim(),
+      descricao: [modelo, r.variante, r.tamanho].map(s => s.trim()).filter(Boolean).join(' · '),
+      qtd: r.qtd,
+    }))
 }
 
 function CamaItemCard({
@@ -2102,12 +2105,25 @@ function CamaItemCard({
   onRemove: (uid: string) => void
 }) {
   const set = (k: keyof CamaItem, v: any) => onUpdate(item.uid, { [k]: v })
-  const skus = parseSkusText(item.skusText)
-  const totalUnid = skus.reduce((s, i) => s + i.qtd, 0)
+
+  const modelo = !item.modeloLivre ? findModelo(item.produto) : undefined
+  const totalUnid = item.itens.reduce((s, r) => s + (r.qtd > 0 ? r.qtd : 0), 0)
   const subtotal = item.valor && parseFloat(item.valor) > 0 && totalUnid > 0
     ? parseFloat(item.valor) * totalUnid
     : null
-  const hasContent = item.produto.trim() || item.descricao.trim() || item.fotoUrl || skus.length > 0
+  const itensValidos = item.itens.filter(r => r.variante.trim() || r.tamanho.trim() || r.sku.trim())
+  const hasContent = item.produto.trim() || item.descricao.trim() || item.fotoUrl || itensValidos.length > 0
+
+  // Row helpers
+  const updateRow = (uid: string, patch: Partial<CamaSkuRow>) => {
+    set('itens', item.itens.map(r => r.uid === uid ? { ...r, ...patch } : r))
+  }
+  const removeRow = (uid: string) => {
+    set('itens', item.itens.filter(r => r.uid !== uid))
+  }
+  const addRow = () => {
+    set('itens', [...item.itens, newCamaSkuRow()])
+  }
 
   return (
     <div className="border-2 border-blue-200 rounded-2xl overflow-hidden bg-white shadow-sm">
@@ -2129,9 +2145,9 @@ function CamaItemCard({
           <p className={`text-sm font-semibold leading-tight truncate ${hasContent ? 'text-gray-900' : 'text-gray-400 italic'}`}>
             {item.produto || 'Sem nome ainda...'}
           </p>
-          {(item.descricao || skus.length > 0) && (
+          {(item.descricao || itensValidos.length > 0) && (
             <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-              {[item.descricao, skus.length > 0 ? `${skus.length} SKUs` : ''].filter(Boolean).join(' · ')}
+              {[item.descricao, itensValidos.length > 0 ? `${itensValidos.length} itens` : ''].filter(Boolean).join(' · ')}
             </p>
           )}
         </div>
@@ -2180,45 +2196,99 @@ function CamaItemCard({
                 <PhotoZone value={item.fotoUrl} onChange={v => set('fotoUrl', v)} />
               </div>
 
-              {/* Nome da coleção */}
+              {/* Modelo */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🛏️ Nome da Coleção *</p>
-                <input
-                  className="input"
-                  placeholder="Ex: Coleção BAMBU"
-                  value={item.produto}
-                  onChange={e => set('produto', e.target.value)}
-                />
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🛏️ Modelo *</p>
+                {!item.modeloLivre ? (
+                  <select
+                    className="input"
+                    value={item.produto}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (v === '__OUTRO__') {
+                        onUpdate(item.uid, { modeloLivre: true, produto: '', itens: [] })
+                      } else {
+                        onUpdate(item.uid, { produto: v, itens: [] })
+                      }
+                    }}
+                  >
+                    <option value="">Selecione um modelo do catálogo Tellaio…</option>
+                    {MODELOS_CAMA.map(m => (
+                      <option key={m.nome} value={m.nome}>{m.nome}</option>
+                    ))}
+                    <option value="__OUTRO__">Outro (texto livre)</option>
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1"
+                      placeholder="Ex: Coleção BAMBU"
+                      value={item.produto}
+                      onChange={e => set('produto', e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onUpdate(item.uid, { modeloLivre: false, produto: '', itens: [] })}
+                      className="text-[11px] text-blue-600 hover:underline px-2"
+                    >
+                      ↩ Catálogo
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Descrição */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📝 Descrição / Categoria</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📝 Descrição (opcional)</p>
                 <input
                   className="input"
-                  placeholder="Ex: Colchas e Lençóis"
+                  placeholder="Notas, sub-categoria, etc."
                   value={item.descricao}
                   onChange={e => set('descricao', e.target.value)}
                 />
               </div>
 
-              {/* Lista de SKUs */}
+              {/* Itens do pedido */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📦 Lista de SKUs (1 por linha)</p>
-                <p className="text-[10px] text-gray-400 mb-1.5">
-                  Formato: <code className="bg-gray-100 px-1 rounded">SKU descrição qtd</code> — separe por tab, ponto-e-vírgula ou 2+ espaços.
-                </p>
-                <textarea
-                  className="input resize-y font-mono text-xs"
-                  rows={6}
-                  placeholder={`000302.003.023  Colcha BAMBU D01  2\n000302.003.024  Colcha BAMBU D01 King  1\n000302.003.025;Lençol BAMBU D01;3`}
-                  value={item.skusText}
-                  onChange={e => set('skusText', e.target.value)}
-                />
-                {skus.length > 0 && (
-                  <p className="text-[10px] text-blue-600 mt-1.5 font-semibold">
-                    ✓ {skus.length} SKU{skus.length !== 1 ? 's' : ''} reconhecido{skus.length !== 1 ? 's' : ''} · {totalUnid} unid. no total
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">📦 Itens do Pedido</p>
+                  {itensValidos.length > 0 && (
+                    <span className="text-[10px] text-blue-600 font-semibold">
+                      {itensValidos.length} item{itensValidos.length !== 1 ? 's' : ''} · {totalUnid} unid.
+                    </span>
+                  )}
+                </div>
+
+                {item.itens.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic py-2">
+                    Nenhum item ainda. Adicione abaixo.
                   </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {item.itens.map((row, idx) => (
+                      <CamaSkuRowEditor
+                        key={row.uid}
+                        row={row}
+                        idx={idx}
+                        modelo={modelo}
+                        modeloLivre={item.modeloLivre}
+                        onUpdate={updateRow}
+                        onRemove={removeRow}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={addRow}
+                  disabled={!item.modeloLivre && !modelo}
+                  className="mt-2 w-full text-xs font-semibold py-2 rounded-lg border-2 border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  + Adicionar item
+                </button>
+                {!item.modeloLivre && !modelo && (
+                  <p className="text-[10px] text-gray-400 mt-1">Selecione um modelo primeiro.</p>
                 )}
               </div>
 
@@ -2242,6 +2312,105 @@ function CamaItemCard({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Cama SKU Row Editor ──────────────────────────────────────────────────────
+
+function CamaSkuRowEditor({
+  row, idx, modelo, modeloLivre, onUpdate, onRemove,
+}: {
+  row: CamaSkuRow
+  idx: number
+  modelo: ReturnType<typeof findModelo>
+  modeloLivre: boolean
+  onUpdate: (uid: string, patch: Partial<CamaSkuRow>) => void
+  onRemove: (uid: string) => void
+}) {
+  const set = (k: keyof CamaSkuRow, v: any) => onUpdate(row.uid, { [k]: v })
+  const variante = modelo ? findVariante(modelo.nome, row.variante) : undefined
+  const tamanhoInfo: DisponibilidadeTamanho | undefined =
+    variante?.tamanhos.find(t => t.tamanho === row.tamanho)
+
+  return (
+    <div className="bg-white border border-blue-100 rounded-lg p-2 space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] font-bold text-gray-400 w-5 shrink-0">#{idx + 1}</span>
+        {/* Variante */}
+        {modeloLivre || !modelo ? (
+          <input
+            className="input flex-1 text-xs h-8"
+            placeholder="Variante (ex: Branco)"
+            value={row.variante}
+            onChange={e => set('variante', e.target.value)}
+          />
+        ) : (
+          <select
+            className="input flex-1 text-xs h-8"
+            value={row.variante}
+            onChange={e => onUpdate(row.uid, { variante: e.target.value, tamanho: '' })}
+          >
+            <option value="">Variante…</option>
+            {modelo.variantes.map(v => (
+              <option key={v.nome} value={v.nome}>{v.nome}</option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          onClick={() => onRemove(row.uid)}
+          className="p-1 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 shrink-0"
+          title="Remover item"
+        >
+          <X size={12} />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-1.5 pl-6">
+        {/* Tamanho */}
+        {modeloLivre || !variante ? (
+          <input
+            className="input flex-1 text-xs h-8"
+            placeholder="Tamanho"
+            value={row.tamanho}
+            onChange={e => set('tamanho', e.target.value)}
+          />
+        ) : (
+          <select
+            className="input flex-1 text-xs h-8"
+            value={row.tamanho}
+            onChange={e => set('tamanho', e.target.value)}
+          >
+            <option value="">Tamanho…</option>
+            {variante.tamanhos.map(t => (
+              <option key={t.tamanho} value={t.tamanho}>
+                {t.tamanho}{!t.disponivel ? ` (indisponível${t.previsao ? ` — prev. ${t.previsao}` : ''})` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        {/* SKU */}
+        <input
+          className="input w-32 text-xs h-8 font-mono"
+          placeholder="SKU (opcional)"
+          value={row.sku}
+          onChange={e => set('sku', e.target.value)}
+        />
+        {/* Qtd */}
+        <input
+          className="input w-14 text-xs h-8 text-center"
+          type="number" min={1} step={1}
+          value={row.qtd}
+          onChange={e => set('qtd', Math.max(1, parseInt(e.target.value, 10) || 1))}
+        />
+      </div>
+
+      {tamanhoInfo && !tamanhoInfo.disponivel && (
+        <p className="text-[10px] text-amber-600 font-semibold pl-6">
+          ⚠️ Indisponível{tamanhoInfo.previsao ? ` — previsão ${tamanhoInfo.previsao}` : ''}
+        </p>
+      )}
     </div>
   )
 }
@@ -2294,7 +2463,7 @@ function TapeteOrderModal({ onClose, onSave }: {
   }, 0)
   const totalCamas = camas.reduce((sum, c) => {
     const v = c.valor ? parseFloat(c.valor) : 0
-    const unid = parseSkusText(c.skusText).reduce((s, i) => s + i.qtd, 0)
+    const unid = c.itens.reduce((s, r) => s + (r.qtd > 0 ? r.qtd : 0), 0)
     return sum + v * unid
   }, 0)
   const totalGeral = totalTapetes + totalCamas
@@ -2325,11 +2494,11 @@ function TapeteOrderModal({ onClose, onSave }: {
 
   // Converte CamaItem → LVOrder (com itensCama populado)
   const camaToOrder = (c: CamaItem): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => {
-    const skus = parseSkusText(c.skusText)
+    const skus = camaRowsToSkus(c.produto, c.itens)
     const totalUnid = skus.reduce((s, i) => s + i.qtd, 0) || 1
     const produto = c.descricao
-      ? `${c.produto} — ${c.descricao} (${skus.length} SKUs)`
-      : `${c.produto} (${skus.length} SKUs)`
+      ? `${c.produto} — ${c.descricao} (${skus.length} itens)`
+      : `${c.produto} (${skus.length} itens)`
     return {
       cliente: tipoDestino === 'estoque' ? 'COMPRA ESTOQUE' : 'PEDIDO FORNECEDOR',
       produto: produto || '(sem nome)',
