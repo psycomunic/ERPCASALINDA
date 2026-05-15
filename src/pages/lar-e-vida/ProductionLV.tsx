@@ -24,6 +24,10 @@ import {
   fetchPendingOrdersLV, isMagazordLVConfigured, lvSituacaoToKanbanCol,
 } from '../../magazordLV'
 import type { MagazordOrder } from '../../magazordLV'
+import {
+  colecoesDaLinha, tamanhosDaColecao, findPreco, findColecao,
+} from '../../data/precosTapetesLV'
+import type { PrecoTamanho } from '../../data/precosTapetesLV'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1716,33 +1720,17 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
 
 // ─── Tapete Order Modal ───────────────────────────────────────────────────────
 
+// Tamanhos de fallback (quando nenhuma coleção foi escolhida)
 const TAMANHOS_RAPIDOS = [
-  '1,30 × 2,00', '1,40 × 2,00',
-  '1,90 × 2,50', '2,00 × 2,50',
-  '2,40 × 3,00',
-  '2,40 × 3,50', '2,50 × 3,50',
-  '2,90 × 4,00', '3,00 × 4,00',
-  '3,50 × 4,50',
-  '2,90 × 5,00', '3,00 × 5,00',
+  '1,00 × 1,50', '1,40 × 2,00',
+  '2,00 × 2,50', '2,40 × 3,00',
+  '2,50 × 3,50', '3,00 × 4,00',
+  '3,00 × 5,00', '3,50 × 4,50',
 ]
-// Coleções — Linha RIOS
-const COLECOES_RIOS = [
-  'ARNO', 'TEJO', 'TÂMISA', 'CONGO', 'GANGES', 'TAPAJÓS', 'RENO',
-  'DANÚBIO', 'TEVERE', 'XINGÚ', 'AMUR', 'NILO', 'LENA', 'TEFÊ',
-  'MADEIRA', 'JAPURÁ', 'TIÊTE', 'SENA', 'SÃO FRANCISCO', 'PARANÁ',
-  'MISSISSIPI', 'EUFRATES', 'TIGRE', 'JURUÁ',
-]
-// Coleções — Linha LAGOS (Tellaio)
-const COLECOES_LAGOS = [
-  'NAKURU', 'GUAÍBA', 'FALKNER', 'ONEGA', 'BATUR',
-  'VENER', 'TITICACA', 'LADDOGA', 'HILLIER', 'BENXI',
-  'TORRENS', 'CÁSPIO', 'TAAL', 'VITÓRIA', 'NIASSA',
-]
-
-const COLECOES_TODAS = [
-  ...COLECOES_RIOS,
-  ...COLECOES_LAGOS,
-]
+// Coleções derivadas do catálogo Tellaio (src/data/precosTapetesLV.ts)
+const COLECOES_RIOS = colecoesDaLinha('RIOS')
+const COLECOES_LAGOS = colecoesDaLinha('LAGOS')
+const COLECOES_TODAS = [...COLECOES_RIOS, ...COLECOES_LAGOS]
 
 // ─── Tapete Item (sub-form for one rug) ──────────────────────────────────────
 
@@ -1780,6 +1768,29 @@ function TapeteItemCard({
     : null
 
   const hasContent = item.produto.trim() || item.tamanho || item.cor || item.fotoUrl
+
+  // ── Integração com catálogo Tellaio ──
+  const colecaoInfo = findColecao(item.cor)
+  const availableSizes: PrecoTamanho[] = colecaoInfo?.tamanhos ?? []
+  const currentPreco = findPreco(item.cor, item.tamanho)
+
+  // Auto-fill do valor quando (coleção + tamanho válidos, não-custom)
+  useEffect(() => {
+    if (item.customTamanho) return
+    if (!currentPreco) return
+    const expected = currentPreco.valor.toFixed(2)
+    if (item.valor !== expected) {
+      onUpdate(item.uid, { valor: expected })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.cor, item.tamanho, item.customTamanho])
+
+  // Badge de restrição de desenho
+  const restricaoBadge = currentPreco?.desenhos
+    ? `Só desenho ${currentPreco.desenhos.join(' ou ')}`
+    : currentPreco?.desenhosExcluidos
+      ? `Não faz desenho ${currentPreco.desenhosExcluidos.join(' ou ')}`
+      : null
 
   return (
     <div className="border-2 border-amber-200 rounded-2xl overflow-hidden bg-white shadow-sm">
@@ -1866,19 +1877,46 @@ function TapeteItemCard({
 
               {/* Tamanho */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">📐 Tamanho</p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">📐 Tamanho</p>
+                  {colecaoInfo && (
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                      Catálogo {colecaoInfo.linha} · {availableSizes.length} tamanho{availableSizes.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {TAMANHOS_RAPIDOS.map(t => (
-                    <button key={t} type="button"
-                      onClick={() => { set('tamanho', t); set('customTamanho', false) }}
-                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${
-                        item.tamanho === t && !item.customTamanho
-                          ? 'text-white border-amber-600'
-                          : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'
-                      }`}
-                      style={item.tamanho === t && !item.customTamanho ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
-                    >{t}</button>
-                  ))}
+                  {(availableSizes.length > 0
+                    ? availableSizes.map(t => t.tamanho)
+                    : TAMANHOS_RAPIDOS
+                  ).map(t => {
+                    const precoT = availableSizes.find(s => s.tamanho === t)
+                    const isSelected = item.tamanho === t && !item.customTamanho
+                    return (
+                      <button key={t} type="button"
+                        onClick={() => { set('tamanho', t); set('customTamanho', false) }}
+                        title={precoT ? `R$ ${precoT.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : undefined}
+                        className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
+                          isSelected
+                            ? 'text-white border-amber-600'
+                            : 'border-gray-200 text-gray-600 bg-white hover:border-amber-300 hover:text-amber-700'
+                        }`}
+                        style={isSelected ? { background: 'linear-gradient(135deg, #b45309, #d97706)' } : {}}
+                      >
+                        {t}
+                        {precoT?.desenhos && (
+                          <span className={`text-[8px] font-bold px-1 rounded ${isSelected ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>
+                            D{precoT.desenhos.join('/')}
+                          </span>
+                        )}
+                        {precoT?.desenhosExcluidos && (
+                          <span className={`text-[8px] font-bold px-1 rounded ${isSelected ? 'bg-white/20' : 'bg-red-100 text-red-700'}`}>
+                            ✕D{precoT.desenhosExcluidos.join('/')}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
                   <button type="button"
                     onClick={() => { set('customTamanho', true); set('tamanho', '') }}
                     className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${
@@ -1898,11 +1936,30 @@ function TapeteItemCard({
                     autoFocus
                   />
                 )}
+                {restricaoBadge && (
+                  <p className="text-[10px] font-semibold mt-1 text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 inline-block">
+                    ⚠️ {restricaoBadge}
+                  </p>
+                )}
+                {currentPreco && !item.customTamanho && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5 flex items-center gap-1">
+                    <span className="font-bold">✓ Preço Tellaio:</span>
+                    <span className="font-mono font-bold">R$ {currentPreco.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-gray-400">— preenchido automaticamente</span>
+                  </p>
+                )}
               </div>
 
               {/* Coleção / Desenho */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🎨 Coleção (Desenho)</p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">🎨 Coleção (Desenho)</p>
+                  {colecaoInfo && (
+                    <span className="text-[9px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded-full font-mono">
+                      R$ {colecaoInfo.m2.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/m²
+                    </span>
+                  )}
+                </div>
                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">— Linha RIOS</p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {COLECOES_RIOS.map(d => (
