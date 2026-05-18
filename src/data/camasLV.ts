@@ -69,10 +69,12 @@ const TRAVESSEIROS: ModeloCama = {
 const COLCHA_CARVALHO: ModeloCama = {
   nome: 'COLCHA CARVALHO', categoria: 'COLCHA',
   variantes: [
-    { nome: 'Branco', tamanhos: [I('Queen'), D('King'), D('Super King')] },
-    { nome: 'Bege',   tamanhos: [D('Queen'), D('King'), D('Super King')] },
-    { nome: 'Azul',   tamanhos: [D('Queen'), D('King'), D('Super King')] },
-    { nome: 'Cinza',  tamanhos: [D('Queen'), D('King'), D('Super King')] },
+    { nome: 'Branco',        tamanhos: [I('Queen'), D('King'), D('Super King')] },
+    { nome: 'Bege',          tamanhos: [D('Queen'), D('King'), D('Super King')] },
+    { nome: 'Azul',          tamanhos: [D('Queen'), D('King'), D('Super King')] },
+    { nome: 'Cinza',         tamanhos: [D('Queen'), D('King'), D('Super King')] },
+    { nome: 'Branco/Branco', tamanhos: [D('Queen'), D('King'), D('Super King')] },
+    { nome: 'Cinza/Cinza',   tamanhos: [D('Queen'), D('King'), D('Super King')] },
   ],
 }
 
@@ -201,6 +203,16 @@ const LENCOL_BAMBU: ModeloCama = {
   ],
 }
 
+// Lençol de Bambu 300 fios — cadastrado na Magazord como "Jogo de Cama de Bambu
+// 100% Fibra de Bambu 300 Fios" (SKU base JG-LENC-280).
+const LENCOL_BAMBU_300TC: ModeloCama = {
+  nome: 'LENÇOL BAMBU 300TC', categoria: 'LENCOL',
+  variantes: [
+    { nome: 'Branco', tamanhos: [D('Casal'), D('Queen'), D('King')] },
+    { nome: 'Cinza',  tamanhos: [D('Casal'), D('Queen'), D('King')] },
+  ],
+}
+
 const LENCOL_FLAMBOYANT: ModeloCama = {
   nome: 'LENÇOL FLAMBOYANT', categoria: 'LENCOL',
   variantes: [
@@ -229,6 +241,7 @@ export const MODELOS_CAMA: ModeloCama[] = [
   LENCOL_BAMBU_MOSSO,
   LENCOL_BAMBU_GUADUA,
   LENCOL_BAMBU,
+  LENCOL_BAMBU_300TC,
   LENCOL_FLAMBOYANT,
 ]
 

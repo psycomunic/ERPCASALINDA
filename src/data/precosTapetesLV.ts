@@ -366,6 +366,8 @@ const RIOS: PrecoColecao[] = [
       { tamanho: '1,50 × 1,50', valor: 248.25, desenhos: ['03', '06'] },
       { tamanho: '2,00 × 2,00', valor: 441.34, desenhos: ['03', '06'] },
       { tamanho: '2,50 × 2,50', valor: 689.59, desenhos: ['03', '06'] },
+      { tamanho: 'Ø 1,50',      valor: 233.10, desenhos: ['03'] },
+      { tamanho: 'Ø 2,00',      valor: 414.40, desenhos: ['03'] },
     ],
   },
   {
