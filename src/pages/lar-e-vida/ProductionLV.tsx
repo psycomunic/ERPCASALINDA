@@ -634,7 +634,8 @@ function printFornecedorPDF(orders: LVOrder[]) {
           ${o.codigoFornecedor ? `<div style="font-size:10px;font-family:monospace;color:#2563eb;">${o.codigoFornecedor}</div>` : ''}
         </td>
         <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
-          <span style="font-size:12px;font-weight:600;color:#374151;">${o.cor || '—'}</span>
+          <div style="font-size:12px;font-weight:600;color:#374151;">${o.cor || '—'}</div>
+          ${o.desenho ? `<div style="font-size:10px;font-weight:700;color:#b45309;background:#fffbeb;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;display:inline-block;margin-top:3px;font-family:monospace;">D${o.desenho}</div>` : ''}
         </td>
         <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">
           <span style="font-size:12px;font-weight:700;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:6px;border:1px solid #fde68a;white-space:nowrap;display:inline-block;">${o.tamanho || '—'}</span>
@@ -2629,6 +2630,7 @@ function TapeteOrderModal({ onClose, onSave }: {
     sku: t.sku || undefined,
     tamanho: t.tamanho || undefined,
     cor: t.cor || undefined,
+    desenho: t.desenho || undefined,
     fotoUrl: t.fotoUrl || undefined,
     nomeFornecedor: nomeFornecedor || undefined,
     codigoFornecedor: codigoFornecedor || undefined,
@@ -3268,6 +3270,7 @@ export default function ProductionLV() {
       codigo_fornecedor: data.codigoFornecedor || null,
       tamanho: data.tamanho || null,
       cor: data.cor || null,
+      desenho: data.desenho || null,
       categoria: data.categoria || null,
       quantidade: data.quantidade || null,
       // Campos específicos de crossdocking/estoque/cama:
