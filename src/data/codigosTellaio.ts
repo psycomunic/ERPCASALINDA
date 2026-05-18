@@ -289,3 +289,17 @@ export function findByCodigo(codigo: string): CodigoTapeteTellaio | CodigoCamaTe
     null
   )
 }
+
+/**
+ * Lista os desenhos conhecidos (vistos em NF) para uma coleção de tapete.
+ * Útil pra sugerir opções na UI sem inventar desenhos que não existem.
+ * Retorna array vazio se a coleção não tiver código mapeado.
+ */
+export function desenhosConhecidosTapete(colecao: string): string[] {
+  const c = norm(colecao)
+  const set = new Set<string>()
+  for (const x of CODIGOS_TAPETES) {
+    if (norm(x.colecao) === c) set.add(normDesenho(x.desenho))
+  }
+  return [...set].sort()
+}

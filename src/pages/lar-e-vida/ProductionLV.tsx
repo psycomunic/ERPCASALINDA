@@ -32,7 +32,9 @@ import {
   MODELOS_CAMA, findModelo, findVariante,
 } from '../../data/camasLV'
 import type { DisponibilidadeTamanho } from '../../data/camasLV'
-import { findCodigoCama } from '../../data/codigosTellaio'
+import {
+  findCodigoCama, findCodigoTapete, desenhosConhecidosTapete,
+} from '../../data/codigosTellaio'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1601,7 +1603,7 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
 
 // ─── New Order Modal ──────────────────────────────────────────────────────────
 
-function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => void }) {
+function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => Promise<boolean> }) {
   const [form, setForm] = useState({
     cliente: '', clienteEmail: '', clienteTelefone: '',
     produto: '', nomeFornecedor: '', codigoFornecedor: '', sku: '',
@@ -1619,9 +1621,9 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.cliente.trim() || !form.produto.trim()) return
-    onSave({
+    const ok = await onSave({
       cliente: form.cliente, clienteEmail: form.clienteEmail || undefined,
       clienteTelefone: form.clienteTelefone || undefined,
       produto: form.produto, nomeFornecedor: form.nomeFornecedor || undefined,
@@ -1635,6 +1637,7 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
       valor: form.valor ? parseFloat(form.valor) : undefined,
       frete: form.frete ? parseFloat(form.frete) : undefined,
     })
+    if (ok) onClose()
   }
 
   return (
@@ -1743,7 +1746,9 @@ interface TapeteItem {
   uid: string
   produto: string
   tamanho: string
-  cor: string
+  cor: string                 // coleção (ex: 'NAKURU')
+  desenho: string             // ex: '03' (zfill 2) — usado pra montar SKU Tellaio
+  sku: string                 // código Tellaio (ex: '000218.006.002') — auto-fill
   fotoUrl: string
   quantidade: number
   valor: string
@@ -1754,7 +1759,7 @@ interface TapeteItem {
 function newTapeteItem(): TapeteItem {
   return {
     uid: Math.random().toString(36).slice(2),
-    produto: '', tamanho: '', cor: '', fotoUrl: '',
+    produto: '', tamanho: '', cor: '', desenho: '', sku: '', fotoUrl: '',
     quantidade: 1, valor: '', customTamanho: false, collapsed: false,
   }
 }
@@ -1789,6 +1794,23 @@ function TapeteItemCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.cor, item.tamanho, item.customTamanho])
+
+  // Auto-fill do SKU Tellaio quando coleção + tamanho + desenho casarem com o catálogo
+  const codTellaio = (!item.customTamanho && item.cor && item.tamanho && item.desenho)
+    ? findCodigoTapete(item.cor, item.tamanho, item.desenho)
+    : null
+  useEffect(() => {
+    if (codTellaio && item.sku !== codTellaio.codigo) {
+      onUpdate(item.uid, { sku: codTellaio.codigo })
+    } else if (!codTellaio && item.sku && (!item.cor || !item.tamanho || !item.desenho)) {
+      // limpa SKU se a combinação ficou incompleta (evita SKU desatualizado)
+      onUpdate(item.uid, { sku: '' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.cor, item.tamanho, item.desenho, item.customTamanho])
+
+  // Desenhos conhecidos (vistos em NF) pra mostrar como sugestões
+  const desenhosSugeridos = item.cor ? desenhosConhecidosTapete(item.cor) : []
 
   // Badge de restrição de desenho
   const restricaoBadge = currentPreco?.desenhos
@@ -2003,6 +2025,56 @@ function TapeteItemCard({
                   value={item.cor}
                   onChange={e => set('cor', e.target.value)}
                 />
+              </div>
+
+              {/* Desenho + SKU Tellaio */}
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">🖼️ Desenho</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input w-20 font-mono text-center"
+                    placeholder="03"
+                    value={item.desenho}
+                    onChange={e => {
+                      // normaliza pra zfill 2 (ex: "3" → "03"); aceita vazio
+                      const raw = e.target.value.replace(/\D/g, '').slice(0, 3)
+                      set('desenho', raw ? raw.padStart(2, '0') : '')
+                    }}
+                  />
+                  {desenhosSugeridos.length > 0 && (
+                    <div className="flex flex-wrap gap-1 flex-1">
+                      {desenhosSugeridos.map(d => (
+                        <button key={d} type="button"
+                          onClick={() => set('desenho', item.desenho === d ? '' : d)}
+                          className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${
+                            item.desenho === d
+                              ? 'bg-amber-100 border-amber-400 text-amber-800'
+                              : 'border-gray-200 text-gray-500 bg-white hover:border-amber-300 hover:text-amber-700'
+                          }`}
+                        >D{d}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {item.cor && desenhosSugeridos.length === 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Nenhum desenho cadastrado pra {item.cor} — digite o número manualmente.
+                  </p>
+                )}
+                {codTellaio && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5 flex items-center gap-1.5">
+                    <span className="font-bold">✓ Código Tellaio:</span>
+                    <span className="font-mono font-bold">{codTellaio.codigo}</span>
+                    {codTellaio.ean && (
+                      <span className="text-gray-400 font-mono">· EAN {codTellaio.ean}</span>
+                    )}
+                  </p>
+                )}
+                {!codTellaio && item.cor && item.tamanho && item.desenho && !item.customTamanho && (
+                  <p className="text-[10px] text-amber-600 mt-1.5">
+                    ⚠️ Combinação ainda não cadastrada — SKU ficará vazio.
+                  </p>
+                )}
               </div>
 
               {/* Quantidade e valor */}
@@ -2432,7 +2504,7 @@ function CamaSkuRowEditor({
 
 function TapeteOrderModal({ onClose, onSave }: {
   onClose: () => void
-  onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => void
+  onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => Promise<boolean>
 }) {
   // ── Estado: listas de itens no pedido ──
   const [tapetes, setTapetes] = useState<TapeteItem[]>([newTapeteItem()])
@@ -2491,6 +2563,7 @@ function TapeteOrderModal({ onClose, onSave }: {
     cliente: tipoDestino === 'estoque' ? 'COMPRA ESTOQUE' : 'PEDIDO FORNECEDOR',
     produto: t.produto || '(sem nome)',
     categoria: 'Tapete',
+    sku: t.sku || undefined,
     tamanho: t.tamanho || undefined,
     cor: t.cor || undefined,
     fotoUrl: t.fotoUrl || undefined,
@@ -2706,13 +2779,19 @@ function TapeteOrderModal({ onClose, onSave }: {
             <button
               disabled={!canSave}
               onClick={async () => {
+                let allOk = true
                 for (const t of validTapetes) {
-                  await onSave(tapeteToOrder(t))
+                  const ok = await onSave(tapeteToOrder(t))
+                  if (!ok) { allOk = false; break }
                 }
-                for (const c of validCamas) {
-                  await onSave(camaToOrder(c))
+                if (allOk) {
+                  for (const c of validCamas) {
+                    const ok = await onSave(camaToOrder(c))
+                    if (!ok) { allOk = false; break }
+                  }
                 }
-                onClose()
+                if (allOk) onClose()
+                // Se houve erro, mantém o modal aberto pro user não perder o que digitou
               }}
               className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
               style={{ background: canSave ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
@@ -3102,7 +3181,7 @@ export default function ProductionLV() {
   }, [syncMagazordLV])
 
   // ── New order ──
-  const handleNewOrder = async (data: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => {
+  const handleNewOrder = async (data: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>): Promise<boolean> => {
     const num = String(nextId.current++).padStart(6, '0')
     const inserted = await createPedidoLV({
       numero: `LV-${num}`,
@@ -3133,8 +3212,13 @@ export default function ProductionLV() {
       confirmacao_fornecedor_url: data.confirmacaoFornecedorUrl || null,
       itens_cama: data.itensCama ?? null,
     } as any)
-    if (inserted) { await loadOrders(); showToast('Pedido adicionado com sucesso!') }
-    setNewModal(false)
+    if (inserted) {
+      await loadOrders()
+      showToast('Pedido adicionado com sucesso!')
+      return true
+    }
+    showToast('❌ Erro ao salvar pedido — abra o Console (F12) e me mostre o erro do Supabase')
+    return false
   }
 
   // ── Update order ──
