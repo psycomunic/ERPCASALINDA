@@ -34,6 +34,7 @@ import {
 import type { DisponibilidadeTamanho } from '../../data/camasLV'
 import {
   findCodigoCama, findCodigoTapete, desenhosConhecidosTapete,
+  findPrecoCustoCama,
 } from '../../data/codigosTellaio'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ export interface LVOrder {
   valor?: number
   frete?: number
   tipoPedido?: 'producao' | 'crossdocking' | 'estoque'
-  itensCama?: Array<{ sku: string; descricao: string; qtd: number }>
+  itensCama?: Array<{ sku: string; descricao: string; qtd: number; valor?: number }>
   conferenciaItens?: Array<{ sku: string; conferido: boolean; qtdConferida: number; obs?: string }>
   imagensDesenho?: Record<string, string>
   desenho?: string
@@ -658,20 +659,32 @@ function printFornecedorPDF(orders: LVOrder[]) {
       : `<div style="width:56px;height:56px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;display:flex;align-items:center;justify-content:center;font-size:22px;">🛏️</div>`
     const skus = o.itensCama ?? []
     const totalUnid = skus.reduce((s, i) => s + i.qtd, 0)
-    const subtotal = o.valor ? o.valor * totalUnid : 0
-    const skuRows = skus.map(s => `
+    // Subtotal por SKU (qtd × valor); soma só quando o SKU tem valor próprio.
+    // Fallback no valor do CamaItem (o.valor) quando o SKU não tiver preço gravado.
+    const subtotalSkus = skus.reduce(
+      (sum, i) => sum + (typeof i.valor === 'number' ? i.valor : (o.valor ?? 0)) * i.qtd,
+      0,
+    )
+    const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    const skuRows = skus.map(s => {
+      const v = typeof s.valor === 'number' ? s.valor : o.valor
+      const sub = typeof v === 'number' ? v * s.qtd : null
+      return `
       <tr>
         <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;font-family:monospace;font-size:11px;color:#1e40af;">${s.sku}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;font-size:11px;color:#374151;">${s.descricao || '—'}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;text-align:center;font-size:12px;font-weight:700;color:#111827;">${s.qtd}</td>
-      </tr>`).join('')
+        <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;text-align:right;font-size:11px;font-family:monospace;color:${typeof v === 'number' ? '#374151' : '#d1d5db'};">${typeof v === 'number' ? `R$ ${fmt(v)}` : '—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eff6ff;text-align:right;font-size:11px;font-family:monospace;font-weight:700;color:${sub != null ? '#059669' : '#d1d5db'};">${sub != null ? `R$ ${fmt(sub)}` : '—'}</td>
+      </tr>`
+    }).join('')
     return `
       <div style="margin-top:18px;border:2px solid #bfdbfe;border-radius:10px;overflow:hidden;page-break-inside:avoid;">
         <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#eff6ff;border-bottom:1px solid #bfdbfe;">
           ${foto}
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:900;color:#1e40af;">${o.produto}</div>
-            <div style="font-size:10px;color:#3b82f6;margin-top:2px;">${skus.length} SKUs · ${totalUnid} unid.${subtotal > 0 ? ` · R$ ${subtotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : ''}</div>
+            <div style="font-size:10px;color:#3b82f6;margin-top:2px;">${skus.length} SKUs · ${totalUnid} unid.${subtotalSkus > 0 ? ` · R$ ${fmt(subtotalSkus)}` : ''}</div>
           </div>
         </div>
         ${skus.length > 0 ? `
@@ -680,15 +693,28 @@ function printFornecedorPDF(orders: LVOrder[]) {
               <tr style="background:#1e293b;color:#fff;">
                 <th style="padding:8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">SKU</th>
                 <th style="padding:8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Descrição</th>
-                <th style="padding:8px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:60px;">Qtd</th>
+                <th style="padding:8px;text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:50px;">Qtd</th>
+                <th style="padding:8px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:80px;">Unit.</th>
+                <th style="padding:8px;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:90px;">Subtotal</th>
               </tr>
             </thead>
             <tbody>${skuRows}</tbody>
+            ${subtotalSkus > 0 ? `<tfoot><tr style="background:#f9fafb;"><td colspan="4" style="padding:8px;text-align:right;font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:1px;">Total</td><td style="padding:8px;text-align:right;font-size:13px;font-weight:900;color:#059669;font-family:monospace;">R$ ${fmt(subtotalSkus)}</td></tr></tfoot>` : ''}
           </table>` : ''}
       </div>`
   }).join('')
 
-  const totalGeral = orders.reduce((sum, o) => sum + (o.valor ?? 0) * (o.quantidade ?? 1), 0)
+  // Total geral: pra camas soma valor por SKU (com fallback no valor do CamaItem),
+  // pra demais usa quantidade × valor único do item.
+  const totalGeral = orders.reduce((sum, o) => {
+    if (o.itensCama && o.itensCama.length > 0) {
+      return sum + o.itensCama.reduce(
+        (s, i) => s + (typeof i.valor === 'number' ? i.valor : (o.valor ?? 0)) * i.qtd,
+        0,
+      )
+    }
+    return sum + (o.valor ?? 0) * (o.quantidade ?? 1)
+  }, 0)
   const totalItens = orders.reduce((sum, o) => sum + (o.quantidade ?? 1), 0)
 
   const html = `<!DOCTYPE html>
@@ -2126,8 +2152,9 @@ interface CamaSkuRow {
   uid: string
   variante: string       // nome da variante no catálogo (ex: "Des. 1 - Branco") OU texto livre
   tamanho: string        // tamanho específico (ex: "Queen")
-  sku: string            // SKU livre (opcional)
+  sku: string            // SKU livre (opcional) — auto-fill com código Tellaio
   qtd: number
+  valor?: number         // R$ unitário — auto-fill com preço de custo Tellaio
 }
 
 interface CamaItem {
@@ -2156,16 +2183,17 @@ function newCamaSkuRow(): CamaSkuRow {
   }
 }
 
-// Serializa rows estruturados em { sku, descricao, qtd } para gravar em itensCama
+// Serializa rows estruturados em { sku, descricao, qtd, valor } para gravar em itensCama
 function camaRowsToSkus(
   modelo: string, rows: CamaSkuRow[],
-): Array<{ sku: string; descricao: string; qtd: number }> {
+): Array<{ sku: string; descricao: string; qtd: number; valor?: number }> {
   return rows
     .filter(r => r.qtd > 0 && (r.variante.trim() || r.tamanho.trim() || r.sku.trim()))
     .map(r => ({
       sku: r.sku.trim(),
       descricao: [modelo, r.variante, r.tamanho].map(s => s.trim()).filter(Boolean).join(' · '),
       qtd: r.qtd,
+      ...(typeof r.valor === 'number' ? { valor: r.valor } : {}),
     }))
 }
 
@@ -2406,17 +2434,22 @@ function CamaSkuRowEditor({
   const tamanhoInfo: DisponibilidadeTamanho | undefined =
     variante?.tamanhos.find(t => t.tamanho === row.tamanho)
 
-  // Auto-fill SKU com código Tellaio quando modelo+variante+tamanho casarem
-  // com o catálogo de códigos de fornecedor (src/data/codigosTellaio.ts).
+  // Auto-fill SKU (código Tellaio) e Valor (preço de custo c/ IPI) quando
+  // modelo+variante+tamanho casarem com o catálogo (src/data/codigosTellaio.ts).
   useEffect(() => {
     if (modeloLivre || !modelo) return
     if (!row.variante || !row.tamanho) return
     const cod = findCodigoCama(modelo.nome, row.variante, row.tamanho)
-    if (cod && row.sku !== cod.codigo) {
-      onUpdate(row.uid, { sku: cod.codigo })
-    }
+    if (!cod) return
+    const patch: Partial<CamaSkuRow> = {}
+    if (row.sku !== cod.codigo) patch.sku = cod.codigo
+    if (cod.precoCusto != null && row.valor !== cod.precoCusto) patch.valor = cod.precoCusto
+    if (Object.keys(patch).length > 0) onUpdate(row.uid, patch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.variante, row.tamanho, modelo?.nome, modeloLivre])
+  const precoCusto = (!modeloLivre && modelo && row.variante && row.tamanho)
+    ? findPrecoCustoCama(modelo.nome, row.variante, row.tamanho)
+    : null
 
   return (
     <div className="bg-white border border-blue-100 rounded-lg p-2 space-y-1.5">
@@ -2490,6 +2523,36 @@ function CamaSkuRowEditor({
           onChange={e => set('qtd', Math.max(1, parseInt(e.target.value, 10) || 1))}
         />
       </div>
+
+      {/* Valor unitário + subtotal */}
+      <div className="flex items-center gap-1.5 pl-6">
+        <span className="text-[10px] text-gray-400 font-semibold w-12 shrink-0">R$ unit.</span>
+        <input
+          className="input flex-1 text-xs h-8 font-mono"
+          type="number" min={0} step={0.01}
+          placeholder="0,00"
+          value={typeof row.valor === 'number' ? row.valor : ''}
+          onChange={e => {
+            const v = e.target.value
+            set('valor', v === '' ? undefined : parseFloat(v))
+          }}
+        />
+        {typeof row.valor === 'number' && row.valor > 0 && (
+          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded font-mono font-bold whitespace-nowrap">
+            = R$ {(row.valor * row.qtd).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+        )}
+      </div>
+      {precoCusto != null && row.valor !== precoCusto && (
+        <p className="text-[10px] text-blue-600 pl-6">
+          💡 Preço Tellaio: R$ {precoCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <button
+            type="button"
+            onClick={() => set('valor', precoCusto)}
+            className="ml-2 text-blue-700 underline hover:no-underline"
+          >usar este</button>
+        </p>
+      )}
 
       {tamanhoInfo && !tamanhoInfo.disponivel && (
         <p className="text-[10px] text-amber-600 font-semibold pl-6">

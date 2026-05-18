@@ -30,6 +30,7 @@ export interface CodigoCamaTellaio {
   modelo: string          // canonical (ex: 'COLCHA BAMBU')
   variante: string        // canonical (ex: 'Des. 1 - Branco' | 'Branco/Cinza')
   tamanho: string         // canonical (ex: 'Queen' | 'King' | 'Super King' | 'Casal')
+  precoCusto: number | null  // R$ — preço de custo c/ IPI extraído das NFs Tellaio
 }
 
 // ─── TAPETES ─────────────────────────────────────────────────────────────────
@@ -146,81 +147,80 @@ export const CODIGOS_TAPETES: CodigoTapeteTellaio[] = [
 // ─── CAMAS ───────────────────────────────────────────────────────────────────
 
 export const CODIGOS_CAMAS: CodigoCamaTellaio[] = [
-  // COLCHA BAMBU — 000302
-  { codigo: '000302.003.023', ean: '7908966603798', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Branco', tamanho: 'Queen' },
-  { codigo: '000302.003.025', ean: '7908966603811', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Fendi',  tamanho: 'Queen' },
-  { codigo: '000302.003.026', ean: '7908966603828', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Cinza',  tamanho: 'Queen' },
-  { codigo: '000302.003.027', ean: '7908966603835', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Branco', tamanho: 'Queen' },
-  { codigo: '000302.003.029', ean: '7908966603859', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Fendi',  tamanho: 'Queen' },
-  { codigo: '000302.003.030', ean: '7908966603866', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Cinza',  tamanho: 'Queen' },
-  { codigo: '000302.004.023', ean: '7908966603873', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Branco', tamanho: 'King' },
-  { codigo: '000302.004.025', ean: '7908966603897', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Fendi',  tamanho: 'King' },
-  { codigo: '000302.004.026', ean: '7908966603903', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Cinza',  tamanho: 'King' },
-  { codigo: '000302.004.027', ean: '7908966603910', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Branco', tamanho: 'King' },
-  { codigo: '000302.004.029', ean: '7908966603934', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Fendi',  tamanho: 'King' },
-  { codigo: '000302.004.030', ean: '7908966603941', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Cinza',  tamanho: 'King' },
-  { codigo: '000302.010.023', ean: '7908966604467', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Branco', tamanho: 'Super King' },
-  { codigo: '000302.010.025', ean: '7908966604481', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Fendi',  tamanho: 'Super King' },
-  { codigo: '000302.010.026', ean: '7908966604498', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Cinza',  tamanho: 'Super King' },
-  { codigo: '000302.010.027', ean: '7908966604504', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Branco', tamanho: 'Super King' },
-  { codigo: '000302.010.029', ean: '7908966604528', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Fendi',  tamanho: 'Super King' },
-  { codigo: '000302.010.030', ean: '7908966604535', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Cinza',  tamanho: 'Super King' },
+  // COLCHA BAMBU — 000302 — Queen 475,90 · King 499,90 · Super King 531,25
+  { codigo: '000302.003.023', ean: '7908966603798', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Branco', tamanho: 'Queen',      precoCusto: 475.90 },
+  { codigo: '000302.003.025', ean: '7908966603811', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Fendi',  tamanho: 'Queen',      precoCusto: 475.90 },
+  { codigo: '000302.003.026', ean: '7908966603828', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Cinza',  tamanho: 'Queen',      precoCusto: 475.90 },
+  { codigo: '000302.003.027', ean: '7908966603835', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Branco', tamanho: 'Queen',      precoCusto: 475.90 },
+  { codigo: '000302.003.029', ean: '7908966603859', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Fendi',  tamanho: 'Queen',      precoCusto: 475.90 },
+  { codigo: '000302.003.030', ean: '7908966603866', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Cinza',  tamanho: 'Queen',      precoCusto: 475.90 },
+  { codigo: '000302.004.023', ean: '7908966603873', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Branco', tamanho: 'King',       precoCusto: 499.90 },
+  { codigo: '000302.004.025', ean: '7908966603897', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Fendi',  tamanho: 'King',       precoCusto: 499.90 },
+  { codigo: '000302.004.026', ean: '7908966603903', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Cinza',  tamanho: 'King',       precoCusto: 499.90 },
+  { codigo: '000302.004.027', ean: '7908966603910', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Branco', tamanho: 'King',       precoCusto: 499.90 },
+  { codigo: '000302.004.029', ean: '7908966603934', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Fendi',  tamanho: 'King',       precoCusto: 499.90 },
+  { codigo: '000302.004.030', ean: '7908966603941', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Cinza',  tamanho: 'King',       precoCusto: 499.90 },
+  { codigo: '000302.010.023', ean: '7908966604467', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Branco', tamanho: 'Super King', precoCusto: 531.25 },
+  { codigo: '000302.010.025', ean: '7908966604481', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Fendi',  tamanho: 'Super King', precoCusto: 531.25 },
+  { codigo: '000302.010.026', ean: '7908966604498', modelo: 'COLCHA BAMBU', variante: 'Des. 1 - Cinza',  tamanho: 'Super King', precoCusto: 531.25 },
+  { codigo: '000302.010.027', ean: '7908966604504', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Branco', tamanho: 'Super King', precoCusto: 531.25 },
+  { codigo: '000302.010.029', ean: '7908966604528', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Fendi',  tamanho: 'Super King', precoCusto: 531.25 },
+  { codigo: '000302.010.030', ean: '7908966604535', modelo: 'COLCHA BAMBU', variante: 'Des. 2 - Cinza',  tamanho: 'Super King', precoCusto: 531.25 },
 
-  // LENÇOL BAMBU MOSSÔ — 000326
-  { codigo: '000326.002.032', ean: '7908966605235', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Branco', tamanho: 'Casal' },
-  { codigo: '000326.002.033', ean: '7908966605242', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Cinza',  tamanho: 'Casal' },
-  { codigo: '000326.002.034', ean: '7908966605259', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Fendi',  tamanho: 'Casal' },
-  { codigo: '000326.002.038', ean: '7908966605297', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Cinza/Branco',  tamanho: 'Casal' },
-  { codigo: '000326.003.032', ean: '7908966605327', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Branco', tamanho: 'Queen' },
-  { codigo: '000326.003.033', ean: '7908966605334', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Cinza',  tamanho: 'Queen' },
-  { codigo: '000326.003.034', ean: '7908966605341', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Fendi',  tamanho: 'Queen' },
-  { codigo: '000326.003.038', ean: '7908966605389', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Cinza/Branco',  tamanho: 'Queen' },
-  { codigo: '000326.004.032', ean: '7908966605419', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Branco', tamanho: 'King' },
-  { codigo: '000326.004.033', ean: '7908966605426', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Cinza',  tamanho: 'King' },
-  { codigo: '000326.004.034', ean: '7908966605433', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Fendi',  tamanho: 'King' },
-  { codigo: '000326.004.038', ean: '7908966605471', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Cinza/Branco',  tamanho: 'King' },
+  // LENÇOL BAMBU MOSSÔ — 000326 — Casal 323,90 · Queen 345,90 · King 399,90
+  { codigo: '000326.002.032', ean: '7908966605235', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Branco', tamanho: 'Casal', precoCusto: 323.90 },
+  { codigo: '000326.002.033', ean: '7908966605242', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Cinza',  tamanho: 'Casal', precoCusto: 323.90 },
+  { codigo: '000326.002.034', ean: '7908966605259', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Fendi',  tamanho: 'Casal', precoCusto: 323.90 },
+  { codigo: '000326.002.038', ean: '7908966605297', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Cinza/Branco',  tamanho: 'Casal', precoCusto: 323.90 },
+  { codigo: '000326.003.032', ean: '7908966605327', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Branco', tamanho: 'Queen', precoCusto: 345.90 },
+  { codigo: '000326.003.033', ean: '7908966605334', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Cinza',  tamanho: 'Queen', precoCusto: 345.90 },
+  { codigo: '000326.003.034', ean: '7908966605341', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Fendi',  tamanho: 'Queen', precoCusto: 345.90 },
+  { codigo: '000326.003.038', ean: '7908966605389', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Cinza/Branco',  tamanho: 'Queen', precoCusto: 345.90 },
+  { codigo: '000326.004.032', ean: '7908966605419', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Branco', tamanho: 'King',  precoCusto: 399.90 },
+  { codigo: '000326.004.033', ean: '7908966605426', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Cinza',  tamanho: 'King',  precoCusto: 399.90 },
+  { codigo: '000326.004.034', ean: '7908966605433', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Branco/Fendi',  tamanho: 'King',  precoCusto: 399.90 },
+  { codigo: '000326.004.038', ean: '7908966605471', modelo: 'LENÇOL BAMBU MOSSÔ',  variante: 'Cinza/Branco',  tamanho: 'King',  precoCusto: 399.90 },
 
-  // LENÇOL BAMBU GUADUA — 000327
-  { codigo: '000327.002.032', ean: '7908966605594', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Branco', tamanho: 'Casal' },
-  { codigo: '000327.002.033', ean: '7908966605600', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Cinza',  tamanho: 'Casal' },
-  { codigo: '000327.002.034', ean: '7908966605617', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Fendi',  tamanho: 'Casal' },
-  { codigo: '000327.002.038', ean: '7908966605655', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Cinza/Branco',  tamanho: 'Casal' },
-  { codigo: '000327.003.032', ean: '7908966605686', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Branco', tamanho: 'Queen' },
-  { codigo: '000327.003.033', ean: '7908966605693', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Cinza',  tamanho: 'Queen' },
-  { codigo: '000327.003.034', ean: '7908966605709', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Fendi',  tamanho: 'Queen' },
-  { codigo: '000327.003.038', ean: '7908966605747', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Cinza/Branco',  tamanho: 'Queen' },
-  { codigo: '000327.004.032', ean: '7908966605778', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Branco', tamanho: 'King' },
-  { codigo: '000327.004.033', ean: '7908966605785', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Cinza',  tamanho: 'King' },
-  { codigo: '000327.004.034', ean: '7908966605792', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Fendi',  tamanho: 'King' },
-  { codigo: '000327.004.038', ean: '7908966605839', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Cinza/Branco',  tamanho: 'King' },
+  // LENÇOL BAMBU GUADUA — 000327 — Casal 329,90 · Queen 350,90 · King 404,90
+  { codigo: '000327.002.032', ean: '7908966605594', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Branco', tamanho: 'Casal', precoCusto: 329.90 },
+  { codigo: '000327.002.033', ean: '7908966605600', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Cinza',  tamanho: 'Casal', precoCusto: 329.90 },
+  { codigo: '000327.002.034', ean: '7908966605617', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Fendi',  tamanho: 'Casal', precoCusto: 329.90 },
+  { codigo: '000327.002.038', ean: '7908966605655', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Cinza/Branco',  tamanho: 'Casal', precoCusto: 329.90 },
+  { codigo: '000327.003.032', ean: '7908966605686', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Branco', tamanho: 'Queen', precoCusto: 350.90 },
+  { codigo: '000327.003.033', ean: '7908966605693', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Cinza',  tamanho: 'Queen', precoCusto: 350.90 },
+  { codigo: '000327.003.034', ean: '7908966605709', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Fendi',  tamanho: 'Queen', precoCusto: 350.90 },
+  { codigo: '000327.003.038', ean: '7908966605747', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Cinza/Branco',  tamanho: 'Queen', precoCusto: 350.90 },
+  { codigo: '000327.004.032', ean: '7908966605778', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Branco', tamanho: 'King',  precoCusto: 404.90 },
+  { codigo: '000327.004.033', ean: '7908966605785', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Cinza',  tamanho: 'King',  precoCusto: 404.90 },
+  { codigo: '000327.004.034', ean: '7908966605792', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Branco/Fendi',  tamanho: 'King',  precoCusto: 404.90 },
+  { codigo: '000327.004.038', ean: '7908966605839', modelo: 'LENÇOL BAMBU GUADUA', variante: 'Cinza/Branco',  tamanho: 'King',  precoCusto: 404.90 },
 
-  // LENÇOL CARVALHO — 000328
-  { codigo: '000328.002.032', ean: '7908966605952', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Branco', tamanho: 'Casal' },
-  { codigo: '000328.002.033', ean: '7908966605969', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Cinza',  tamanho: 'Casal' },
-  { codigo: '000328.002.038', ean: '7908966606010', modelo: 'LENÇOL CARVALHO', variante: 'Cinza/Branco',  tamanho: 'Casal' },
-  { codigo: '000328.002.042', ean: '7908966606003', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Preto',  tamanho: 'Casal' },
-  { codigo: '000328.003.032', ean: '7908966606041', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Branco', tamanho: 'Queen' },
-  { codigo: '000328.003.033', ean: '7908966606058', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Cinza',  tamanho: 'Queen' },
-  { codigo: '000328.003.038', ean: '7908966606102', modelo: 'LENÇOL CARVALHO', variante: 'Cinza/Branco',  tamanho: 'Queen' },
-  { codigo: '000328.003.042', ean: '7908966606096', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Preto',  tamanho: 'Queen' },
-  { codigo: '000328.004.038', ean: '7908966606195', modelo: 'LENÇOL CARVALHO', variante: 'Cinza/Branco',  tamanho: 'King' },
+  // LENÇOL CARVALHO — 000328 — Casal 275,90 · Queen 292,90 · King 342,90
+  { codigo: '000328.002.032', ean: '7908966605952', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Branco', tamanho: 'Casal', precoCusto: 275.90 },
+  { codigo: '000328.002.033', ean: '7908966605969', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Cinza',  tamanho: 'Casal', precoCusto: 275.90 },
+  { codigo: '000328.002.038', ean: '7908966606010', modelo: 'LENÇOL CARVALHO', variante: 'Cinza/Branco',  tamanho: 'Casal', precoCusto: 275.90 },
+  { codigo: '000328.002.042', ean: '7908966606003', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Preto',  tamanho: 'Casal', precoCusto: 275.90 },
+  { codigo: '000328.003.032', ean: '7908966606041', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Branco', tamanho: 'Queen', precoCusto: 292.90 },
+  { codigo: '000328.003.033', ean: '7908966606058', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Cinza',  tamanho: 'Queen', precoCusto: 292.90 },
+  { codigo: '000328.003.038', ean: '7908966606102', modelo: 'LENÇOL CARVALHO', variante: 'Cinza/Branco',  tamanho: 'Queen', precoCusto: 292.90 },
+  { codigo: '000328.003.042', ean: '7908966606096', modelo: 'LENÇOL CARVALHO', variante: 'Branco/Preto',  tamanho: 'Queen', precoCusto: 292.90 },
+  { codigo: '000328.004.038', ean: '7908966606195', modelo: 'LENÇOL CARVALHO', variante: 'Cinza/Branco',  tamanho: 'King',  precoCusto: 342.90 },
 
-  // COLCHA CARVALHO — 000329 — variantes BRANCO/BRANCO e CINZA/CINZA não estão no catálogo
-  // (catálogo tem apenas Branco, Bege, Azul, Cinza); guardados aqui pra referência.
-  { codigo: '000329.003.032', ean: '7908966606317', modelo: 'COLCHA CARVALHO', variante: 'Branco/Branco', tamanho: 'Queen' },
-  { codigo: '000329.003.046', ean: '7908966606348', modelo: 'COLCHA CARVALHO', variante: 'Cinza/Cinza',   tamanho: 'Queen' },
-  { codigo: '000329.004.032', ean: '7908966606355', modelo: 'COLCHA CARVALHO', variante: 'Branco/Branco', tamanho: 'King' },
-  { codigo: '000329.004.046', ean: '7908966606386', modelo: 'COLCHA CARVALHO', variante: 'Cinza/Cinza',   tamanho: 'King' },
-  { codigo: '000329.010.032', ean: '7908966606393', modelo: 'COLCHA CARVALHO', variante: 'Branco/Branco', tamanho: 'Super King' },
-  { codigo: '000329.010.046', ean: '7908966606423', modelo: 'COLCHA CARVALHO', variante: 'Cinza/Cinza',   tamanho: 'Super King' },
+  // COLCHA CARVALHO — 000329 — Queen 386,90 · King 413,90 · Super King 468,90
+  { codigo: '000329.003.032', ean: '7908966606317', modelo: 'COLCHA CARVALHO', variante: 'Branco/Branco', tamanho: 'Queen',      precoCusto: 386.90 },
+  { codigo: '000329.003.046', ean: '7908966606348', modelo: 'COLCHA CARVALHO', variante: 'Cinza/Cinza',   tamanho: 'Queen',      precoCusto: 386.90 },
+  { codigo: '000329.004.032', ean: '7908966606355', modelo: 'COLCHA CARVALHO', variante: 'Branco/Branco', tamanho: 'King',       precoCusto: 413.90 },
+  { codigo: '000329.004.046', ean: '7908966606386', modelo: 'COLCHA CARVALHO', variante: 'Cinza/Cinza',   tamanho: 'King',       precoCusto: 413.90 },
+  { codigo: '000329.010.032', ean: '7908966606393', modelo: 'COLCHA CARVALHO', variante: 'Branco/Branco', tamanho: 'Super King', precoCusto: 468.90 },
+  { codigo: '000329.010.046', ean: '7908966606423', modelo: 'COLCHA CARVALHO', variante: 'Cinza/Cinza',   tamanho: 'Super King', precoCusto: 468.90 },
 
-  // LENÇOL BAMBU 300TC — 000280 (cadastrado na Magazord como JG-LENC-280)
-  { codigo: '000280.002.001', ean: '7908966606638', modelo: 'LENÇOL BAMBU 300TC', variante: 'Branco', tamanho: 'Casal' },
-  { codigo: '000280.002.003', ean: '7908966606669', modelo: 'LENÇOL BAMBU 300TC', variante: 'Cinza',  tamanho: 'Casal' },
-  { codigo: '000280.003.001', ean: '7908966606676', modelo: 'LENÇOL BAMBU 300TC', variante: 'Branco', tamanho: 'Queen' },
-  { codigo: '000280.003.003', ean: '7908966606706', modelo: 'LENÇOL BAMBU 300TC', variante: 'Cinza',  tamanho: 'Queen' },
-  { codigo: '000280.004.001', ean: '7908966606713', modelo: 'LENÇOL BAMBU 300TC', variante: 'Branco', tamanho: 'King' },
-  { codigo: '000280.004.003', ean: '7908966606744', modelo: 'LENÇOL BAMBU 300TC', variante: 'Cinza',  tamanho: 'King' },
+  // LENÇOL BAMBU 300TC — 000280 (Magazord JG-LENC-280) — Casal 308,90 · Queen 330,90 · King 376,90
+  { codigo: '000280.002.001', ean: '7908966606638', modelo: 'LENÇOL BAMBU 300TC', variante: 'Branco', tamanho: 'Casal', precoCusto: 308.90 },
+  { codigo: '000280.002.003', ean: '7908966606669', modelo: 'LENÇOL BAMBU 300TC', variante: 'Cinza',  tamanho: 'Casal', precoCusto: 308.90 },
+  { codigo: '000280.003.001', ean: '7908966606676', modelo: 'LENÇOL BAMBU 300TC', variante: 'Branco', tamanho: 'Queen', precoCusto: 330.90 },
+  { codigo: '000280.003.003', ean: '7908966606706', modelo: 'LENÇOL BAMBU 300TC', variante: 'Cinza',  tamanho: 'Queen', precoCusto: 330.90 },
+  { codigo: '000280.004.001', ean: '7908966606713', modelo: 'LENÇOL BAMBU 300TC', variante: 'Branco', tamanho: 'King',  precoCusto: 376.90 },
+  { codigo: '000280.004.003', ean: '7908966606744', modelo: 'LENÇOL BAMBU 300TC', variante: 'Cinza',  tamanho: 'King',  precoCusto: 376.90 },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -288,6 +288,16 @@ export function findByCodigo(codigo: string): CodigoTapeteTellaio | CodigoCamaTe
     CODIGOS_CAMAS.find(x => x.codigo === codigo) ??
     null
   )
+}
+
+/**
+ * Busca o preço de custo Tellaio de uma cama por (modelo, variante, tamanho).
+ * Retorna null se a combinação não tiver código mapeado ou preço.
+ */
+export function findPrecoCustoCama(
+  modelo: string, variante: string, tamanho: string,
+): number | null {
+  return findCodigoCama(modelo, variante, tamanho)?.precoCusto ?? null
 }
 
 /**
