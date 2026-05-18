@@ -32,6 +32,7 @@ import {
   MODELOS_CAMA, findModelo, findVariante,
 } from '../../data/camasLV'
 import type { DisponibilidadeTamanho } from '../../data/camasLV'
+import { findCodigoCama } from '../../data/codigosTellaio'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2332,6 +2333,18 @@ function CamaSkuRowEditor({
   const variante = modelo ? findVariante(modelo.nome, row.variante) : undefined
   const tamanhoInfo: DisponibilidadeTamanho | undefined =
     variante?.tamanhos.find(t => t.tamanho === row.tamanho)
+
+  // Auto-fill SKU com código Tellaio quando modelo+variante+tamanho casarem
+  // com o catálogo de códigos de fornecedor (src/data/codigosTellaio.ts).
+  useEffect(() => {
+    if (modeloLivre || !modelo) return
+    if (!row.variante || !row.tamanho) return
+    const cod = findCodigoCama(modelo.nome, row.variante, row.tamanho)
+    if (cod && row.sku !== cod.codigo) {
+      onUpdate(row.uid, { sku: cod.codigo })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.variante, row.tamanho, modelo?.nome, modeloLivre])
 
   return (
     <div className="bg-white border border-blue-100 rounded-lg p-2 space-y-1.5">
