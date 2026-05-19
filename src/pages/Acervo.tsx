@@ -458,7 +458,7 @@ function CadastroModal({ quadroToEdit, onClose, onSaved }: { quadroToEdit?: Acer
                 <p className="text-xs text-gray-400">Comprimida automaticamente</p>
               </button>
             )}
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
           </div>
 
