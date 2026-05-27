@@ -2539,6 +2539,13 @@ export default function Production() {
         [to]: [...prev[to], dragging.order],
       }
     })
+    
+    // Supabase sync
+    const dbId = getDbId(orderId)
+    if (dbId) {
+      movePedidoEtapa(dbId, to as string)
+    }
+
     showToast(`Pedido #${dragging.order.id} movido para ${to}`)
     setDragging(null)
   }

@@ -51,6 +51,13 @@ export interface Database {
           quantidade: number | null
           cliente_email: string | null
           cliente_telefone: string | null
+          arquivado: boolean
+          tipo_pedido: string | null
+          itens_cama: Json | null
+          conferencia_cama: Json | null
+          imagens_desenho: Json | null
+          desenho: string | null
+          confirmacao_fornecedor_url: string | null
         }
         Relationships: any[]
 
@@ -89,6 +96,13 @@ export interface Database {
           quantidade?: number | null
           cliente_email?: string | null
           cliente_telefone?: string | null
+          arquivado?: boolean
+          tipo_pedido?: string | null
+          itens_cama?: Json | null
+          conferencia_cama?: Json | null
+          imagens_desenho?: Json | null
+          desenho?: string | null
+          confirmacao_fornecedor_url?: string | null
         }
         Update: {
           numero?: string
@@ -125,6 +139,13 @@ export interface Database {
           quantidade?: number | null
           cliente_email?: string | null
           cliente_telefone?: string | null
+          arquivado?: boolean
+          tipo_pedido?: string | null
+          itens_cama?: Json | null
+          conferencia_cama?: Json | null
+          imagens_desenho?: Json | null
+          desenho?: string | null
+          confirmacao_fornecedor_url?: string | null
         }
       }
       acervo_quadros: {

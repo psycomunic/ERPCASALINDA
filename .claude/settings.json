@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git stash *)",
+      "Bash(git commit -m ' *)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__get_logs",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(cat .vercel/project.json)",
+      "Bash(ls -la .vercel)",
+      "mcp__claude_ai_Vercel__list_teams",
+      "mcp__claude_ai_Vercel__list_projects",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "mcp__claude_ai_Vercel__get_runtime_logs",
+      "mcp__claude_ai_Vercel__get_deployment_build_logs",
+      "Bash(git revert *)"
+    ],
+    "additionalDirectories": [
+      "/Users/angelogarcia/.claude/projects/-Users-angelogarcia-Documents-PROJETOS-ANTIGRAVITY-ERP-CASA-LINDA"
+    ]
+  }
+}

@@ -1527,7 +1527,7 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
                       {CANAIS.map(c => <option key={c}>{c}</option>)}
                     </select></div>
                 </div>
-                <input className="input mt-2" placeholder="Cor / Variação" value={edit.cor} onChange={e => setE('cor', e.target.value)} />
+                <input className="input mt-2" placeholder="Cor / Variação *" value={edit.cor} onChange={e => setE('cor', e.target.value)} />
               </div>
               <div className="border border-blue-100 rounded-xl p-3 space-y-2" style={{ background: '#eff6ff' }}>
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#1d4ed8' }}>🏭 Fornecedor</p>
@@ -1593,9 +1593,9 @@ function DetailModal({ order: initialOrder, stage, onClose, onConclude, onUpdate
           {tab === 'editar' ? (
             <>
               <button onClick={() => setTab('detalhes')} className="btn-secondary flex-1 justify-center text-sm">Cancelar</button>
-              <button onClick={handleSaveEdit} disabled={saving || !edit.cliente.trim() || !edit.produto.trim()}
+              <button onClick={handleSaveEdit} disabled={saving || !edit.cliente.trim() || !edit.produto.trim() || !edit.cor.trim()}
                 className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}
+                style={{ background: edit.cliente.trim() && edit.produto.trim() && edit.cor.trim() ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
               >
                 {saving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
                 Salvar Alterações
@@ -1710,7 +1710,7 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
                 <select className="input" value={form.canal} onChange={e => set('canal', e.target.value)}>{CANAIS.map(c => <option key={c}>{c}</option>)}</select>
               </div>
             </div>
-            <input className="input mt-2" placeholder="Cor / Variação" value={form.cor} onChange={e => set('cor', e.target.value)} />
+            <input className="input mt-2" placeholder="Cor / Variação *" value={form.cor} onChange={e => set('cor', e.target.value)} />
           </div>
           <div className="border border-blue-100 rounded-xl p-3 space-y-2" style={{ background: '#eff6ff' }}>
             <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#1d4ed8' }}>🏭 Produto no Fornecedor (Cross-Docking)</p>
@@ -1740,9 +1740,9 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
         </div>
         <div className="flex gap-2 p-4 pt-3 border-t border-gray-100 sticky bottom-0 bg-white">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-          <button onClick={handleSave} disabled={!form.cliente.trim() || !form.produto.trim()}
+          <button onClick={handleSave} disabled={!form.cliente.trim() || !form.produto.trim() || !form.cor.trim()}
             className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
-            style={{ background: form.cliente.trim() && form.produto.trim() ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
+            style={{ background: form.cliente.trim() && form.produto.trim() && form.cor.trim() ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
           >
             <Check size={16} /> Salvar Pedido
           </button>
@@ -2006,7 +2006,7 @@ function TapeteItemCard({
               {/* Coleção / Desenho */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">🎨 Coleção (Desenho)</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">🎨 Coleção (Desenho) *</p>
                   {colecaoInfo && (
                     <span className="text-[9px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded-full font-mono">
                       R$ {colecaoInfo.m2.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/m²
@@ -2616,7 +2616,7 @@ function TapeteOrderModal({ onClose, onSave }: {
   }, 0)
   const totalGeral = totalTapetes + totalCamas
 
-  const validTapetes = tapetes.filter(t => t.produto.trim().length > 0)
+  const validTapetes = tapetes.filter(t => t.produto.trim().length > 0 && t.cor.trim().length > 0)
   const validCamas = camas.filter(c => c.produto.trim().length > 0)
   const totalCards = validTapetes.length + validCamas.length
   const canSave = totalCards > 0
@@ -2629,6 +2629,7 @@ function TapeteOrderModal({ onClose, onSave }: {
     sku: t.sku || undefined,
     tamanho: t.tamanho || undefined,
     cor: t.cor || undefined,
+    desenho: t.desenho || undefined,
     fotoUrl: t.fotoUrl || undefined,
     nomeFornecedor: nomeFornecedor || undefined,
     codigoFornecedor: codigoFornecedor || undefined,
@@ -3268,6 +3269,7 @@ export default function ProductionLV() {
       codigo_fornecedor: data.codigoFornecedor || null,
       tamanho: data.tamanho || null,
       cor: data.cor || null,
+      desenho: data.desenho || null,
       categoria: data.categoria || null,
       quantidade: data.quantidade || null,
       // Campos específicos de crossdocking/estoque/cama:
