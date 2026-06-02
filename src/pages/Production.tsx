@@ -1021,6 +1021,28 @@ function ReviewModal({ order, onClose, onApprove, onReject }: {
   const [etapaRetorno, setEtapaRetorno] = useState<KanbanStage>(ETAPAS_RETORNO[0])
   const [fotoPreview, setFotoPreview] = useState<string | undefined>(undefined)
 
+  const [customReviewers, setCustomReviewers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_reviewers')
+      return saved ? JSON.parse(saved) : ['Marcelo', 'Isac']
+    } catch {
+      return ['Marcelo', 'Isac']
+    }
+  })
+  const [newRevisor, setNewRevisor] = useState('')
+
+  const handleAddRevisor = () => {
+    if (!newRevisor.trim()) return
+    const name = newRevisor.trim()
+    if (!customReviewers.includes(name)) {
+      const updated = [...customReviewers, name]
+      setCustomReviewers(updated)
+      localStorage.setItem('erp_reviewers', JSON.stringify(updated))
+    }
+    setRevisor(name)
+    setNewRevisor('')
+  }
+
   const toggleArea = (a: string) =>
     setAreas(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])
 
@@ -1056,12 +1078,12 @@ function ReviewModal({ order, onClose, onApprove, onReject }: {
           {/* Revisor */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-2">Revisor *</label>
-            <div className="flex gap-2">
-              {['Marcelo', 'Isac'].map(name => (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {customReviewers.map(name => (
                 <button
                   key={name}
                   onClick={() => setRevisor(name)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                  className={`flex-1 py-2.5 px-2 min-w-[80px] rounded-xl text-sm font-bold border-2 transition-all ${
                     revisor === name
                       ? 'border-navy-900 bg-navy-900 text-white'
                       : 'border-gray-200 text-gray-600 hover:border-gray-400'
@@ -1070,6 +1092,24 @@ function ReviewModal({ order, onClose, onApprove, onReject }: {
                   {name}
                 </button>
               ))}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <input
+                type="text"
+                className="input flex-1 text-sm py-2"
+                placeholder="Novo revisor..."
+                value={newRevisor}
+                onChange={e => setNewRevisor(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleAddRevisor()
+                }}
+              />
+              <button
+                onClick={handleAddRevisor}
+                className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-200"
+              >
+                Adicionar
+              </button>
             </div>
           </div>
 
@@ -2614,6 +2654,30 @@ export default function Production() {
     showToast(`Pedido #${order.id} confirmado e enviado para Impressão!`)
   }
 
+  const handleDirectApprove = (order: Order) => {
+    let lastRevisor = 'Aprovação Rápida'
+    try {
+      const saved = localStorage.getItem('erp_reviewers')
+      if (saved) {
+        const arr = JSON.parse(saved)
+        if (arr.length > 0) lastRevisor = arr[0]
+      }
+    } catch {}
+
+    setBoard(prev => ({
+      ...prev,
+      'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
+      'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK', revisaoStatus: 'aprovado', revisaoRevisor: lastRevisor }],
+    }))
+    updateOrderFields(order.id, {
+      status: 'OK',
+      revisaoStatus: 'aprovado',
+      revisaoRevisor: lastRevisor,
+      obs: [order.obs, `[REVISÃO APROVADA DIRETO] Revisor: ${lastRevisor}`].filter(Boolean).join('\n---\n'),
+    })
+    showToast(`✅ Pedido #${order.id} aprovado diretamente!`)
+  }
+
   // ── Advance kanban ──
   const conclude = (stage: Stage, id: string) => {
     const order = board[stage].find(o => o.id === id)!
@@ -3201,21 +3265,35 @@ export default function Production() {
                               >
                                 🔒 Restrito
                               </div>
+                            ) : stage === 'Revisão' ? (
+                              <div className="flex w-full gap-1 flex-1">
+                                <button
+                                  onClick={() => conclude(stage, order.id)}
+                                  className="flex-1 flex items-center justify-center gap-1 text-white text-[10px] font-semibold py-1.5 rounded-lg transition-colors bg-rose-600 hover:bg-rose-700"
+                                  title="Iniciar Revisão (Abre modal)"
+                                >
+                                  <CheckCircle size={11} /> Revisar
+                                </button>
+                                <button
+                                  onClick={() => handleDirectApprove(order)}
+                                  className="flex-1 flex items-center justify-center gap-1 text-white text-[10px] font-semibold py-1.5 rounded-lg transition-colors bg-emerald-500 hover:bg-emerald-600"
+                                  title="Aprovar Diretamente"
+                                >
+                                  <Check size={11} /> Aprovar Direto
+                                </button>
+                              </div>
                             ) : (
                               <button
                                 onClick={() => conclude(stage, order.id)}
                                 className={`flex-1 flex items-center justify-center gap-1.5 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors`}
                                 style={
                                   stage === 'Embalagem' ? { background: '#d97706' } :
-                                  stage === 'Revisão'   ? { background: '#e11d48' } :
                                   stage === 'Impressão' ? { background: '#2563eb' } :
                                   { background: '#1e3a8a' }
                                 }
                               >
                                 {stage === 'Embalagem'
                                   ? <><ClipboardList size={13} /> Pronto p/ Envio</>
-                                  : stage === 'Revisão'
-                                  ? <><CheckCircle size={13} /> Iniciar Revisão</>
                                   : <><CheckCircle size={13} /> OK / CONCLUÍDO</>}
                               </button>
                             )}
