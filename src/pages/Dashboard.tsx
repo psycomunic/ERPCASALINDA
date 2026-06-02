@@ -20,7 +20,7 @@ const cashflow: any[] = []
 const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const PERIODOS = ['Últimos 7 Dias', 'Últimos 30 Dias', 'Este Mês', 'Trimestre', 'Ano']
+const PERIODOS = ['Hoje', 'Últimos 7 Dias', 'Últimos 30 Dias', 'Este Mês', 'Trimestre', 'Ano', 'Personalizado']
 
 // Colors for carrier bars
 const CARRIER_COLORS = [
@@ -103,8 +103,8 @@ async function syncMissingFreightData(): Promise<{ updated: number; failed: numb
 }
 
 // ── Freight period options ─────────────────────────────────────────────────────
-type FreightPeriodo = 'Este Mês' | '7 Dias' | '15 Dias' | '30 Dias' | '90 Dias' | 'Personalizado'
-const FREIGHT_PERIODOS: FreightPeriodo[] = ['Este Mês', '7 Dias', '15 Dias', '30 Dias', '90 Dias', 'Personalizado']
+type FreightPeriodo = 'Hoje' | 'Este Mês' | '7 Dias' | '15 Dias' | '30 Dias' | '90 Dias' | 'Personalizado'
+const FREIGHT_PERIODOS: FreightPeriodo[] = ['Hoje', 'Este Mês', '7 Dias', '15 Dias', '30 Dias', '90 Dias', 'Personalizado']
 
 function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress }: { allOrders: any[], loadingOrders: boolean, enriching: boolean, enrichProgress: number }) {
   const [fperiodo, setFPeriodo] = useState<FreightPeriodo>('Este Mês')
@@ -126,7 +126,9 @@ function FreightByCarrier({ allOrders, loadingOrders, enriching, enrichProgress 
     allOrders.forEach(p => {
       const d = new Date(p.data || new Date())
       let keep = false
-      if (fperiodo === 'Este Mês') {
+      if (fperiodo === 'Hoje') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0) && d <= today
+      } else if (fperiodo === 'Este Mês') {
         keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
       } else if (fperiodo === '7 Dias') {
         const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
@@ -346,7 +348,9 @@ function ProductsAnalytics({ allOrders, loadingOrders }: { allOrders: any[], loa
     allOrders.forEach(p => {
       const d = new Date(p.data || new Date())
       let keep = false
-      if (fperiodo === 'Este Mês') {
+      if (fperiodo === 'Hoje') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0) && d <= today
+      } else if (fperiodo === 'Este Mês') {
         keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
       } else if (fperiodo === '7 Dias') {
         const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
@@ -571,7 +575,9 @@ function SalesByChannel({ allOrders, loadingOrders }: { allOrders: any[]; loadin
     allOrders.forEach(p => {
       const d = new Date(p.data || new Date())
       let keep = false
-      if (fperiodo === 'Este Mês') {
+      if (fperiodo === 'Hoje') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0) && d <= today
+      } else if (fperiodo === 'Este Mês') {
         keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
       } else if (fperiodo === '7 Dias') {
         const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
@@ -781,6 +787,8 @@ export default function Dashboard() {
   const { activeTab } = useLayout()
   const navigate = useNavigate()
   const [periodo, setPeriodo] = useState('Este Mês')
+  const [globalCustomStart, setGlobalCustomStart] = useState('')
+  const [globalCustomEnd, setGlobalCustomEnd] = useState('')
   const [showPeriodo, setShowPeriodo] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -838,7 +846,11 @@ export default function Dashboard() {
     let start = new Date(now.getFullYear(), now.getMonth(), 1)
     let end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-    if (periodo === 'Últimos 7 Dias') {
+    if (periodo === 'Hoje') {
+      start = new Date(now)
+      start.setHours(0,0,0,0)
+      end = now
+    } else if (periodo === 'Últimos 7 Dias') {
       start = new Date(now)
       start.setDate(now.getDate() - 6)
       start.setHours(0,0,0,0)
@@ -858,6 +870,9 @@ export default function Dashboard() {
       start.setMonth(0)
       start.setDate(1)
       start.setHours(0,0,0,0)
+    } else if (periodo === 'Personalizado' && globalCustomStart && globalCustomEnd) {
+      start = new Date(globalCustomStart + 'T00:00:00')
+      end = new Date(globalCustomEnd + 'T23:59:59')
     }
 
     // Pedidos no período (status 4 = Aprovado, 7 = Faturado/Transporte)
@@ -913,7 +928,7 @@ export default function Dashboard() {
     const salesArr = Array.from(salesMap.entries()).map(([k, v]) => ({ date: k, valor: v }))
     setDailySales(salesArr)
 
-  }, [allOrders, loadingOrders, periodo])
+  }, [allOrders, loadingOrders, periodo, globalCustomStart, globalCustomEnd])
 
 
   const showToast = (msg: string) => {
@@ -980,6 +995,13 @@ export default function Dashboard() {
               )}
             </AnimatePresence>
           </div>
+          {periodo === 'Personalizado' && (
+            <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-1.5 rounded-lg shadow-sm">
+              <input type="date" value={globalCustomStart} onChange={e => setGlobalCustomStart(e.target.value)} className="text-[13px] bg-transparent outline-none text-gray-700 font-medium" />
+              <span className="text-gray-400 text-xs">até</span>
+              <input type="date" value={globalCustomEnd} onChange={e => setGlobalCustomEnd(e.target.value)} className="text-[13px] bg-transparent outline-none text-gray-700 font-medium" />
+            </div>
+          )}
           <button className="btn-secondary" onClick={handleExportar}>
             <Download size={14} /> Exportar
           </button>

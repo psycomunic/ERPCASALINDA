@@ -2614,7 +2614,7 @@ export default function Production() {
       }
     } catch { /* silencia erros de detalhe */ }
 
-    const enrichedOrder: Order = { ...order, ...enriched, status: 'Pendente', fromMagazord: true }
+    const enrichedOrder: Order = { ...order, ...enriched, status: 'Pendente' as const, fromMagazord: true }
 
     setBoard(prev => ({
       ...prev,
@@ -2654,6 +2654,94 @@ export default function Production() {
     showToast(`Pedido #${order.id} confirmado e enviado para Impressão!`)
   }
 
+  const moveAllToNext = async (stage: KanbanStage) => {
+    const orders = board[stage]
+    if (!orders || orders.length === 0) return
+
+    const stageIdx = ALL_STAGES.indexOf(stage)
+    const nextStage = ALL_STAGES[stageIdx + 1]
+
+    if (stage === 'Novos Pedidos') {
+      for (const order of orders) {
+        await confirmToProducao(order)
+      }
+      showToast(`✅ ${orders.length} pedidos enviados para Impressão!`)
+      return
+    }
+
+    if (stage === 'Embalagem') {
+      const updatedOrders = orders.map(order => {
+        const trans = order.transportadora || CARRIER_NAMES[0]
+        const vols = order.volumes || order.quantidade || 1
+        
+        const dbId = getDbId(order.id)
+        if (dbId) updatePedido(dbId, { 
+          etapa: 'Prontos para Envio', 
+          status: 'OK',
+          transportadora: trans,
+          volumes: vols
+        })
+        if (order.magazordId) updateOrderSituacao(order.magazordId, 6)
+
+        return { ...order, status: 'OK' as const, transportadora: trans, volumes: vols, dataDespacho: undefined }
+      })
+
+      setBoard(prev => ({
+        ...prev,
+        'Embalagem': [],
+        'Prontos para Envio': [...updatedOrders, ...prev['Prontos para Envio']]
+      }))
+      showToast(`✅ ${orders.length} pedidos enviados para Prontos para Envio com transportadora e volumes padrão!`)
+      return
+    }
+
+    if (stage === 'Revisão') {
+      let lastRevisor = 'Aprovação Rápida'
+      try {
+        const saved = localStorage.getItem('erp_reviewers')
+        if (saved) {
+          const arr = JSON.parse(saved)
+          if (arr.length > 0) lastRevisor = arr[0]
+        }
+      } catch {}
+
+      const updatedOrders = orders.map(order => {
+        const dbId = getDbId(order.id)
+        const newObs = [order.obs, `[REVISÃO APROVADA DIRETO] Revisor: ${lastRevisor}`].filter(Boolean).join('\n---\n')
+        if (dbId) {
+          updatePedido(dbId, {
+            etapa: 'Embalagem',
+            status: 'OK',
+            obs: newObs
+          })
+        }
+        return { ...order, status: 'OK' as const, revisaoStatus: 'aprovado', revisaoRevisor: lastRevisor, obs: newObs }
+      })
+
+      setBoard(prev => ({
+        ...prev,
+        'Revisão': [],
+        'Embalagem': [...updatedOrders, ...prev['Embalagem']]
+      }))
+      showToast(`✅ ${orders.length} pedidos aprovados diretamente!`)
+      return
+    }
+
+    if (!nextStage) return
+
+    setBoard(prev => ({
+      ...prev,
+      [stage]: [],
+      [nextStage as keyof typeof prev]: [...orders.map(o => ({ ...o, status: 'OK' as const })), ...prev[nextStage as keyof typeof prev]]
+    }))
+
+    orders.forEach(order => {
+      const dbId = getDbId(order.id)
+      if (dbId) movePedidoEtapa(dbId, nextStage as Stage)
+    })
+    showToast(`✅ ${orders.length} pedidos movidos para ${nextStage}!`)
+  }
+
   const handleDirectApprove = (order: Order) => {
     let lastRevisor = 'Aprovação Rápida'
     try {
@@ -2667,14 +2755,17 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
-      'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK', revisaoStatus: 'aprovado', revisaoRevisor: lastRevisor }],
+      'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK' as const, revisaoStatus: 'aprovado', revisaoRevisor: lastRevisor }],
     }))
-    updateOrderFields(order.id, {
-      status: 'OK',
-      revisaoStatus: 'aprovado',
-      revisaoRevisor: lastRevisor,
-      obs: [order.obs, `[REVISÃO APROVADA DIRETO] Revisor: ${lastRevisor}`].filter(Boolean).join('\n---\n'),
-    })
+    const dbId = getDbId(order.id)
+    const newObs = [order.obs, `[REVISÃO APROVADA DIRETO] Revisor: ${lastRevisor}`].filter(Boolean).join('\n---\n')
+    if (dbId) {
+      updatePedido(dbId, {
+        etapa: 'Embalagem',
+        status: 'OK',
+        obs: newObs
+      })
+    }
     showToast(`✅ Pedido #${order.id} aprovado diretamente!`)
   }
 
@@ -2689,7 +2780,7 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       [stage]: prev[stage].filter(o => o.id !== id),
-      [next]:  [...prev[next], { ...order, status: 'OK' }],
+      [next]:  [...prev[next], { ...order, status: 'OK' as const }],
     }))
     // Supabase sync
     const dbId = getDbId(id)
@@ -2704,7 +2795,7 @@ export default function Production() {
       setBoard(prev => ({
         ...prev,
         [fromStage]: prev[fromStage].filter(o => o.id !== order.id),
-        'Novos Pedidos': [{ ...order, status: 'Pendente' }, ...prev['Novos Pedidos']],
+        'Novos Pedidos': [{ ...order, status: 'Pendente' as const }, ...prev['Novos Pedidos']],
       }))
       const dbId = getDbId(order.id)
       if (dbId) movePedidoEtapa(dbId, 'Novos Pedidos')
@@ -2715,7 +2806,7 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       [fromStage]: prev[fromStage].filter(o => o.id !== order.id),
-      [toStage]: [{ ...order, status: 'Pendente' }, ...prev[toStage]],
+      [toStage]: [{ ...order, status: 'Pendente' as const }, ...prev[toStage]],
     }))
 
     const dbId = getDbId(order.id)
@@ -2803,7 +2894,7 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       'Embalagem': prev['Embalagem'].filter(o => o.id !== order.id),
-      'Prontos para Envio': [{ ...order, status: 'OK', endereco, transportadora, prazoEntrega: prazoFmt, volumes }, ...prev['Prontos para Envio']],
+      'Prontos para Envio': [{ ...order, status: 'OK' as const, endereco, transportadora, prazoEntrega: prazoFmt, volumes }, ...prev['Prontos para Envio']],
     }))
     // Supabase sync
     const dbId = getDbId(order.id)
@@ -2823,7 +2914,7 @@ export default function Production() {
       setBoard(prev => ({
         ...prev,
         'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
-        'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK', revisaoStatus: 'aprovado', revisaoRevisor: revisor }],
+        'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK' as const, revisaoStatus: 'aprovado', revisaoRevisor: revisor }],
       }))
       const dbId = getDbId(order.id)
       if (dbId) updatePedido(dbId, {
@@ -2842,7 +2933,7 @@ export default function Production() {
         'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
         [destino]: [...prev[destino], {
           ...order,
-          status: 'Pendente',
+          status: 'Pendente' as const,
           revisaoStatus: 'reprovado',
           revisaoRevisor: revisor,
           revisaoMotivo:  motivo,
@@ -2874,7 +2965,7 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       'Prontos para Envio': prev['Prontos para Envio'].filter(o => o.id !== order.id),
-      'Despachados': [{ ...order, transportadora, rastreio, dataDespacho: now, status: 'OK' }, ...prev['Despachados']],
+      'Despachados': [{ ...order, transportadora, rastreio, dataDespacho: now, status: 'OK' as const }, ...prev['Despachados']],
     }))
     setDispatchModal(null)
     if (order.magazordId) updateOrderSituacao(order.magazordId, 7, { codigoRastreio: rastreio, transportadora })
@@ -2918,7 +3009,7 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       'Despachados': prev['Despachados'].filter(o => o.id !== order.id),
-      'Prontos para Envio': [{ ...order, dataDespacho: undefined, status: 'OK' }, ...prev['Prontos para Envio']],
+      'Prontos para Envio': [{ ...order, dataDespacho: undefined, status: 'OK' as const }, ...prev['Prontos para Envio']],
     }))
     if (order.magazordId) updateOrderSituacao(order.magazordId, 6)
     const dbId = getDbId(order.id)
@@ -3115,7 +3206,7 @@ export default function Production() {
                 onDrop={e => onDrop(stage, e)}
               >
                 {/* Column header */}
-                <div className="flex items-center gap-2 px-3 py-2.5">
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100/50">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${STAGE_DOT[stage]}`} />
                   <span className={`text-xs font-semibold uppercase tracking-wider flex-1 ${isNewOrders ? 'text-violet-700' : 'text-gray-600'}`}>
                     {stage}
@@ -3128,6 +3219,19 @@ export default function Production() {
                     {orders.length}
                   </span>
                 </div>
+                {/* Send all button */}
+                {orders.length > 0 && (
+                  <div className="px-3 pb-2 pt-2">
+                    <button
+                      onClick={() => moveAllToNext(stage)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-gray-200/50 hover:bg-blue-100 text-blue-600 rounded-lg text-[10px] font-bold uppercase transition-colors"
+                      title={`Mover todos para a próxima etapa`}
+                    >
+                      <ArrowRight size={12} />
+                      Mover todos
+                    </button>
+                  </div>
+                )}
 
                 {/* Magazord badge for "Novos Pedidos" */}
                 {isNewOrders && (
