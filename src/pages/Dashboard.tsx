@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, AlertTriangle, Clock,
   ShoppingCart, UserPlus, Receipt, ArrowRight, Download, X,
-  Check, ChevronDown, Truck, BarChart2, Map, Globe, Coins, ShieldCheck
+  Check, ChevronDown, Truck, BarChart2, Map as MapIcon, Globe, Coins, ShieldCheck
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -938,7 +938,7 @@ function SalesAndFreightByState({ allOrders, loadingOrders }: { allOrders: any[]
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
-            <Map size={20} className="text-blue-600" />
+            <MapIcon size={20} className="text-blue-600" />
           </div>
           <div>
             <h2 className="font-bold text-gray-800 text-lg">Distribuição Geográfica e Fretes</h2>

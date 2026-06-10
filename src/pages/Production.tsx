@@ -2715,7 +2715,7 @@ export default function Production() {
             obs: newObs
           })
         }
-        return { ...order, status: 'OK' as const, revisaoStatus: 'aprovado', revisaoRevisor: lastRevisor, obs: newObs }
+        return { ...order, status: 'OK' as const, revisaoStatus: 'aprovado' as const, revisaoRevisor: lastRevisor, obs: newObs }
       })
 
       setBoard(prev => ({
@@ -2755,7 +2755,7 @@ export default function Production() {
     setBoard(prev => ({
       ...prev,
       'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
-      'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK' as const, revisaoStatus: 'aprovado', revisaoRevisor: lastRevisor }],
+      'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK' as const, revisaoStatus: 'aprovado' as const, revisaoRevisor: lastRevisor }],
     }))
     const dbId = getDbId(order.id)
     const newObs = [order.obs, `[REVISÃO APROVADA DIRETO] Revisor: ${lastRevisor}`].filter(Boolean).join('\n---\n')
@@ -2914,7 +2914,7 @@ export default function Production() {
       setBoard(prev => ({
         ...prev,
         'Revisão': prev['Revisão'].filter(o => o.id !== order.id),
-        'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK' as const, revisaoStatus: 'aprovado', revisaoRevisor: revisor }],
+        'Embalagem': [...prev['Embalagem'], { ...order, status: 'OK' as const, revisaoStatus: 'aprovado' as const, revisaoRevisor: revisor }],
       }))
       const dbId = getDbId(order.id)
       if (dbId) updatePedido(dbId, {
@@ -2934,7 +2934,7 @@ export default function Production() {
         [destino]: [...prev[destino], {
           ...order,
           status: 'Pendente' as const,
-          revisaoStatus: 'reprovado',
+          revisaoStatus: 'reprovado' as const,
           revisaoRevisor: revisor,
           revisaoMotivo:  motivo,
           revisaoAreas:   areas,
