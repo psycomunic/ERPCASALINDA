@@ -400,6 +400,36 @@ export interface FreightOrderData {
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
 const extractFrete = (o: any) => parseFloat(String(o.valorFreteTransportadora || o.valorFrete || o.pedidoValorFrete || o.entrega?.frete || 0)) || 0
 
+const extractUF = (o: any): string | undefined => {
+  if (!o) return undefined
+  let val = o.estadoSigla || o.uf || o.entrega?.uf || o.entrega?.estadoSigla || o.endereco?.uf || o.endereco?.estadoSigla || o.cliente?.uf || o.cliente?.estadoSigla || o.destinatario?.uf || o.destinatario?.estadoSigla || o.estado
+  
+  if (!val) {
+    const addr = String(o.endereco || o.enderecoEntrega || o.logradouro || o.entrega?.logradouro || o.entrega?.endereco || o.entrega?.cidade || '')
+    const m = addr.match(/(?:\/|\-|\s|^)([A-Z]{2})(?:\s|\-|$|,)/i)
+    if (m) val = m[1].toUpperCase()
+  }
+
+  if (typeof val === 'string') {
+    const v = val.trim().toUpperCase()
+    if (v.length === 2) return v
+    
+    const stateNamesMap: Record<string, string> = {
+      'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPA': 'AP', 'AMAPÁ': 'AP', 'AMAZONAS': 'AM',
+      'BAHIA': 'BA', 'CEARA': 'CE', 'CEARÁ': 'CE', 'DISTRITO FEDERAL': 'DF',
+      'ESPIRITO SANTO': 'ES', 'ESPÍRITO SANTO': 'ES', 'GOIAS': 'GO', 'GOIÁS': 'GO',
+      'MARANHAO': 'MA', 'MARANHÃO': 'MA', 'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+      'MINAS GERAIS': 'MG', 'PARA': 'PA', 'PARÁ': 'PA', 'PARAIBA': 'PB', 'PARAÍBA': 'PB',
+      'PARANA': 'PR', 'PARANÁ': 'PR', 'PERNAMBUCO': 'PE', 'PIAUI': 'PI', 'PIAUÍ': 'PI',
+      'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN', 'RIO GRANDE DO SUL': 'RS',
+      'RONDONIA': 'RO', 'RONDÔNIA': 'RO', 'RORAIMA': 'RR', 'SANTA CATARINA': 'SC',
+      'SAO PAULO': 'SP', 'SÃO PAULO': 'SP', 'SERGIPE': 'SE', 'TOCANTINS': 'TO'
+    }
+    return stateNamesMap[v] || undefined
+  }
+  return undefined
+}
+
 // ─── Cache simples (5 min) para evitar chamadas duplas no mesmo carregamento ──
 const _freightCache = new Map<string, { data: FreightOrderData[]; ts: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
@@ -483,7 +513,7 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
         produtos: cachedDetail?.produtos || calcProdutos,
         fullyEnriched: cachedDetail?.fullyEnriched || false,
         canal,
-        uf: cachedDetail?.uf || o.estadoSigla || o.entrega?.uf || o.estado || undefined,
+        uf: cachedDetail?.uf || extractUF(o) || undefined,
       }
     })
 
@@ -563,7 +593,7 @@ export async function enrichOrdersWithCarriers(
           if (qtd > 0) entry.quantidade = qtd
           
           // Extrair estado
-          const stateCode = data.estadoSigla || data.entrega?.uf || data.estado || data.destinatario?.uf || order.uf
+          const stateCode = extractUF(data) || order.uf
           if (stateCode) entry.uf = stateCode
 
           // Se não tinhamos produtos ou se o detalhe tem mais garantia sobre os nomes, salvamos
