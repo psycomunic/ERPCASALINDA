@@ -849,8 +849,26 @@ function SalesAndFreightByState({ allOrders, loadingOrders }: { allOrders: any[]
       }
       if (!keep) return
 
-      const rawUf = (p.uf || '').trim().toUpperCase()
-      if (!rawUf || !STATE_NAMES[rawUf]) return
+      let rawUf = (p.uf || '').trim().toUpperCase()
+      if (!rawUf) return
+
+      const stateNamesMap: Record<string, string> = {
+        'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPA': 'AP', 'AMAPÁ': 'AP', 'AMAZONAS': 'AM',
+        'BAHIA': 'BA', 'CEARA': 'CE', 'CEARÁ': 'CE', 'DISTRITO FEDERAL': 'DF',
+        'ESPIRITO SANTO': 'ES', 'ESPÍRITO SANTO': 'ES', 'GOIAS': 'GO', 'GOIÁS': 'GO',
+        'MARANHAO': 'MA', 'MARANHÃO': 'MA', 'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+        'MINAS GERAIS': 'MG', 'PARA': 'PA', 'PARÁ': 'PA', 'PARAIBA': 'PB', 'PARAÍBA': 'PB',
+        'PARANA': 'PR', 'PARANÁ': 'PR', 'PERNAMBUCO': 'PE', 'PIAUI': 'PI', 'PIAUÍ': 'PI',
+        'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN', 'RIO GRANDE DO SUL': 'RS',
+        'RONDONIA': 'RO', 'RONDÔNIA': 'RO', 'RORAIMA': 'RR', 'SANTA CATARINA': 'SC',
+        'SAO PAULO': 'SP', 'SÃO PAULO': 'SP', 'SERGIPE': 'SE', 'TOCANTINS': 'TO'
+      };
+
+      if (rawUf.length > 2 && stateNamesMap[rawUf]) {
+        rawUf = stateNamesMap[rawUf]
+      }
+
+      if (!STATE_NAMES[rawUf]) return
 
       const cur = map.get(rawUf)!
       cur.faturamento += (p.valor || 0)

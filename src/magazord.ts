@@ -483,7 +483,7 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
         produtos: cachedDetail?.produtos || calcProdutos,
         fullyEnriched: cachedDetail?.fullyEnriched || false,
         canal,
-        uf: cachedDetail?.uf || o.estadoSigla || o.entrega?.uf || undefined,
+        uf: cachedDetail?.uf || o.estadoSigla || o.entrega?.uf || o.estado || undefined,
       }
     })
 
@@ -540,7 +540,7 @@ export async function enrichOrdersWithCarriers(
   const result = orders.map(o => ({ ...o }))
   const byCode = new Map(result.map(o => [o.codigo, o]))
 
-  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched)
+  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf)
   console.log(`[Freight] Enriquecendo ${needsDetail.length} de ${orders.length} pedidos...`)
 
   for (let i = 0; i < needsDetail.length; i += concurrency) {
@@ -563,7 +563,7 @@ export async function enrichOrdersWithCarriers(
           if (qtd > 0) entry.quantidade = qtd
           
           // Extrair estado
-          const stateCode = data.estadoSigla || data.entrega?.uf || order.uf
+          const stateCode = data.estadoSigla || data.entrega?.uf || data.estado || data.destinatario?.uf || order.uf
           if (stateCode) entry.uf = stateCode
 
           // Se não tinhamos produtos ou se o detalhe tem mais garantia sobre os nomes, salvamos
