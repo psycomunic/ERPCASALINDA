@@ -1259,7 +1259,7 @@ export default function Dashboard() {
       setLoadingOrders(false)
 
       // Fase 2: Enriquece os itens globalmente para corrigir a Qtd (volumes) no KPI também
-      const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched)
+      const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf)
       if (needsEnrich.length === 0) return
 
       setEnriching(true)

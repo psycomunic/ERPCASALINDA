@@ -593,8 +593,8 @@ export async function enrichOrdersWithCarriers(
           if (qtd > 0) entry.quantidade = qtd
           
           // Extrair estado
-          const stateCode = extractUF(data) || order.uf
-          if (stateCode) entry.uf = stateCode
+          const stateCode = extractUF(data) || order.uf || 'N/A'
+          entry.uf = stateCode
 
           // Se não tinhamos produtos ou se o detalhe tem mais garantia sobre os nomes, salvamos
           if (!entry.produtos || entry.produtos.length === 0) {
