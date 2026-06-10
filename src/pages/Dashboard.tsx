@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useLayout } from '../contexts/LayoutContext'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, AlertTriangle, Clock,
   ShoppingCart, UserPlus, Receipt, ArrowRight, Download, X,
-  Check, ChevronDown, Truck, BarChart2
+  Check, ChevronDown, Truck, BarChart2, Map, Globe, Coins, ShieldCheck
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,6 +14,7 @@ import {
 import { fetchPedidos, updatePedido } from '../services/pedidos'
 import { fetchOrdersForFreightAnalysis, fetchOrdersForKPIs, enrichOrdersWithCarriers, updateFreightCache, fetchOrderByCodigo, magazordDetailedToOrder } from '../magazord'
 import { FreightOrderData } from '../magazord'
+import BrazilMap from '../components/BrazilMap'
 
 const cashflow: any[] = []
 
@@ -783,6 +784,428 @@ function SalesByChannel({ allOrders, loadingOrders }: { allOrders: any[]; loadin
   )
 }
 
+// ── Analytics de Frete por Estado ──────────────────────────────────────────────
+
+const STATE_NAMES: Record<string, string> = {
+  AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará',
+  DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão',
+  MT: 'Mato Grosso', MS: 'Mato Grosso do Sul', MG: 'Minas Gerais', PA: 'Pará',
+  PB: 'Paraíba', PR: 'Paraná', PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro',
+  RN: 'Rio Grande do Norte', RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima',
+  SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins'
+}
+
+interface StateMetrics {
+  uf: string
+  name: string
+  faturamento: number
+  freteTotal: number
+  pedidos: number
+  freteMedio: number
+  margemComprometida: number
+  lucroLíquido: number
+}
+
+function SalesAndFreightByState({ allOrders, loadingOrders }: { allOrders: any[]; loadingOrders: boolean }) {
+  const [fperiodo, setFPeriodo] = useState<FreightPeriodo>('Este Mês')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+
+  const [metricType, setMetricType] = useState<'faturamento' | 'freteTotal' | 'freteMedio' | 'margemComprometida' | 'pedidos'>('margemComprometida')
+  const [selectedState, setSelectedState] = useState<string | null>(null)
+  const [hoveredState, setHoveredState] = useState<{ uf: string; name: string; x: number; y: number } | null>(null)
+
+  const [sortField, setSortField] = useState<'uf' | 'pedidos' | 'faturamento' | 'freteTotal' | 'freteMedio' | 'margemComprometida' | 'lucroLíquido'>('faturamento')
+  const [sortAsc, setSortAsc] = useState(false)
+
+  const stateMetrics = useMemo(() => {
+    if (loadingOrders) return {} as Record<string, StateMetrics>
+
+    const today = new Date(); today.setHours(23, 59, 59, 999)
+    const map = new Map<string, { faturamento: number; freteTotal: number; pedidos: number }>()
+
+    // Inicializa todos os estados com valores zerados para o mapa de calor
+    Object.keys(STATE_NAMES).forEach(uf => {
+      map.set(uf, { faturamento: 0, freteTotal: 0, pedidos: 0 })
+    })
+
+    allOrders.forEach(p => {
+      const d = new Date(p.data || new Date())
+      let keep = false
+      if (fperiodo === 'Hoje') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0) && d <= today
+      } else if (fperiodo === 'Este Mês') {
+        keep = d >= new Date(today.getFullYear(), today.getMonth(), 1) && d <= today
+      } else if (fperiodo === '7 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 7); keep = d >= s && d <= today
+      } else if (fperiodo === '15 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 15); keep = d >= s && d <= today
+      } else if (fperiodo === '30 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 30); keep = d >= s && d <= today
+      } else if (fperiodo === '90 Dias') {
+        const s = new Date(today); s.setDate(s.getDate() - 90); keep = d >= s && d <= today
+      } else if (fperiodo === 'Personalizado' && customStart && customEnd) {
+        keep = d >= new Date(customStart + 'T00:00:00') && d <= new Date(customEnd + 'T23:59:59')
+      }
+      if (!keep) return
+
+      const rawUf = (p.uf || '').trim().toUpperCase()
+      if (!rawUf || !STATE_NAMES[rawUf]) return
+
+      const cur = map.get(rawUf)!
+      cur.faturamento += (p.valor || 0)
+      cur.freteTotal += (p.frete || 0)
+      cur.pedidos++
+      map.set(rawUf, cur)
+    })
+
+    const result: Record<string, StateMetrics> = {}
+    map.forEach((v, uf) => {
+      const freteMedio = v.pedidos > 0 ? v.freteTotal / v.pedidos : 0
+      const margemComprometida = v.faturamento > 0 ? (v.freteTotal / v.faturamento) * 100 : 0
+      const lucroLíquido = v.faturamento - v.freteTotal
+
+      result[uf] = {
+        uf,
+        name: STATE_NAMES[uf],
+        faturamento: v.faturamento,
+        freteTotal: v.freteTotal,
+        pedidos: v.pedidos,
+        freteMedio,
+        margemComprometida,
+        lucroLíquido
+      }
+    })
+
+    return result
+  }, [allOrders, fperiodo, customStart, customEnd, loadingOrders])
+
+  const extremes = useMemo(() => {
+    const list = Object.values(stateMetrics).filter(s => s.pedidos > 0)
+    if (list.length === 0) return null
+
+    const maisCaro = [...list].sort((a, b) => b.freteMedio - a.freteMedio)[0]
+    const maisBarato = [...list].sort((a, b) => a.freteMedio - b.freteMedio)[0]
+    const maisLucro = [...list].sort((a, b) => b.lucroLíquido - a.lucroLíquido)[0]
+    const melhorMargem = [...list].sort((a, b) => a.margemComprometida - b.margemComprometida)[0]
+
+    return { maisCaro, maisBarato, maisLucro, melhorMargem }
+  }, [stateMetrics])
+
+  const sortedStateList = useMemo(() => {
+    const list = Object.values(stateMetrics)
+    return list.sort((a, b) => {
+      let valA: any = a[sortField]
+      let valB: any = b[sortField]
+
+      if (typeof valA === 'string') {
+        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      }
+
+      return sortAsc ? valA - valB : valB - valA
+    })
+  }, [stateMetrics, sortField, sortAsc])
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc)
+    } else {
+      setSortField(field)
+      setSortAsc(false)
+    }
+  }
+
+  const handleHoverState = (uf: string | null, name: string | null, event: React.MouseEvent | null) => {
+    if (!uf || !name || !event) {
+      setHoveredState(null)
+      return
+    }
+    setHoveredState({
+      uf,
+      name,
+      x: event.clientX,
+      y: event.clientY
+    })
+  }
+
+  const periodLabel = fperiodo === 'Personalizado' && customStart && customEnd
+    ? `${customStart.split('-').reverse().join('/')} → ${customEnd.split('-').reverse().join('/')}`
+    : fperiodo
+
+  return (
+    <div className="card p-5 mt-5">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-gray-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
+            <Map size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-800 text-lg">Distribuição Geográfica e Fretes</h2>
+            <p className="text-xs text-gray-400">Análise de vendas, custos de entrega e lucros por estado — <span className="font-semibold text-blue-500">{periodLabel}</span></p>
+          </div>
+        </div>
+      </div>
+
+      {/* Filtro de Período */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-1">Período:</span>
+        {FREIGHT_PERIODOS.map(p => (
+          <button
+            key={p}
+            onClick={() => setFPeriodo(p)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+              fperiodo === p
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+            }`}
+          >
+            {p === '7 Dias' ? 'Últimos 7 Dias' : p === '15 Dias' ? 'Últimos 15 Dias' : p === '30 Dias' ? 'Últimos 30 Dias' : p === '90 Dias' ? 'Últimos 90 Dias' : p}
+          </button>
+        ))}
+      </div>
+
+      {fperiodo === 'Personalizado' && (
+        <div className="flex flex-wrap items-center gap-3 mb-5 p-3 bg-blue-50 rounded-xl border border-blue-100">
+          <span className="text-xs font-bold text-blue-600">De:</span>
+          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+            className="text-xs border border-blue-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          <span className="text-xs font-bold text-blue-600">Até:</span>
+          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+            className="text-xs border border-blue-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        </div>
+      )}
+
+      {loadingOrders ? (
+        <div className="flex items-center justify-center py-12 gap-3 text-gray-400 text-sm">
+          <div className="w-5 h-5 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin" />
+          Mapeando faturamento por estado...
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* KPI Extremes Block */}
+          {extremes && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-50 border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Frete Médio Mais Caro</p>
+                  <p className="text-lg font-black text-slate-800 tracking-tight mt-1">
+                    {extremes.maisCaro.uf} — {fmt(extremes.maisCaro.freteMedio)}
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{extremes.maisCaro.pedidos} pedidos no período</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <TrendingUp size={16} />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Frete Médio Mais Barato</p>
+                  <p className="text-lg font-black text-emerald-600 tracking-tight mt-1">
+                    {extremes.maisBarato.uf} — {fmt(extremes.maisBarato.freteMedio)}
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{extremes.maisBarato.pedidos} pedidos no período</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                  <TrendingDown size={16} />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Líder de Lucro Líquido</p>
+                  <p className="text-lg font-black text-blue-600 tracking-tight mt-1">
+                    {extremes.maisLucro.uf} — {fmt(extremes.maisLucro.lucroLíquido)}
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Faturamento: {fmt(extremes.maisLucro.faturamento)}</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                  <Coins size={16} />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Melhor Retenção de Margem</p>
+                  <p className="text-lg font-black text-indigo-600 tracking-tight mt-1">
+                    {extremes.melhorMargem.uf} — {extremes.melhorMargem.margemComprometida.toFixed(1)}%
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Frete compromete menos margem</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                  <ShieldCheck size={16} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Main map + table area */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Heatmap Visualizer */}
+            <div className="lg:col-span-5 flex flex-col items-center border border-gray-100 rounded-xl p-5 bg-white shadow-sm">
+              <div className="w-full flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-gray-700">Visualizar no Mapa:</span>
+                <div className="relative">
+                  <select
+                    value={metricType}
+                    onChange={(e) => setMetricType(e.target.value as any)}
+                    className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 cursor-pointer"
+                  >
+                    <option value="margemComprometida">Comprometimento de Margem (%)</option>
+                    <option value="freteMedio">Frete Médio (R$)</option>
+                    <option value="faturamento">Faturamento (R$)</option>
+                    <option value="freteTotal">Frete Total Gasto (R$)</option>
+                    <option value="pedidos">Número de Pedidos</option>
+                  </select>
+                </div>
+              </div>
+
+              <BrazilMap
+                stateMetrics={stateMetrics}
+                metricType={metricType}
+                selectedState={selectedState}
+                onSelectState={(uf) => setSelectedState(uf)}
+                onHoverState={handleHoverState}
+              />
+
+              <div className="w-full text-center mt-3 text-[10px] text-gray-400 font-medium">
+                {selectedState ? (
+                  <span>Filtrado por: <strong className="text-blue-600">{STATE_NAMES[selectedState]} ({selectedState})</strong>. Clique novamente para limpar.</span>
+                ) : (
+                  <span>Passe o mouse para detalhes. Clique em um estado para filtrar a tabela.</span>
+                )}
+              </div>
+            </div>
+
+            {/* Metrics Table */}
+            <div className="lg:col-span-7 flex flex-col h-full">
+              <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm bg-white">
+                <div className="max-h-[385px] overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-gray-50 sticky top-0 z-10 border-b border-gray-100">
+                      <tr>
+                        <th
+                          onClick={() => handleSort('uf')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap"
+                        >
+                          Estado {sortField === 'uf' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('pedidos')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none text-right whitespace-nowrap"
+                        >
+                          Pedidos {sortField === 'pedidos' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('faturamento')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none text-right whitespace-nowrap"
+                        >
+                          Faturamento {sortField === 'faturamento' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('freteTotal')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none text-right whitespace-nowrap"
+                        >
+                          Frete Total {sortField === 'freteTotal' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('freteMedio')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none text-right whitespace-nowrap"
+                        >
+                          Frete Médio {sortField === 'freteMedio' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('margemComprometida')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none text-right whitespace-nowrap"
+                        >
+                          Margem % {sortField === 'margemComprometida' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                        <th
+                          onClick={() => handleSort('lucroLíquido')}
+                          className="px-3 py-3 font-bold text-gray-500 uppercase tracking-widest text-[9px] cursor-pointer hover:bg-gray-100 select-none text-right whitespace-nowrap"
+                        >
+                          Fat. Líquido {sortField === 'lucroLíquido' && (sortAsc ? '▲' : '▼')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {sortedStateList
+                        .filter(s => !selectedState || s.uf === selectedState)
+                        .map((s, idx) => {
+                          const isRowSelected = selectedState === s.uf
+                          return (
+                            <tr
+                              key={s.uf}
+                              onClick={() => setSelectedState(selectedState === s.uf ? null : s.uf)}
+                              className={`cursor-pointer transition-colors ${
+                                isRowSelected
+                                  ? 'bg-blue-50/70 hover:bg-blue-50'
+                                  : s.pedidos === 0
+                                  ? 'text-gray-300 bg-white/20'
+                                  : idx % 2 === 0
+                                  ? 'bg-white hover:bg-slate-50'
+                                  : 'bg-slate-50/30 hover:bg-slate-50'
+                              }`}
+                            >
+                              <td className="px-3 py-2.5 font-bold text-gray-700 flex items-center gap-1.5 whitespace-nowrap">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.pedidos === 0 ? 'bg-gray-200' : 'bg-blue-500'}`} />
+                                <span className="font-mono">{s.uf}</span>
+                                <span className="text-[10px] text-gray-400 font-medium truncate max-w-[90px]">{s.name}</span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-semibold text-gray-600">{s.pedidos}</td>
+                              <td className="px-3 py-2.5 text-right font-mono text-gray-600">{s.pedidos > 0 ? fmt(s.faturamento) : '—'}</td>
+                              <td className="px-3 py-2.5 text-right font-mono text-gray-600">{s.pedidos > 0 ? fmt(s.freteTotal) : '—'}</td>
+                              <td className="px-3 py-2.5 text-right font-mono text-gray-600">{s.pedidos > 0 ? fmt(s.freteMedio) : '—'}</td>
+                              <td className={`px-3 py-2.5 text-right font-extrabold ${s.pedidos === 0 ? 'text-gray-300' : s.margemComprometida > 15 ? 'text-red-500' : s.margemComprometida > 10 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                {s.pedidos > 0 ? `${s.margemComprometida.toFixed(1)}%` : '—'}
+                              </td>
+                              <td className={`px-3 py-2.5 text-right font-mono font-black ${s.pedidos === 0 ? 'text-gray-300' : s.lucroLíquido < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                {s.pedidos > 0 ? fmt(s.lucroLíquido) : '—'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating map tooltip */}
+      {hoveredState && stateMetrics[hoveredState.uf] && (
+        <div
+          className="fixed z-50 bg-slate-900/95 text-white p-3.5 rounded-xl shadow-2xl border border-slate-700/60 backdrop-blur-md pointer-events-none text-xs space-y-1.5 min-w-[210px]"
+          style={{
+            left: hoveredState.x + 15,
+            top: hoveredState.y + 15,
+          }}
+        >
+          <div className="flex items-center justify-between border-b border-slate-700/50 pb-1.5 mb-1.5">
+            <span className="font-black text-sm">{hoveredState.name} ({hoveredState.uf})</span>
+            <span className="bg-blue-500/20 text-blue-300 font-bold px-1.5 py-0.5 rounded text-[9px]">Métricas</span>
+          </div>
+          {stateMetrics[hoveredState.uf].pedidos > 0 ? (
+            <div className="space-y-1 font-medium text-slate-300">
+              <div className="flex justify-between"><span>Pedidos:</span><strong className="text-white">{stateMetrics[hoveredState.uf].pedidos}</strong></div>
+              <div className="flex justify-between"><span>Faturamento:</span><strong className="text-white">{fmt(stateMetrics[hoveredState.uf].faturamento)}</strong></div>
+              <div className="flex justify-between"><span>Frete Total:</span><strong className="text-white">{fmt(stateMetrics[hoveredState.uf].freteTotal)}</strong></div>
+              <div className="flex justify-between"><span>Frete Médio:</span><strong className="text-white">{fmt(stateMetrics[hoveredState.uf].freteMedio)}</strong></div>
+              <div className="flex justify-between"><span>Margem de Frete:</span><strong className={`font-black ${stateMetrics[hoveredState.uf].margemComprometida > 15 ? 'text-red-400' : 'text-emerald-400'}`}>{stateMetrics[hoveredState.uf].margemComprometida.toFixed(1)}%</strong></div>
+              <div className="flex justify-between border-t border-slate-700/50 pt-1 mt-1 text-[11px]"><span>Fat. Líquido:</span><strong className="text-blue-300">{fmt(stateMetrics[hoveredState.uf].lucroLíquido)}</strong></div>
+            </div>
+          ) : (
+            <p className="text-slate-400 italic py-1 text-center">Nenhum pedido no período</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { activeTab } = useLayout()
   const navigate = useNavigate()
@@ -1121,6 +1544,9 @@ export default function Dashboard() {
 
       {/* Sales by channel (Site, Mercado Livre, Magazine Luiza, etc.) */}
       <SalesByChannel allOrders={allOrders} loadingOrders={loadingOrders} />
+
+      {/* Sales and freight analytics by Brazilian State (Heatmap map + Table) */}
+      <SalesAndFreightByState allOrders={allOrders} loadingOrders={loadingOrders} />
 
       {/* Freight analytics by carrier */}
       <FreightByCarrier allOrders={allOrders} loadingOrders={loadingOrders} enriching={enriching} enrichProgress={enrichProgress} />

@@ -394,6 +394,7 @@ export interface FreightOrderData {
   produtos?: {nome: string, qtd: number}[] // ARRAY de nomes de produtos (para extração de Analytics)
   fullyEnriched?: boolean // Marca se já passamos pela Fase 2 para extrair produtos precisos
   canal?: string  // Canal de venda: "Site", "Mercado Livre", "Magazine Luiza", etc.
+  uf?: string // Sigla do estado (ex.: "SP", "RJ")
 }
 
 const extractTransportadora = (o: any) => (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim()
@@ -482,6 +483,7 @@ export async function fetchOrdersForKPIs(dias = 90): Promise<FreightOrderData[]>
         produtos: cachedDetail?.produtos || calcProdutos,
         fullyEnriched: cachedDetail?.fullyEnriched || false,
         canal,
+        uf: cachedDetail?.uf || o.estadoSigla || o.entrega?.uf || undefined,
       }
     })
 
@@ -510,6 +512,7 @@ export async function fetchOrdersForFreightAnalysis(dias = 90): Promise<FreightO
       frete: o.entrega?.frete || 0,
       valor: o.valor_total || 0,
       data: o.data_pedido || new Date().toISOString(),
+      uf: o.entrega?.uf,
     }))
   }
 
@@ -559,6 +562,10 @@ export async function enrichOrdersWithCarriers(
           const qtd = itemsArr.reduce((sum: number, it: any) => sum + (Number(it.quantidade) || 1), 0)
           if (qtd > 0) entry.quantidade = qtd
           
+          // Extrair estado
+          const stateCode = data.estadoSigla || data.entrega?.uf || order.uf
+          if (stateCode) entry.uf = stateCode
+
           // Se não tinhamos produtos ou se o detalhe tem mais garantia sobre os nomes, salvamos
           if (!entry.produtos || entry.produtos.length === 0) {
             entry.produtos = itemsArr.map((i: any) => {
@@ -578,7 +585,8 @@ export async function enrichOrdersWithCarriers(
             frete: entry.frete, 
             quantidade: entry.quantidade, 
             produtos: entry.produtos,
-            fullyEnriched: true
+            fullyEnriched: true,
+            uf: entry.uf,
           }
         }
       } catch { /* ignora */ }
@@ -631,6 +639,7 @@ async function _fetchAllOrdersPhase1(dias: number): Promise<FreightOrderData[]> 
     quantidade: 1, // Phase 1 assume 1 volume, Phase 2 vai corrigir com o número real
     produtos: (o.itens || o.arrayPedidoItem || o.pedidoItem || []).map((i: any) => i.nome || i.produtoNome || '').filter(Boolean),
     canal: o.canal || o.canalNome || o.lojaIntegracaoNome || o.canalVenda || 'Site',
+    uf: o.estadoSigla || o.entrega?.uf || undefined,
   }))
 }
 
