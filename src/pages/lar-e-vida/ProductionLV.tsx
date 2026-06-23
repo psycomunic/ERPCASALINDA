@@ -20,6 +20,8 @@ import {
   fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
 } from '../../services/pedidosLV'
 import type { HistoricoEntry } from '../../services/pedidosLV'
+import { fetchFornecedorEstoque, compareEstoque } from '../../services/fornecedorLV'
+import type { TapeteFornecedor, FornecedorDiff } from '../../services/fornecedorLV'
 import {
   fetchPendingOrdersLV, isMagazordLVConfigured, lvSituacaoToKanbanCol,
 } from '../../magazordLV'
@@ -1792,11 +1794,12 @@ function newTapeteItem(): TapeteItem {
 
 function TapeteItemCard({
   item, index, total,
-  onUpdate, onRemove,
+  onUpdate, onRemove, estoqueFornecedor,
 }: {
   item: TapeteItem; index: number; total: number
   onUpdate: (uid: string, patch: Partial<TapeteItem>) => void
   onRemove: (uid: string) => void
+  estoqueFornecedor: TapeteFornecedor[]
 }) {
   const set = (k: keyof TapeteItem, v: any) => onUpdate(item.uid, { [k]: v })
   const subtotal = item.valor && parseFloat(item.valor) > 0
@@ -2565,9 +2568,10 @@ function CamaSkuRowEditor({
 
 // ─── Tapete Order Modal ───────────────────────────────────────────────────────
 
-function TapeteOrderModal({ onClose, onSave }: {
+function TapeteOrderModal({ onClose, onSave, estoqueFornecedor }: {
   onClose: () => void
   onSave: (o: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>) => Promise<boolean>
+  estoqueFornecedor: TapeteFornecedor[]
 }) {
   // ── Estado: listas de itens no pedido ──
   const [tapetes, setTapetes] = useState<TapeteItem[]>([newTapeteItem()])
@@ -2753,6 +2757,7 @@ function TapeteOrderModal({ onClose, onSave }: {
                     total={tapetes.length}
                     onUpdate={updateItem}
                     onRemove={removeItem}
+                    estoqueFornecedor={estoqueFornecedor}
                   />
                 ))}
               </div>
@@ -3097,6 +3102,10 @@ export default function ProductionLV() {
   const [filter, setFilter]             = useState<'todos' | 'atrasado' | 'pendente'>('todos')
   const [view, setView]                 = useState<ViewMode>('kanban')
   const [estoqueFilter, setEstoqueFilter] = useState<string>('Todos')
+  const [tapeteLinha, setTapeteLinha]   = useState<'Todas' | 'Rios' | 'Lagos'>('Todas')
+  const [tapeteTamanho, setTapeteTamanho] = useState<string>('Todos')
+  const [estoqueFornecedor, setEstoqueFornecedor] = useState<TapeteFornecedor[]>([])
+  const [fornecedorDiff, setFornecedorDiff] = useState<FornecedorDiff | null>(null)
   const [loading, setLoading]           = useState(false)
   const nextId = useRef(1)
 
@@ -3259,10 +3268,24 @@ export default function ProductionLV() {
 
   useEffect(() => {
     loadOrders()
+    
+    // Sincroniza Estoque do Fornecedor em segundo plano
+    fetchFornecedorEstoque().then(data => {
+      setEstoqueFornecedor(data)
+      const cachedStr = localStorage.getItem('fornecedor_estoque_lv')
+      const cached = cachedStr ? JSON.parse(cachedStr) : []
+      const diff = compareEstoque(cached, data)
+      
+      if (diff.novosDisponiveis.length > 0 || diff.novosIndisponiveis.length > 0 || diff.novosPrevisao.length > 0) {
+        setFornecedorDiff(diff)
+      } else if (cached.length === 0 && data.length > 0) {
+        localStorage.setItem('fornecedor_estoque_lv', JSON.stringify(data))
+      }
+    })
 
     const sub = subscribePedidosLV(processFetchedRowsLV as any)
     return () => sub.unsubscribe()
-  }, [processFetchedRowsLV])
+  }, [processFetchedRowsLV, loadOrders])
 
   // ── Magazord LV sync ────────────────────────────────────────────────────────
   const [mzLVStatus, setMzLVStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
@@ -3295,6 +3318,27 @@ export default function ProductionLV() {
           if (!ALL_STAGES.includes(targetCol)) return
 
           const firstItem = mz.itens?.[0]
+          
+          // ─── Lógica para Prazo de Entrega ───
+          const rawPrazo = (mz.entrega as any)?.data_limite_entrega || mz.entrega?.prazo_entrega || (mz as any).data_previsao_entrega
+          let prazoFormatted: string | undefined = undefined
+          if (rawPrazo) {
+            const matchDate = rawPrazo.match(/^(\d{4})-(\d{2})-(\d{2})/)
+            if (matchDate) {
+              prazoFormatted = `${matchDate[3]}/${matchDate[2]}/${matchDate[1]}`
+            } else {
+              prazoFormatted = new Date(rawPrazo).toLocaleDateString('pt-BR')
+            }
+          }
+
+          // ─── Lógica para Cor/Desenho do Tapete ───
+          const itemSku = firstItem?.sku || ''
+          let corFormatted: string | undefined = undefined
+          const matchDS = itemSku.match(/([A-Z]+)-DS([\d-]+)/i)
+          if (matchDS) {
+            corFormatted = `${matchDS[1]} DESENHO ${matchDS[2]}`.toUpperCase()
+          }
+
           const now = new Date()
           const order: LVOrder = {
             id: `mzlv-${mz.id}`,
@@ -3303,22 +3347,21 @@ export default function ProductionLV() {
             clienteTelefone: mz.cliente?.telefone,
             produto: firstItem?.nome ?? 'Produto Magazord',
             sku: mzKey,
+            cor: corFormatted,
             canal: mz.canal ?? 'Magazord',
             categoria: 'Tapete',
             quantidade: firstItem?.quantidade ?? 1,
             valor: mz.valor_total,
             frete: mz.entrega?.frete,
             transportadora: mz.entrega?.transportadora,
-            prazoEntrega: mz.entrega?.prazo_entrega
-              ? new Date(mz.entrega.prazo_entrega).toLocaleDateString('pt-BR')
-              : undefined,
+            prazoEntrega: prazoFormatted,
             endereco: mz.entrega
               ? `${mz.entrega.logradouro}, ${mz.entrega.numero} — ${mz.entrega.bairro}, ${mz.entrega.cidade}/${mz.entrega.uf}`
               : undefined,
             obs: mz.observacao,
             data: new Date(mz.data_pedido).toLocaleDateString('pt-BR'),
             hora: new Date(mz.data_pedido).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            status: calcStatus(mz.entrega?.prazo_entrega),
+            status: calcStatus(prazoFormatted),
             tipoPedido: 'crossdocking',
           }
 
@@ -3952,7 +3995,7 @@ export default function ProductionLV() {
       {view === 'estoque' && (
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Ações Estoque */}
-          <div className="flex items-center justify-between px-4 pt-3">
+          <div className="flex items-center justify-between px-4 pt-3 pb-1">
             <div className="flex gap-2">
               {['Todos', 'Tapete', 'Cama', 'Cortina', 'Almofada', 'Quadro'].map(f => (
                 <button key={f} onClick={() => setEstoqueFilter(f)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${estoqueFilter === f ? 'bg-cyan-600 text-white border-cyan-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
@@ -3964,6 +4007,28 @@ export default function ProductionLV() {
               <Printer size={14} /> Imprimir Relatório
             </button>
           </div>
+          
+          {estoqueFilter === 'Tapete' && (
+            <div className="flex flex-col gap-2 px-4 pb-2 border-b border-gray-100 bg-white">
+              <div className="flex gap-2 items-center">
+                <span className="text-[10px] font-bold text-gray-500 uppercase w-14">Linha:</span>
+                {['Todas', 'Rios', 'Lagos'].map(l => (
+                  <button key={l} onClick={() => setTapeteLinha(l as any)} className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${tapeteLinha === l ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="text-[10px] font-bold text-gray-500 uppercase w-14">Tamanho:</span>
+                {['Todos', '1,00 x 1,50', '1,40 x 2,00', '2,00 x 2,50', '2,40 x 3,00', '2,50 x 3,50', '3,00 x 4,00', '3,00 x 5,00', '3,50 x 4,50', 'Outro'].map(t => (
+                  <button key={t} onClick={() => setTapeteTamanho(t)} className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${tapeteTamanho === t ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Summary bar */}
           <div className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2">
             {[
@@ -3981,7 +4046,31 @@ export default function ProductionLV() {
           {/* Kanban estoque */}
           <div className="flex gap-4 overflow-x-auto flex-1 px-4 pb-4">
             {(ESTOQUE_FLOW as Stage[]).map(stage => {
-              const orders = board[stage].filter(o => o.tipoPedido === 'estoque' && (estoqueFilter === 'Todos' || o.categoria === estoqueFilter || (estoqueFilter === 'Tapete' && o.produto.toLowerCase().includes('tapete')) || (estoqueFilter === 'Cama' && (o.produto.toLowerCase().includes('cama') || o.produto.toLowerCase().includes('edredom')))))
+              const orders = board[stage].filter(o => {
+                if (o.tipoPedido !== 'estoque') return false;
+                if (estoqueFilter === 'Todos') return true;
+                
+                if (estoqueFilter === 'Tapete') {
+                  const isTapete = o.produto.toLowerCase().includes('tapete') || o.categoria === 'Tapete';
+                  if (!isTapete) return false;
+                  
+                  if (tapeteLinha === 'Rios' && !colecoesDaLinha('RIOS').some(c => o.produto.toUpperCase().includes(c.toUpperCase()))) return false;
+                  if (tapeteLinha === 'Lagos' && !colecoesDaLinha('LAGOS').some(c => o.produto.toUpperCase().includes(c.toUpperCase()))) return false;
+                  
+                  if (tapeteTamanho !== 'Todos') {
+                    if (tapeteTamanho === 'Outro') {
+                      const known = ['1,00 x 1,50', '1,40 x 2,00', '2,00 x 2,50', '2,40 x 3,00', '2,50 x 3,50', '3,00 x 4,00', '3,00 x 5,00', '3,50 x 4,50'];
+                      if (known.includes(o.tamanho || '')) return false;
+                    } else {
+                      if (o.tamanho !== tapeteTamanho) return false;
+                    }
+                  }
+                  return true;
+                }
+                
+                if (estoqueFilter === 'Cama') return o.produto.toLowerCase().includes('cama') || o.produto.toLowerCase().includes('edredom') || o.categoria === 'Cama';
+                return o.categoria === estoqueFilter || o.produto.toLowerCase().includes(estoqueFilter.toLowerCase());
+              })
               const isEstoqueOnly = stage === 'Em Prateleira' || stage === 'Disponível no Site'
               return (
                 <div key={stage} className={`flex-shrink-0 w-72 rounded-xl flex flex-col ${STAGE_BG[stage] ?? 'bg-gray-100 border border-gray-200'}`}>
@@ -4053,8 +4142,69 @@ export default function ProductionLV() {
       </button>
 
       <AnimatePresence>
+        {fornecedorDiff && (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+              <div className="bg-indigo-600 px-6 py-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <span className="text-xl">⚠️</span>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-lg">Atenção: Estoque Atualizado</h3>
+                  <p className="text-indigo-100 text-sm">O fornecedor alterou a planilha de tapetes.</p>
+                </div>
+              </div>
+              <div className="p-6 max-h-[60vh] overflow-y-auto space-y-6">
+                {fornecedorDiff.novosIndisponiveis.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-red-600 flex items-center gap-2 mb-3"><span className="w-2 h-2 rounded-full bg-red-500"/> Saíram de Linha / Indisponíveis:</h4>
+                    <ul className="space-y-1">
+                      {fornecedorDiff.novosIndisponiveis.map(t => (
+                        <li key={t.colecao+t.desenho+t.tamanho} className="text-sm bg-red-50 text-red-800 px-3 py-1.5 rounded-lg border border-red-100">
+                          <strong>{t.colecao}</strong> (Des {t.desenho}) - {t.tamanho}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {fornecedorDiff.novosPrevisao.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-yellow-600 flex items-center gap-2 mb-3"><span className="w-2 h-2 rounded-full bg-yellow-500"/> Entraram em Previsão:</h4>
+                    <ul className="space-y-1">
+                      {fornecedorDiff.novosPrevisao.map(t => (
+                        <li key={t.colecao+t.desenho+t.tamanho} className="text-sm bg-yellow-50 text-yellow-800 px-3 py-1.5 rounded-lg border border-yellow-100">
+                          <strong>{t.colecao}</strong> (Des {t.desenho}) - {t.tamanho}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {fornecedorDiff.novosDisponiveis.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-green-600 flex items-center gap-2 mb-3"><span className="w-2 h-2 rounded-full bg-green-500"/> Voltaram para Estoque:</h4>
+                    <ul className="space-y-1">
+                      {fornecedorDiff.novosDisponiveis.map(t => (
+                        <li key={t.colecao+t.desenho+t.tamanho} className="text-sm bg-green-50 text-green-800 px-3 py-1.5 rounded-lg border border-green-100">
+                          <strong>{t.colecao}</strong> (Des {t.desenho}) - {t.tamanho}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button onClick={() => {
+                  localStorage.setItem('fornecedor_estoque_lv', JSON.stringify(estoqueFornecedor))
+                  setFornecedorDiff(null)
+                }} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors">
+                  Ciente, fechar aviso
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
         {newModal && <NewOrderModal onClose={() => setNewModal(false)} onSave={handleNewOrder} />}
-        {tapeteModal && <TapeteOrderModal onClose={() => setTapeteModal(false)} onSave={handleNewOrder} />}
+        {tapeteModal && <TapeteOrderModal onClose={() => setTapeteModal(false)} onSave={handleNewOrder} estoqueFornecedor={estoqueFornecedor} />}
         {detail && (
           <DetailModal
             order={detail.order} stage={detail.stage}
