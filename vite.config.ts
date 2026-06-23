@@ -86,9 +86,7 @@ export default defineConfig(({ mode }) => {
               proxyReq.setHeader('Accept', 'application/json')
               proxyReq.setHeader('Content-Type', 'application/json')
             })
-            proxy.on('proxyRes', (proxyRes) => {
-              delete proxyRes.headers['www-authenticate']
-            })
+            // Removido o bloqueio do www-authenticate para permitir teste manual
           },
         },
       },
