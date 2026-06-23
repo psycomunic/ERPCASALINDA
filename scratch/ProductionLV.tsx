@@ -3096,95 +3096,10 @@ export default function ProductionLV() {
   const [toast, setToast]               = useState<string | null>(null)
   const [filter, setFilter]             = useState<'todos' | 'atrasado' | 'pendente'>('todos')
   const [view, setView]                 = useState<ViewMode>('kanban')
-  const [estoqueFilter, setEstoqueFilter] = useState<string>('Todos')
   const [loading, setLoading]           = useState(false)
   const nextId = useRef(1)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
-
-  const handlePrintEstoque = () => {
-    const printWindow = window.open('', '', 'width=800,height=600');
-    if (!printWindow) return;
-    let html = '<html><head><title>Relatório de Estoque</title><style>body { font-family: sans-serif; padding: 20px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; } h2 { color: #333; margin-top: 30px; }</style></head><body>';
-    html += '<h1>Relatório de Estoque (Lar e Vida)</h1>';
-    html += '<p>Data: ' + new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR') + '</p>';
-    
-    const prateleira = board['Em Prateleira'];
-    const transito = [...board['Pedido ao Fornecedor'], ...board['Aguardando Chegada'], ...board['Novos Pedidos'].filter(o => o.tipoPedido === 'estoque')];
-    
-    html += '<h2>Em Prateleira (' + prateleira.length + ')</h2>';
-    if(prateleira.length === 0) html += '<p>Nenhum item em prateleira.</p>';
-    else {
-      html += '<table><tr><th>Produto</th><th>Categoria</th><th>Tamanho</th></tr>';
-      prateleira.forEach(o => html += '<tr><td>' + o.produto + '</td><td>' + (o.categoria || '-') + '</td><td>' + (o.tamanho || '-') + '</td></tr>');
-      html += '</table>';
-    }
-
-    html += '<h2>Em Trânsito (' + transito.length + ')</h2>';
-    if(transito.length === 0) html += '<p>Nenhum item em trânsito.</p>';
-    else {
-      html += '<table><tr><th>Produto</th><th>Categoria</th><th>Tamanho</th><th>Etapa</th></tr>';
-      transito.forEach(o => {
-        let etapa = 'Novos Pedidos';
-        if (board['Pedido ao Fornecedor'].some(x => x.id === o.id)) etapa = 'Pedido ao Fornecedor';
-        if (board['Aguardando Chegada'].some(x => x.id === o.id)) etapa = 'Aguardando Chegada';
-        html += '<tr><td>' + o.produto + '</td><td>' + (o.categoria || '-') + '</td><td>' + (o.tamanho || '-') + '</td><td>' + etapa + '</td></tr>'
-      });
-      html += '</table>';
-    }
-    
-    html += '<h2>Sugestões de Reposição</h2><p>As sugestões são baseadas na análise entre estoque real e histórico de vendas recentes.</p>';
-
-    html += '</body></html>';
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
-  }
-
-  const handleAutoProcess = async () => {
-    if(!window.confirm('Iniciar processamento automático? Isso irá cruzar Novos Pedidos de clientes com o que está Em Prateleira.')) return;
-    
-    const nextBoard = { ...board }
-    Object.keys(nextBoard).forEach(k => nextBoard[k as Stage] = [...board[k as Stage]])
-    
-    let processados = 0;
-    let semEstoque = 0;
-    
-    const novosClientes = [...nextBoard['Novos Pedidos']].filter(o => o.tipoPedido !== 'estoque')
-    
-    for (const pedido of novosClientes) {
-      const pNome = pedido.produto.toLowerCase()
-      const pTam = pedido.tamanho || ''
-      const matchIndex = nextBoard['Em Prateleira'].findIndex(o => {
-          const mNome = o.produto.toLowerCase();
-          const matchesName = mNome.includes(pNome) || pNome.includes(mNome);
-          const matchesTam = pTam ? o.tamanho === pTam : true;
-          return matchesName && matchesTam;
-      })
-      
-      if (matchIndex >= 0) {
-        const matchedItem = nextBoard['Em Prateleira'].splice(matchIndex, 1)[0]
-        nextBoard['Novos Pedidos'] = nextBoard['Novos Pedidos'].filter(o => o.id !== pedido.id)
-        nextBoard['Embalagem'] = [{...pedido, status: 'OK' as const, obs: (pedido.obs || '') + '\\n[AUTO] Estoque baixado: ' + matchedItem.id}, ...nextBoard['Embalagem']]
-        
-        if (matchedItem.id && !matchedItem.id.startsWith('mzlv-')) await deletePedidoLV(matchedItem.id)
-        if (pedido.id && !pedido.id.startsWith('mzlv-')) await movePedidoLVEtapa(pedido.id, 'Embalagem')
-        
-        processados++
-      } else {
-        nextBoard['Novos Pedidos'] = nextBoard['Novos Pedidos'].filter(o => o.id !== pedido.id)
-        nextBoard['Pedido ao Fornecedor'] = [{...pedido, status: 'Pendente' as const, obs: (pedido.obs || '') + '\\n[AUTO] Falta Estoque, enviado ao Fornecedor'}, ...nextBoard['Pedido ao Fornecedor']]
-        
-        if (pedido.id && !pedido.id.startsWith('mzlv-')) await movePedidoLVEtapa(pedido.id, 'Pedido ao Fornecedor')
-        
-        semEstoque++
-      }
-    }
-    
-    setBoard(nextBoard)
-    showToast(`✅ ${processados} pedidos tiveram baixa automática no estoque! ${semEstoque} sem estoque foram para fornecedor.`)
-  }
 
   const loadOrders = useCallback(() => {
     setLoading(true)
@@ -3637,9 +3552,6 @@ export default function ProductionLV() {
             </button>
           )}
 
-          <button onClick={handleAutoProcess} className="hidden md:inline-flex btn-primary shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #4c1d95)' }}>
-            <RefreshCw size={15} /> Processar Fila
-          </button>
           <button onClick={() => setNewModal(true)} className="hidden md:inline-flex btn-primary shrink-0" style={{ background: 'linear-gradient(135deg, #b45309, #d97706)' }}>
             <Plus size={15} /> Novo Pedido
           </button>
@@ -3951,19 +3863,6 @@ export default function ProductionLV() {
       {/* ── ESTOQUE VIEW ── */}
       {view === 'estoque' && (
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Ações Estoque */}
-          <div className="flex items-center justify-between px-4 pt-3">
-            <div className="flex gap-2">
-              {['Todos', 'Tapete', 'Cama', 'Cortina', 'Almofada', 'Quadro'].map(f => (
-                <button key={f} onClick={() => setEstoqueFilter(f)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${estoqueFilter === f ? 'bg-cyan-600 text-white border-cyan-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-                  {f}
-                </button>
-              ))}
-            </div>
-            <button onClick={handlePrintEstoque} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-white text-xs font-semibold hover:bg-gray-900 transition-colors">
-              <Printer size={14} /> Imprimir Relatório
-            </button>
-          </div>
           {/* Summary bar */}
           <div className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2">
             {[
@@ -3981,7 +3880,7 @@ export default function ProductionLV() {
           {/* Kanban estoque */}
           <div className="flex gap-4 overflow-x-auto flex-1 px-4 pb-4">
             {(ESTOQUE_FLOW as Stage[]).map(stage => {
-              const orders = board[stage].filter(o => o.tipoPedido === 'estoque' && (estoqueFilter === 'Todos' || o.categoria === estoqueFilter || (estoqueFilter === 'Tapete' && o.produto.toLowerCase().includes('tapete')) || (estoqueFilter === 'Cama' && (o.produto.toLowerCase().includes('cama') || o.produto.toLowerCase().includes('edredom')))))
+              const orders = board[stage].filter(o => o.tipoPedido === 'estoque')
               const isEstoqueOnly = stage === 'Em Prateleira' || stage === 'Disponível no Site'
               return (
                 <div key={stage} className={`flex-shrink-0 w-72 rounded-xl flex flex-col ${STAGE_BG[stage] ?? 'bg-gray-100 border border-gray-200'}`}>
