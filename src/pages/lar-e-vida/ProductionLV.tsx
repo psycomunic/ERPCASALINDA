@@ -3347,7 +3347,7 @@ export default function ProductionLV() {
             clienteTelefone: mz.cliente?.telefone,
             produto: firstItem?.nome ?? 'Produto Magazord',
             sku: mzKey,
-            cor: corFormatted,
+            desenho: corFormatted,
             canal: mz.canal ?? 'Magazord',
             categoria: 'Tapete',
             quantidade: firstItem?.quantidade ?? 1,
