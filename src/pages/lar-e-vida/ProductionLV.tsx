@@ -1731,7 +1731,7 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">🚚 Entrega ao Cliente</p>
             <input className="input mb-2" placeholder="Endereço de entrega" value={form.endereco} onChange={e => set('endereco', e.target.value)} />
-            <input className="input" placeholder="Prazo de entrega ao cliente (dd/mm/aaaa)" value={form.prazoEntrega} onChange={e => set('prazoEntrega', e.target.value)} />
+            <input className="input" placeholder="Prazo de entrega ao cliente (dd/mm/aaaa) *" value={form.prazoEntrega} onChange={e => set('prazoEntrega', e.target.value)} />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Observações</label>
@@ -1740,9 +1740,9 @@ function NewOrderModal({ onClose, onSave }: { onClose: () => void; onSave: (o: O
         </div>
         <div className="flex gap-2 p-4 pt-3 border-t border-gray-100 sticky bottom-0 bg-white">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-          <button onClick={handleSave} disabled={!form.cliente.trim() || !form.produto.trim() || !form.cor.trim()}
+          <button onClick={handleSave} disabled={!form.cliente.trim() || !form.produto.trim() || !form.cor.trim() || !form.prazoEntrega.trim()}
             className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
-            style={{ background: form.cliente.trim() && form.produto.trim() && form.cor.trim() ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
+            style={{ background: form.cliente.trim() && form.produto.trim() && form.cor.trim() && form.prazoEntrega.trim() ? 'linear-gradient(135deg, #b45309, #d97706)' : '' }}
           >
             <Check size={16} /> Salvar Pedido
           </button>
@@ -2580,6 +2580,7 @@ function TapeteOrderModal({ onClose, onSave }: {
   const [codigoFornecedor, setCodigoFornecedor] = useState('')
   const [obs, setObs] = useState('')
   const [confirmacaoUrl, setConfirmacaoUrl] = useState('')
+  const [prazoEntregaGlobal, setPrazoEntregaGlobal] = useState('')
 
   // ── Tapetes ──
   const updateItem = (uid: string, patch: Partial<TapeteItem>) =>
@@ -2619,7 +2620,7 @@ function TapeteOrderModal({ onClose, onSave }: {
   const validTapetes = tapetes.filter(t => t.produto.trim().length > 0 && t.cor.trim().length > 0)
   const validCamas = camas.filter(c => c.produto.trim().length > 0)
   const totalCards = validTapetes.length + validCamas.length
-  const canSave = totalCards > 0
+  const canSave = totalCards > 0 && (tipoDestino === 'estoque' || prazoEntregaGlobal.trim().length > 0)
 
   // Converte TapeteItem → LVOrder
   const tapeteToOrder = (t: TapeteItem): Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'> => ({
@@ -2640,6 +2641,7 @@ function TapeteOrderModal({ onClose, onSave }: {
     canal: 'WhatsApp',
     tipoPedido: tipoDestino === 'estoque' ? 'estoque' : 'crossdocking',
     confirmacaoFornecedorUrl: confirmacaoUrl || undefined,
+    prazoEntrega: tipoDestino === 'cliente' ? prazoEntregaGlobal || undefined : undefined,
   })
 
   // Converte CamaItem → LVOrder (com itensCama populado)
@@ -2663,6 +2665,7 @@ function TapeteOrderModal({ onClose, onSave }: {
       canal: 'WhatsApp',
       tipoPedido: tipoDestino === 'estoque' ? 'estoque' : 'crossdocking',
       confirmacaoFornecedorUrl: confirmacaoUrl || undefined,
+      prazoEntrega: tipoDestino === 'cliente' ? prazoEntregaGlobal || undefined : undefined,
       itensCama: skus.length > 0 ? skus : undefined,
     }
   }
@@ -2722,6 +2725,14 @@ function TapeteOrderModal({ onClose, onSave }: {
               <input className="input font-mono" placeholder="Código (SKU fornecedor)" value={codigoFornecedor} onChange={e => setCodigoFornecedor(e.target.value)} />
             </div>
           </div>
+
+          {/* Entrega ao Cliente (só para cliente) */}
+          {tipoDestino === 'cliente' && (
+            <div className="border border-amber-100 rounded-xl p-3 space-y-2" style={{ background: '#fffbeb' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#d97706' }}>🚚 Entrega ao Cliente</p>
+              <input className="input" placeholder="Prazo de entrega ao cliente (dd/mm/aaaa) *" value={prazoEntregaGlobal} onChange={e => setPrazoEntregaGlobal(e.target.value)} />
+            </div>
+          )}
 
           {/* ── Lista de Tapetes ── */}
           <div>
@@ -3442,9 +3453,26 @@ export default function ProductionLV() {
   }
 
   const filterOrders = (orders: LVOrder[]) => {
-    if (filter === 'atrasado') return orders.filter(o => o.status === 'Atrasado')
-    if (filter === 'pendente') return orders.filter(o => o.status === 'Pendente')
-    return orders
+    let list = orders
+    if (filter === 'atrasado') list = list.filter(o => o.status === 'Atrasado')
+    if (filter === 'pendente') list = list.filter(o => o.status === 'Pendente')
+    
+    return [...list].sort((a, b) => {
+      // Atrasados primeiro
+      if (a.status === 'Atrasado' && b.status !== 'Atrasado') return -1
+      if (b.status === 'Atrasado' && a.status !== 'Atrasado') return 1
+
+      const dA = daysUntil(a.prazoEntrega)
+      const dB = daysUntil(b.prazoEntrega)
+      
+      // Com prazo antes de sem prazo
+      if (dA !== null && dB === null) return -1
+      if (dA === null && dB !== null) return 1
+      if (dA === null && dB === null) return 0
+      
+      // Menor prazo primeiro
+      return dA! - dB!
+    })
   }
 
   const totalKanban  = KANBAN_STAGES.flatMap(s => board[s]).length
@@ -3595,7 +3623,13 @@ export default function ProductionLV() {
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded text-white text-[10px]" style={{ background: '#b45309' }}>
                           #{order.id.slice(-8)}
                         </span>
-                        <PrazoTag prazo={order.prazoEntrega} />
+                        {order.status === 'Atrasado' || (daysUntil(order.prazoEntrega) ?? 99) <= 2 ? (
+                          <div className="animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)] rounded-full">
+                            <PrazoTag prazo={order.prazoEntrega} />
+                          </div>
+                        ) : (
+                          <PrazoTag prazo={order.prazoEntrega} />
+                        )}
                       </div>
 
                       {/* Foto miniatura */}
@@ -3619,6 +3653,23 @@ export default function ProductionLV() {
                       {order.status === 'Atrasado' && (
                         <span className="badge badge-critico text-[10px] mb-2 flex items-center gap-1 w-fit"><AlertTriangle size={9} />Atrasado</span>
                       )}
+
+                      {/* InlineEdit Prazo de Entrega para todos */}
+                      <div className="mt-2 mb-1">
+                        <InlineEdit
+                          value={order.prazoEntrega}
+                          placeholder="📅 Prazo (dd/mm/aaaa)"
+                          className="w-full text-xs border border-gray-200 bg-gray-50 rounded-lg px-2 py-1.5 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
+                          onSave={async v => {
+                            if (v === (order.prazoEntrega ?? '')) return
+                            setBoard(prev => ({
+                              ...prev,
+                              [stage]: prev[stage].map(o => o.id === order.id ? { ...o, prazoEntrega: v || undefined, status: calcStatus(v || null) } : o)
+                            }))
+                            await updatePedidoLV(order.id, { prazo_entrega: v || null } as any)
+                          }}
+                        />
+                      </div>
 
                       {/* Campos Tamanho e Desenho — apenas para Tapete */}
                       {order.categoria === 'Tapete' && (
