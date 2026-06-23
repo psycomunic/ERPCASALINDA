@@ -69,6 +69,9 @@ export default defineConfig(({ mode }) => {
               proxyReq.setHeader('Accept', 'application/json')
               proxyReq.setHeader('Content-Type', 'application/json')
             })
+            proxy.on('proxyRes', (proxyRes) => {
+              delete proxyRes.headers['www-authenticate']
+            })
           },
         },
         // ── Lar e Vida ────────────────────────────────────────────────────────
@@ -82,6 +85,9 @@ export default defineConfig(({ mode }) => {
               if (basicAuthLV) proxyReq.setHeader('Authorization', basicAuthLV)
               proxyReq.setHeader('Accept', 'application/json')
               proxyReq.setHeader('Content-Type', 'application/json')
+            })
+            proxy.on('proxyRes', (proxyRes) => {
+              delete proxyRes.headers['www-authenticate']
             })
           },
         },
