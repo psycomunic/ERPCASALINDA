@@ -165,6 +165,18 @@ export async function movePedidoEtapa(id: string, etapa: string): Promise<boolea
   return updatePedido(id, { etapa })
 }
 
+export async function movePedidosEtapa(ids: string[], etapa: string): Promise<boolean> {
+  if (!isSupabaseConfigured() || ids.length === 0) return false
+
+  const { error } = await supabase
+    .from('pedidos')
+    .update({ etapa } as any)
+    .in('id', ids)
+
+  if (error) { console.error('[pedidos] movePedidosEtapa:', error.message); return false }
+  return true
+}
+
 export async function despacharPedido(
   id: string,
   transportadora: string,
@@ -193,15 +205,22 @@ export async function deletePedido(id: string): Promise<boolean> {
 export function subscribePedidos(callback: (pedidos: Pedido[]) => void) {
   if (!isSupabaseConfigured()) return { unsubscribe: () => {} }
 
+  let timeout: NodeJS.Timeout
   const channel = supabase
     .channel('pedidos-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, async () => {
-      const pedidos = await fetchPedidos()
-      callback(pedidos)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+      clearTimeout(timeout)
+      timeout = setTimeout(async () => {
+        const pedidos = await fetchPedidos()
+        callback(pedidos)
+      }, 500)
     })
     .subscribe()
 
   return {
-    unsubscribe: () => supabase.removeChannel(channel),
+    unsubscribe: () => {
+      clearTimeout(timeout)
+      supabase.removeChannel(channel)
+    },
   }
 }

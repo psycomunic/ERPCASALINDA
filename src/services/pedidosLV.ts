@@ -85,6 +85,19 @@ export async function movePedidoLVEtapa(id: string, etapa: string): Promise<bool
   return updatePedidoLV(id, { etapa })
 }
 
+export async function movePedidosLVEtapa(ids: string[], etapa: string): Promise<boolean> {
+  if (!isSupabaseConfigured() || ids.length === 0) return false
+
+  const { error } = await supabase
+    .from('pedidos')
+    .update({ etapa } as any)
+    .in('id', ids)
+    .eq('store_id' as any, STORE_ID)
+
+  if (error) { console.error('[pedidosLV] movePedidosLVEtapa:', error.message); return false }
+  return true
+}
+
 export async function despacharPedidoLV(
   id: string,
   transportadora: string,
@@ -223,15 +236,22 @@ export async function logHistoricoLV(
 export function subscribePedidosLV(callback: (pedidos: Pedido[]) => void) {
   if (!isSupabaseConfigured()) return { unsubscribe: () => {} }
 
+  let timeout: NodeJS.Timeout
   const channel = supabase
     .channel('pedidos-lv-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, async () => {
-      const pedidos = await fetchPedidosLV()
-      callback(pedidos)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+      clearTimeout(timeout)
+      timeout = setTimeout(async () => {
+        const pedidos = await fetchPedidosLV()
+        callback(pedidos)
+      }, 500)
     })
     .subscribe()
 
   return {
-    unsubscribe: () => supabase.removeChannel(channel),
+    unsubscribe: () => {
+      clearTimeout(timeout)
+      supabase.removeChannel(channel)
+    },
   }
 }

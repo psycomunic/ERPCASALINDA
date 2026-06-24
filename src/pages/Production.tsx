@@ -9,7 +9,7 @@ import {
 import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder, fetchAllMagazordOrders } from '../magazord'
 import {
-  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, subscribePedidos, deletePedido,
+  fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, movePedidosEtapa, subscribePedidos, deletePedido,
   upsertPedidosMagazord, fetchPedidosHistorico
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -2729,16 +2729,19 @@ export default function Production() {
 
     if (!nextStage) return
 
-    setBoard(prev => ({
-      ...prev,
-      [stage]: [],
-      [nextStage as keyof typeof prev]: [...orders.map(o => ({ ...o, status: 'OK' as const })), ...prev[nextStage as keyof typeof prev]]
-    }))
-
-    orders.forEach(order => {
-      const dbId = getDbId(order.id)
-      if (dbId) movePedidoEtapa(dbId, nextStage as Stage)
+    setBoard(prev => {
+      const existingIds = new Set(prev[nextStage as keyof typeof prev].map(o => o.id))
+      const toAdd = orders.filter(o => !existingIds.has(o.id)).map(o => ({ ...o, status: 'OK' as const }))
+      return {
+        ...prev,
+        [stage]: [],
+        [nextStage as keyof typeof prev]: [...toAdd, ...prev[nextStage as keyof typeof prev]]
+      }
     })
+
+    const dbIds = orders.map(order => getDbId(order.id)).filter(Boolean) as string[]
+    if (dbIds.length > 0) movePedidosEtapa(dbIds, nextStage as Stage)
+
     showToast(`✅ ${orders.length} pedidos movidos para ${nextStage}!`)
   }
 

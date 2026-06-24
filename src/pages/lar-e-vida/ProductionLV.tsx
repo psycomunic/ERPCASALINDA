@@ -14,7 +14,7 @@ import {
 import { CARRIERS_BY_TYPE } from '../../carriers'
 import {
   fetchPedidosLV, createPedidoLV, updatePedidoLV, deletePedidoLV,
-  despacharPedidoLV, movePedidoLVEtapa,
+  despacharPedidoLV, movePedidoLVEtapa, movePedidosLVEtapa,
   uploadFotoLV, uploadConfirmacaoFornecedor,
   marcarEntradaEstoque, marcarDisponivelSite,
   fetchHistoricoLV, logHistoricoLV, subscribePedidosLV
@@ -3721,17 +3721,18 @@ export default function ProductionLV() {
                         if (!window.confirm(`Imprimir pedido agrupado com ${allOrders.length} item(ns) e mover todos para "Aguardando Chegada"?`)) return
                         printFornecedorPDF(allOrders)
                         setBoard(prev => {
-                          const ids = new Set(allOrders.map(o => o.id))
+                          const existingIds = new Set(prev['Aguardando Chegada'].map(o => o.id))
+                          const toAdd = allOrders.filter(o => !existingIds.has(o.id)).map(o => ({ ...o, status: 'OK' as const }))
                           return {
                             ...prev,
                             'Novos Pedidos': prev['Novos Pedidos'].filter(o => !ids.has(o.id)),
                             'Aguardando Chegada': [
-                              ...allOrders.map(o => ({ ...o, status: 'OK' as const })),
+                              ...toAdd,
                               ...prev['Aguardando Chegada'],
                             ],
                           }
                         })
-                        await Promise.all(allOrders.map(o => movePedidoLVEtapa(o.id, 'Aguardando Chegada')))
+                        await movePedidosLVEtapa(allOrders.map(o => o.id), 'Aguardando Chegada')
                         showToast(`${allOrders.length} pedido(s) impressos e movidos para "Aguardando Chegada"!`)
                       }}
                       className="w-full flex items-center justify-center gap-1.5 text-white text-[11px] font-bold py-1.5 rounded-lg transition-all hover:opacity-90 active:scale-95"
