@@ -9,7 +9,7 @@ import {
   Plus, Clock, CheckCircle, Eye, X, Check, User, Package,
   AlertTriangle, Truck, MapPin, Calendar, Send, ClipboardList,
   RefreshCw, ArrowRight, ChevronDown, Sofa, Upload, Trash2,
-  Image as ImageIcon, Printer
+  Image as ImageIcon, Printer, Search
 } from 'lucide-react'
 import { CARRIERS_BY_TYPE } from '../../carriers'
 import {
@@ -3100,6 +3100,7 @@ export default function ProductionLV() {
   const [dispatchModal, setDispatchModal] = useState<LVOrder | null>(null)
   const [toast, setToast]               = useState<string | null>(null)
   const [filter, setFilter]             = useState<'todos' | 'atrasado' | 'pendente'>('todos')
+  const [searchQuery, setSearchQuery]   = useState('')
   const [view, setView]                 = useState<ViewMode>('kanban')
   const [estoqueFilter, setEstoqueFilter] = useState<string>('Todos')
   const [tapeteLinha, setTapeteLinha]   = useState<'Todas' | 'Rios' | 'Lagos'>('Todas')
@@ -3591,6 +3592,14 @@ export default function ProductionLV() {
     if (filter === 'atrasado') list = list.filter(o => o.status === 'Atrasado')
     if (filter === 'pendente') list = list.filter(o => o.status === 'Pendente')
     
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(o => 
+        (o.cliente && o.cliente.toLowerCase().includes(q)) ||
+        (o.id && String(o.id).includes(q))
+      )
+    }
+
     return [...list].sort((a, b) => {
       // Atrasados primeiro
       if (a.status === 'Atrasado' && b.status !== 'Atrasado') return -1
@@ -3650,6 +3659,18 @@ export default function ProductionLV() {
             </button>
           </div>
 
+          {view === 'kanban' && (
+            <div className="flex items-center gap-1.5 shrink-0 bg-white rounded-lg border border-gray-200 px-2.5 py-1">
+              <Search size={14} className="text-gray-400" />
+              <input
+                type="text"
+                placeholder="Pesquisar..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-24 md:w-32 bg-transparent text-[11px] md:text-xs outline-none placeholder:text-gray-400"
+              />
+            </div>
+          )}
           {view === 'kanban' && (
             <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden bg-white">
               {(['todos', 'atrasado', 'pendente'] as const).map((v) => (
