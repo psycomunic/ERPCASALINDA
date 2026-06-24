@@ -2293,6 +2293,7 @@ export default function Production() {
 
   // Maps display-id → Supabase UUID (needed for syncing mutations)
   const dbIdMap = useRef<Map<string, string>>(new Map())
+  const pendingCreates = useRef<Set<string>>(new Set())
   const enrichCache = useRef<Record<string, any>>(
     (() => {
       try { return JSON.parse(localStorage.getItem('erp_enrich_cache') || '{}') }
