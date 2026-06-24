@@ -3207,8 +3207,14 @@ export default function ProductionLV() {
   const processFetchedRowsLV = useCallback((pedidos: any[]) => {
     const newCols: Record<Stage, LVOrder[]> = Object.fromEntries(ALL_STAGES.map(s => [s, []])) as unknown as Record<Stage, LVOrder[]>
 
+    const seen = new Set<string>()
+    const sortedPedidos = [...pedidos].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
     let maxNum = 0
-    pedidos.forEach((p: any) => {
+    sortedPedidos.forEach((p: any) => {
+      const numStr = String(p.numero)
+      if (seen.has(numStr)) return
+      seen.add(numStr)
       // Compute next sequential number from existing LV-XXXXXX numbers
       const match = (p.numero ?? '').match(/LV-(\d+)/)
       if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10))

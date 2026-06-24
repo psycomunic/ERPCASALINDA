@@ -2328,7 +2328,13 @@ export default function Production() {
       'Prontos para Envio': [], 'Despachados': [],
     }
 
-    rows.forEach(r => {
+    const seen = new Set<string>()
+    const sortedRows = [...rows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    sortedRows.forEach(r => {
+      const numStr = String(r.numero)
+      if (seen.has(numStr)) return
+      seen.add(numStr)
       const etapa = r.etapa as Stage
       if (!(etapa in grouped)) return
       const order: Order = {
