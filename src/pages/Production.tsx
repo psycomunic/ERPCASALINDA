@@ -2686,11 +2686,15 @@ export default function Production() {
         return { ...order, status: 'OK' as const, transportadora: trans, volumes: vols, dataDespacho: undefined }
       })
 
-      setBoard(prev => ({
-        ...prev,
-        'Embalagem': [],
-        'Prontos para Envio': [...updatedOrders, ...prev['Prontos para Envio']]
-      }))
+      setBoard(prev => {
+        const existingIds = new Set(prev['Prontos para Envio'].map(o => o.id))
+        const toAdd = updatedOrders.filter(o => !existingIds.has(o.id))
+        return {
+          ...prev,
+          'Embalagem': [],
+          'Prontos para Envio': [...toAdd, ...prev['Prontos para Envio']]
+        }
+      })
       showToast(`✅ ${orders.length} pedidos enviados para Prontos para Envio com transportadora e volumes padrão!`)
       return
     }
@@ -2718,11 +2722,15 @@ export default function Production() {
         return { ...order, status: 'OK' as const, revisaoStatus: 'aprovado' as const, revisaoRevisor: lastRevisor, obs: newObs }
       })
 
-      setBoard(prev => ({
-        ...prev,
-        'Revisão': [],
-        'Embalagem': [...updatedOrders, ...prev['Embalagem']]
-      }))
+      setBoard(prev => {
+        const existingIds = new Set(prev['Embalagem'].map(o => o.id))
+        const toAdd = updatedOrders.filter(o => !existingIds.has(o.id))
+        return {
+          ...prev,
+          'Revisão': [],
+          'Embalagem': [...toAdd, ...prev['Embalagem']]
+        }
+      })
       showToast(`✅ ${orders.length} pedidos aprovados diretamente!`)
       return
     }
