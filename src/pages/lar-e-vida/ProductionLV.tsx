@@ -24,6 +24,7 @@ import { fetchFornecedorEstoque, compareEstoque } from '../../services/fornecedo
 import type { TapeteFornecedor, FornecedorDiff } from '../../services/fornecedorLV'
 import {
   fetchPendingOrdersLV, isMagazordLVConfigured, lvSituacaoToKanbanCol,
+  fetchOrderLVById, magazordDetailedToLVOrder
 } from '../../magazordLV'
 import type { MagazordOrder } from '../../magazordLV'
 import {
@@ -3109,6 +3110,7 @@ export default function ProductionLV() {
   const [fornecedorDiff, setFornecedorDiff] = useState<FornecedorDiff | null>(null)
   const [loading, setLoading]           = useState(false)
   const nextId = useRef(1)
+  const dbIdMap = useRef(new Map<string, string>()) // mzlv-ID -> Supabase UUID
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
@@ -3226,6 +3228,8 @@ export default function ProductionLV() {
 
       const dateStr = new Date(p.created_at).toLocaleDateString('pt-BR')
       const timeStr = new Date(p.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      dbIdMap.current.set(p.sku || p.id, p.id) // Guarda a referência (seja sku ou o próprio p.id) para o UUID
+
       newCols[stage].push({
         id: p.id,
         cliente: p.cliente,
@@ -3481,8 +3485,75 @@ export default function ProductionLV() {
   }
 
   // ── Advance stage ──
-  const conclude = (stage: Stage, id: string) => {
-    const order = board[stage].find(o => o.id === id)!
+
+  const confirmToProducaoLV = async (order: LVOrder, toStage: Stage) => {
+    let enrichedOrder = { ...order }
+
+    if (order.id.startsWith('mzlv-')) {
+      const mzId = order.id.replace('mzlv-', '')
+      try {
+        const detail = await fetchOrderLVById(mzId)
+        if (detail) {
+          const detailEnriched = magazordDetailedToLVOrder(detail)
+          enrichedOrder = { ...enrichedOrder, ...detailEnriched }
+        }
+      } catch (err) {
+        console.error('Falha ao buscar detalhes LV:', err)
+      }
+    }
+
+    const payload = {
+      numero: enrichedOrder.id,
+      cliente: enrichedOrder.cliente,
+      cliente_email: enrichedOrder.clienteEmail || null,
+      cliente_telefone: enrichedOrder.clienteTelefone || null,
+      produto: enrichedOrder.produto,
+      canal: enrichedOrder.canal || null,
+      obs: enrichedOrder.obs || null,
+      endereco: enrichedOrder.endereco || null,
+      transportadora: enrichedOrder.transportadora || null,
+      prazo_entrega: enrichedOrder.prazoEntrega || null,
+      valor: enrichedOrder.valor || null,
+      frete: enrichedOrder.frete || null,
+      etapa: toStage,
+      status: enrichedOrder.status,
+      from_magazord: true,
+      sku: enrichedOrder.sku || null,
+      foto_url: enrichedOrder.fotoUrl || null,
+      nome_fornecedor: enrichedOrder.nomeFornecedor || null,
+      codigo_fornecedor: enrichedOrder.codigoFornecedor || null,
+      tamanho: enrichedOrder.tamanho || null,
+      cor: enrichedOrder.cor || null,
+      desenho: enrichedOrder.desenho || null,
+      categoria: enrichedOrder.categoria || null,
+      quantidade: enrichedOrder.quantidade || null,
+      tipo_pedido: enrichedOrder.tipoPedido || 'crossdocking',
+    }
+
+    const inserted = await createPedidoLV(payload)
+    if (inserted) {
+      dbIdMap.current.set(enrichedOrder.id, inserted.id)
+      enrichedOrder.id = inserted.id // Atualiza o id pro UI
+      return enrichedOrder
+    }
+    return enrichedOrder
+  }
+
+  const conclude = async (stage: Stage, id: string) => {
+    const orderOrig = board[stage].find(o => o.id === id)!
+    let order = orderOrig
+    
+    // Se o pedido não está no banco (dbIdMap vazio para ele), precisamos criá-lo
+    let dbId = dbIdMap.current.get(order.id)
+    if (!dbId && order.id.startsWith('mzlv-')) {
+      // Primeiro estágio após "Novos Pedidos" - vai pro BD!
+      showToast('Baixando detalhes da Magazord e salvando pedido...')
+      const idx = ALL_STAGES.indexOf(stage)
+      const next = ALL_STAGES[idx + 1] || stage
+      order = await confirmToProducaoLV(orderOrig, next)
+      dbId = order.id
+    }
+
     // Estoque: ao concluir Recebido, vai para Em Prateleira (e não Embalagem)
     if (stage === 'Recebido' && order.tipoPedido === 'estoque') {
       setBoard(prev => ({
@@ -3510,12 +3581,23 @@ export default function ProductionLV() {
     if (stage === 'Disponível no Site') { showToast('Tapete já está disponível no site! ✓'); return }
     const idx = ALL_STAGES.indexOf(stage)
     const next = ALL_STAGES[idx + 1]
-    setBoard(prev => ({
-      ...prev,
-      [stage]: prev[stage].filter(o => o.id !== id),
-      [next]: [...prev[next], { ...order, status: 'OK' as const }],
-    }))
-    movePedidoLVEtapa(id, next as string)
+    
+    setBoard(prev => {
+      const newNext = [...prev[next], { ...order, status: 'OK' as const }]
+      return {
+        ...prev,
+        [stage]: prev[stage].filter(o => o.id !== id && o.id !== orderOrig.id),
+        [next]: newNext,
+      }
+    })
+    if (dbId) {
+      updatePedidoLV(dbId, { etapa: next })
+      if (orderOrig.id.startsWith('mzlv-') && order.id !== orderOrig.id) {
+         // Já fez o createPedidoLV dentro do confirmToProducaoLV passando a etapa certa!
+      } else {
+         movePedidoLVEtapa(dbId, next as string)
+      }
+    }
     showToast(`Pedido movido para "${next}"!`)
   }
 
@@ -3570,19 +3652,39 @@ export default function ProductionLV() {
   }
 
   // ── Drag & drop ──
-  const onDrop = (to: Stage, e?: React.DragEvent) => {
+  const onDrop = async (to: Stage, e?: React.DragEvent) => {
     e?.stopPropagation()
     if (!dragging || dragging.from === to) return
-    const orderId = dragging.order.id
+    let orderOrig = dragging.order
+    let orderId = orderOrig.id
+    
+    // Se o pedido não está no banco (dbIdMap vazio para ele), precisamos criá-lo
+    let dbId = dbIdMap.current.get(orderOrig.id)
+    if (!dbId && orderOrig.id.startsWith('mzlv-')) {
+      showToast('Baixando detalhes da Magazord e salvando pedido...')
+      orderOrig = await confirmToProducaoLV(orderOrig, to)
+      orderId = orderOrig.id
+      dbId = orderOrig.id
+    }
+
     setBoard(prev => {
       if (prev[to].some(o => o.id === orderId)) return prev
       return {
         ...prev,
-        [dragging.from]: prev[dragging.from].filter(o => o.id !== orderId),
-        [to]: [...prev[to], dragging.order],
+        [dragging.from]: prev[dragging.from].filter(o => o.id !== dragging.order.id && o.id !== orderId),
+        [to]: [...prev[to], orderOrig],
       }
     })
-    movePedidoLVEtapa(orderId, to as string)
+    
+    if (dbId) {
+      updatePedidoLV(dbId, { etapa: to })
+      if (dragging.order.id.startsWith('mzlv-') && orderId !== dragging.order.id) {
+         // Já foi criado na etapa certa
+      } else {
+         movePedidoLVEtapa(dbId, to as string)
+      }
+    }
+
     showToast(`Pedido movido para ${to}`)
     setDragging(null)
   }

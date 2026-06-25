@@ -178,6 +178,56 @@ export async function fetchOrderLVById(id: number | string): Promise<MagazordOrd
   }
 }
 
+// ─── magazordDetailedToLVOrder ──────────────────────────────────────────────
+export function magazordDetailedToLVOrder(data: any): any {
+  if (!data) return {}
+
+  const rastreio = data.arrayPedidoRastreio?.[0] || {}
+  const item = rastreio.pedidoItem?.[0] || {}
+
+  const enderecoList = [
+    data.logradouro, data.numero, data.complemento,
+    data.bairro, data.cidadeNome && data.estadoSigla ? `${data.cidadeNome}/${data.estadoSigla}` : undefined,
+    data.cep
+  ].filter(Boolean)
+
+  const freteStr = rastreio.valorFreteTransportadora || rastreio.valorFrete || data.valorFrete || "0"
+  const freteValue = parseFloat(freteStr)
+
+  const safeDateStr = (raw?: string | null, suffix = '') => {
+    if (!raw) return undefined
+    const d = new Date((raw + suffix).replace(' ', 'T'))
+    return isNaN(d.getTime()) ? undefined : d.toLocaleDateString('pt-BR')
+  }
+
+  const derivacao = item.produtoDerivacaoNome || ''
+  const tamanho = derivacao.includes('x') ? derivacao.match(/\d+(?:,\d+)?\s*(?:m|cm)?\s*x\s*\d+(?:,\d+)?\s*(?:m|cm)?/i)?.[0] || derivacao : undefined
+
+  let desenho: string | undefined = undefined
+  const itemSku = item.produtoSku || item.codigoItem || ''
+  const matchDS = itemSku.match(/([A-Z]+)-DS([\d-]+)/i)
+  if (matchDS) {
+    desenho = `${matchDS[1]} DESENHO ${matchDS[2]}`.toUpperCase()
+  }
+
+  return {
+    clienteEmail: data.pessoaEmail || undefined,
+    clienteTelefone: data.pessoaContato || undefined,
+    produto: item.produtoTitulo || undefined,
+    tamanho: tamanho,
+    desenho: desenho,
+    quantidade: item.quantidade || undefined,
+    frete: !isNaN(freteValue) ? freteValue : undefined,
+    prazoEntrega: safeDateStr(rastreio.dataLimiteEntregaCliente, 'T12:00:00'),
+    endereco: enderecoList.length > 0 ? enderecoList.join(', ') : undefined,
+    transportadora: rastreio.transportadoraNome || undefined,
+    fotoUrl: data.lojaUrlImagem && item.midiaPath && item.midiaName
+      ? `${data.lojaUrlImagem}/${item.midiaPath}${item.midiaName}`
+      : undefined,
+  }
+}
+
+
 // ─── updateOrderSituationLV ───────────────────────────────────────────────────
 /**
  * Atualiza a situação de um pedido na Lar e Vida Magazord.
