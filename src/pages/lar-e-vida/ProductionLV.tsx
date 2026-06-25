@@ -3761,8 +3761,8 @@ export default function ProductionLV() {
             </button>
           </div>
 
-          {view === 'kanban' && (
-            <div className="flex items-center gap-1.5 shrink-0 bg-white rounded-lg border border-gray-200 px-2.5 py-1">
+          {/* Search bar agora visível em todas as abas */}
+          <div className="flex items-center gap-1.5 shrink-0 bg-white rounded-lg border border-gray-200 px-2.5 py-1">
               <Search size={14} className="text-gray-400" />
               <input
                 type="text"
@@ -3772,7 +3772,8 @@ export default function ProductionLV() {
                 className="w-24 md:w-32 bg-transparent text-[11px] md:text-xs outline-none placeholder:text-gray-400"
               />
             </div>
-          )}
+          </div>
+          
           {view === 'kanban' && (
             <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden bg-white">
               {(['todos', 'atrasado', 'pendente'] as const).map((v) => (
@@ -4059,7 +4060,7 @@ export default function ProductionLV() {
                   </div>
                 ) : (() => {
                     const groups: Record<string, LVOrder[]> = {}
-                    for (const order of board[stage]) {
+                    for (const order of filterOrders(board[stage])) {
                       const key = order.transportadora?.trim() || 'Sem transportadora'
                       if (!groups[key]) groups[key] = []
                       groups[key].push(order)
