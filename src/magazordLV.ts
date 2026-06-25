@@ -105,6 +105,33 @@ async function lvFetch<T>(path: string, options?: RequestInit): Promise<T> {
 // 4=Aprovado 5=Aprovado+Integrado 6=NF Emitida 7=Em Transporte 23=Faturando
 const ALLOWED_SITUATIONS = [4, 5, 6, 7, 23]
 
+// ─── fetchProductStockLV ──────────────────────────────────────────────────────
+export async function fetchProductStockLV(referencia: string): Promise<number | null> {
+  if (!isMagazordLVConfigured()) return null
+  try {
+    let json = await lvFetch<{ data: any; status: string }>(`/site/produto?referencia=${encodeURIComponent(referencia)}&limit=1`)
+    let items = json?.data?.items || []
+    if (items.length === 0) {
+      json = await lvFetch<{ data: any; status: string }>(`/site/produto?codigo=${encodeURIComponent(referencia)}&limit=1`)
+      items = json?.data?.items || []
+      if (items.length === 0) return null
+    }
+    const p = items[0]
+    
+    // Tenta extrair de campos comuns da Magazord
+    if (typeof p.estoqueAtual === 'number') return p.estoqueAtual
+    if (typeof p.quantidadeEstoque === 'number') return p.quantidadeEstoque
+    if (typeof p.estoque === 'number') return p.estoque
+    if (typeof p.saldoDisponivel === 'number') return p.saldoDisponivel
+    if (p.estoque && typeof p.estoque.disponivel === 'number') return p.estoque.disponivel
+    if (p.estoque && typeof p.estoque.atual === 'number') return p.estoque.atual
+    return 0
+  } catch (err) {
+    console.error(`[MagazordLV] Erro ao buscar estoque da ref ${referencia}:`, err)
+    return null
+  }
+}
+
 // ─── fetchPendingOrdersLV ─────────────────────────────────────────────────────
 /**
  * Busca pedidos ativos na Lar e Vida Magazord.

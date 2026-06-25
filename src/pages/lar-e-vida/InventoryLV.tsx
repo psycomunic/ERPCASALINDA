@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 
 interface Item {
-  id: number
+  id: number | string
   ref: string
   nome: string
   categoria: string
@@ -14,6 +14,7 @@ interface Item {
   atual: number
   minimo: number
   status: 'NORMAL' | 'CRÍTICO' | 'ATENÇÃO'
+  isMagazord?: boolean
 }
 
 type Movement = { tipo: 'saida' | 'entrada' | 'ajuste'; desc: string; sub: string; time: string }
@@ -52,10 +53,13 @@ function loadFromStorage<T>(key: string): T[] {
   } catch { return [] }
 }
 
+import { syncEstoqueTellaioFromMagazord } from '../../services/estoqueTellaio'
+
 export default function InventoryLV() {
   const [items, setItems]         = useState<Item[]>(() => loadFromStorage<Item>(ITEMS_KEY))
   const [movements, setMovements] = useState<Movement[]>(() => loadFromStorage<Movement>(MOVEMENTS_KEY))
   const [modal, setModal]         = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [showAll, setShowAll]     = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
@@ -145,6 +149,45 @@ export default function InventoryLV() {
     showToast('Entrada de insumo registrada!')
   }
 
+  const handleSyncMagazord = async () => {
+    setIsSyncing(true)
+    showToast('Iniciando sincronização com Magazord...')
+    try {
+      const { sucesso, falhas, itens: mzItems } = await syncEstoqueTellaioFromMagazord()
+      
+      if (mzItems.length > 0) {
+        setItems(prev => {
+          const next = [...prev]
+          
+          mzItems.forEach(mzItem => {
+            const idx = next.findIndex(i => i.ref === mzItem.ref && i.isMagazord)
+            if (idx >= 0) {
+              next[idx] = { ...next[idx], atual: mzItem.atual, status: mzItem.status }
+            } else {
+              next.push({ id: `mz-${mzItem.ref}`, ...mzItem })
+            }
+          })
+          return next
+        })
+        
+        setMovements(prev => [{
+          tipo: 'ajuste',
+          desc: `Sincronização Magazord (${sucesso} atualizados)`,
+          sub: `Falhas: ${falhas} · Tapetes de Luxo`,
+          time: formatTimestamp(),
+        }, ...prev])
+        
+        showToast(`Sincronização concluída! ${sucesso} itens atualizados.`)
+      } else {
+        showToast('Nenhum item encontrado no Magazord.')
+      }
+    } catch (e) {
+      showToast('Erro ao sincronizar com Magazord.')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const visibleMovements = showAll ? movements : movements.slice(0, 3)
 
   return (
@@ -161,6 +204,13 @@ export default function InventoryLV() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button 
+            className="btn-secondary" 
+            onClick={handleSyncMagazord}
+            disabled={isSyncing}
+          >
+            <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> {isSyncing ? 'Sincronizando...' : 'Sync Magazord'}
+          </button>
           <button className="btn-secondary" onClick={handleExportar}><Download size={14} /> Exportar</button>
           <button
             onClick={() => setNewItemModal(true)}
@@ -278,7 +328,12 @@ export default function InventoryLV() {
                 {filteredItems.map(item => (
                   <tr key={item.id} className="tr">
                     <td className="td">
-                      <p className="font-medium text-gray-800">{item.nome}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-800">{item.nome}</p>
+                        {item.isMagazord && (
+                          <span title="Sincronizado do Magazord" className="px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-widest text-white bg-blue-600">MZ</span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-gray-400">{item.ref}</p>
                     </td>
                     <td className="td"><span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">{item.categoria}</span></td>
@@ -420,7 +475,7 @@ export default function InventoryLV() {
                   <label className="block text-xs text-gray-500 mb-1">Produto *</label>
                   <select className="input" value={form.material} onChange={e => setForm(f => ({ ...f, material: e.target.value }))}>
                     <option value="">Selecionar...</option>
-                    {items.map(i => <option key={i.id}>{i.nome}</option>)}
+                    {items.filter(i => !i.isMagazord).map(i => <option key={i.id}>{i.nome}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
