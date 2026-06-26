@@ -3110,7 +3110,10 @@ export default function ProductionLV() {
   const [fornecedorDiff, setFornecedorDiff] = useState<FornecedorDiff | null>(null)
   const [loading, setLoading]           = useState(false)
   const nextId = useRef(1)
-  const dbIdMap = useRef(new Map<string, string>()) // mzlv-ID -> Supabase UUID
+  const dbIdMap = useRef(new Map<string, string>()) // id/sku → Supabase UUID
+  // Suprime re-renders do realtime enquanto o usuário está em pleno update,
+  // evitando que o board seja revertido para o estado antigo do banco.
+  const suppressRealtimeUntil = useRef<number>(0)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500) }
 
@@ -3208,6 +3211,11 @@ export default function ProductionLV() {
 
   // ── Load from Supabase ──
   const processFetchedRowsLV = useCallback((pedidos: any[]) => {
+    // Se o usuário fez um move recentemente, ignora o realtime para não reverter o board.
+    if (Date.now() < suppressRealtimeUntil.current) {
+      console.debug('[LV] realtime suppressed — user just performed a move')
+      return
+    }
     const newCols: Record<Stage, LVOrder[]> = Object.fromEntries(ALL_STAGES.map(s => [s, []])) as unknown as Record<Stage, LVOrder[]>
 
     const seen = new Set<string>()
@@ -3593,10 +3601,24 @@ export default function ProductionLV() {
         [next]: newNext,
       }
     })
-    // ── Persiste no banco: um ĂšNICO update para evitar que o realtime
-    // dispare antes da segunda chamada e reverta o board para o estado antigo.
+
     if (dbId && !(orderOrig.id.startsWith('mzlv-') && order.id !== orderOrig.id)) {
-      await movePedidoLVEtapa(dbId, next as string)
+      // Suprime o realtime por 4s para o update chegar ao banco antes do próximo fetch
+      suppressRealtimeUntil.current = Date.now() + 4000
+      const ok = await movePedidoLVEtapa(dbId, next as string)
+      if (!ok) {
+        // Se o update falhou, reverte o board para o estado anterior
+        showToast('Erro ao salvar no banco. Revertendo...')
+        setBoard(prev => ({
+          ...prev,
+          [stage]: [...prev[stage], orderOrig],
+          [next]: prev[next].filter(o => o.id !== id && o.id !== order.id),
+        }))
+        suppressRealtimeUntil.current = 0
+        return
+      }
+      // Aguarda o debounce do realtime passar antes de liberar
+      setTimeout(() => { suppressRealtimeUntil.current = 0 }, 4000)
     }
     showToast(`Pedido movido para "${next}"!`)
   }
@@ -3676,9 +3698,20 @@ export default function ProductionLV() {
       }
     })
 
-    // ── Persiste no banco: um ĂšNICO update para evitar race condition com o realtime.
     if (dbId && !(dragging.order.id.startsWith('mzlv-') && orderId !== dragging.order.id)) {
-      await movePedidoLVEtapa(dbId, to as string)
+      suppressRealtimeUntil.current = Date.now() + 4000
+      const ok = await movePedidoLVEtapa(dbId, to as string)
+      if (!ok) {
+        showToast('Erro ao salvar no banco. Revertendo...')
+        setBoard(prev => ({
+          ...prev,
+          [dragging.from]: [...prev[dragging.from], orderOrig],
+          [to]: prev[to].filter(o => o.id !== orderId),
+        }))
+        suppressRealtimeUntil.current = 0
+      } else {
+        setTimeout(() => { suppressRealtimeUntil.current = 0 }, 4000)
+      }
     }
 
     showToast(`Pedido movido para ${to}`)
