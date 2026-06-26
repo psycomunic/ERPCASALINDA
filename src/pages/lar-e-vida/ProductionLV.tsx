@@ -3228,7 +3228,10 @@ export default function ProductionLV() {
 
       const dateStr = new Date(p.created_at).toLocaleDateString('pt-BR')
       const timeStr = new Date(p.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      dbIdMap.current.set(p.sku || p.id, p.id) // Guarda a referência (seja sku ou o próprio p.id) para o UUID
+      // CRÍTICO: sempre indexa pelo UUID (p.id) — é o que order.id terá no board.
+      // Também indexa pelo SKU como fallback para pedidos Magazord (mzlv-...).
+      dbIdMap.current.set(p.id, p.id)
+      if (p.sku) dbIdMap.current.set(p.sku, p.id)
 
       newCols[stage].push({
         id: p.id,

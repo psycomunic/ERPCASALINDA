@@ -27,7 +27,7 @@ export async function fetchPedidosLV(): Promise<Pedido[]> {
     .from('pedidos')
     .select('*')
     .eq('store_id' as any, STORE_ID)
-    .eq('arquivado' as any, false)   // nunca retornar pedidos arquivados
+    .neq('arquivado' as any, true)   // exclui apenas explicitamente arquivados
     .order('created_at', { ascending: false })
 
   if (error) {
