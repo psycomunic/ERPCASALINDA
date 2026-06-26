@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useEffect } from 'react-router-dom'
 import { type ReactNode } from 'react'
 import { AuthProvider, useAuth, type Module } from './contexts/AuthContext'
 import AppLayout from './layouts/AppLayout'
@@ -31,6 +31,22 @@ import ProductionLV from './pages/lar-e-vida/ProductionLV'
 import InventoryLV from './pages/lar-e-vida/InventoryLV'
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
+
+/**
+ * Salva a rota atual no sessionStorage sempre que o usuário navegar.
+ * Permite restaurar a página certa após um reload, mesmo em ambientes
+ * onde o Service Worker ainda não interceptou a rota.
+ */
+function RouteTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    // Não salva rotas públicas — apenas páginas autenticadas
+    if (location.pathname !== '/login' && location.pathname !== '/redefinir-senha') {
+      sessionStorage.setItem('lastRoute', location.pathname + location.search)
+    }
+  }, [location])
+  return null
+}
 
 function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -67,6 +83,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <RouteTracker />
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />

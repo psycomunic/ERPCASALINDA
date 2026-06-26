@@ -30,6 +30,17 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['icon-192.png', 'icon-512.png'],
+        // ── Garante que o Service Worker preserve a URL no reload ──
+        // navigateFallback faz o SW responder com index.html para qualquer
+        // rota de navegação, deixando o React Router interpretar a URL correta.
+        workbox: {
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [
+            /^\/api\//,           // nunca intercepta chamadas de API
+            /^\/magazord-api\//,
+            /^\/magazord-lv-api\//,
+          ],
+        },
         manifest: {
           name: 'ERP Casa Linda',
           short_name: 'Casa Linda',

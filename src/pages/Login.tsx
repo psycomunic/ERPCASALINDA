@@ -26,10 +26,19 @@ export default function Login() {
   useEffect(() => {
     if (authLoading || !user) return
 
+    // 1. Prioridade máxima: rota passada via state (AuthGuard ao proteger rota sem sessão)
     const from = (location.state as any)?.from?.pathname
     if (from && from !== '/login') { navigate(from, { replace: true }); return }
 
-    // Wait for profile to apply role-based redirect
+    // 2. Segunda prioridade: última rota que o usuário visitou (salva pelo RouteTracker)
+    const lastRoute = sessionStorage.getItem('lastRoute')
+    if (lastRoute && lastRoute !== '/login' && lastRoute !== '/redefinir-senha') {
+      sessionStorage.removeItem('lastRoute') // usa uma vez e descarta
+      navigate(lastRoute, { replace: true })
+      return
+    }
+
+    // 3. Fallback: redirect baseado em perfil (apenas no primeiro login sem histórico)
     if (!profile) return
 
     const role = profile.role
