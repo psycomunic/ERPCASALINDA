@@ -27,6 +27,7 @@ export async function fetchPedidosLV(): Promise<Pedido[]> {
     .from('pedidos')
     .select('*')
     .eq('store_id' as any, STORE_ID)
+    .eq('arquivado' as any, false)   // nunca retornar pedidos arquivados
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -241,10 +242,12 @@ export function subscribePedidosLV(callback: (pedidos: Pedido[]) => void) {
     .channel('pedidos-lv-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
       clearTimeout(timeout)
+      // Debounce de 1500ms: garante que o movePedidoLVEtapa já concluiu
+      // antes de o realtime sobrescrever o board com o estado do banco.
       timeout = setTimeout(async () => {
         const pedidos = await fetchPedidosLV()
         callback(pedidos)
-      }, 500)
+      }, 1500)
     })
     .subscribe()
 

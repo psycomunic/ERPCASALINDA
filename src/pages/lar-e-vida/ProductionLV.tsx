@@ -3590,13 +3590,10 @@ export default function ProductionLV() {
         [next]: newNext,
       }
     })
-    if (dbId) {
-      updatePedidoLV(dbId, { etapa: next })
-      if (orderOrig.id.startsWith('mzlv-') && order.id !== orderOrig.id) {
-         // Já fez o createPedidoLV dentro do confirmToProducaoLV passando a etapa certa!
-      } else {
-         movePedidoLVEtapa(dbId, next as string)
-      }
+    // ── Persiste no banco: um ĂšNICO update para evitar que o realtime
+    // dispare antes da segunda chamada e reverta o board para o estado antigo.
+    if (dbId && !(orderOrig.id.startsWith('mzlv-') && order.id !== orderOrig.id)) {
+      await movePedidoLVEtapa(dbId, next as string)
     }
     showToast(`Pedido movido para "${next}"!`)
   }
@@ -3675,14 +3672,10 @@ export default function ProductionLV() {
         [to]: [...prev[to], orderOrig],
       }
     })
-    
-    if (dbId) {
-      updatePedidoLV(dbId, { etapa: to })
-      if (dragging.order.id.startsWith('mzlv-') && orderId !== dragging.order.id) {
-         // Já foi criado na etapa certa
-      } else {
-         movePedidoLVEtapa(dbId, to as string)
-      }
+
+    // ── Persiste no banco: um ĂšNICO update para evitar race condition com o realtime.
+    if (dbId && !(dragging.order.id.startsWith('mzlv-') && orderId !== dragging.order.id)) {
+      await movePedidoLVEtapa(dbId, to as string)
     }
 
     showToast(`Pedido movido para ${to}`)
