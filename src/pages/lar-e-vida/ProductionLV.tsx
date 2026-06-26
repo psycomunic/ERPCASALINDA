@@ -3792,17 +3792,16 @@ export default function ProductionLV() {
 
           {/* Search bar agora visível em todas as abas */}
           <div className="flex items-center gap-1.5 shrink-0 bg-white rounded-lg border border-gray-200 px-2.5 py-1">
-              <Search size={14} className="text-gray-400" />
-              <input
-                type="text"
-                placeholder="Pesquisar..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-24 md:w-32 bg-transparent text-[11px] md:text-xs outline-none placeholder:text-gray-400"
-              />
-            </div>
+            <Search size={14} className="text-gray-400" />
+            <input
+              type="text"
+              placeholder="Pesquisar..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-24 md:w-32 bg-transparent text-[11px] md:text-xs outline-none placeholder:text-gray-400"
+            />
           </div>
-          
+
           {view === 'kanban' && (
             <div className="flex shrink-0 rounded-lg border border-gray-200 overflow-hidden bg-white">
               {(['todos', 'atrasado', 'pendente'] as const).map((v) => (

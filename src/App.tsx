@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useEffect } from 'react-router-dom'
-import { type ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { type ReactNode, useEffect } from 'react'
 import { AuthProvider, useAuth, type Module } from './contexts/AuthContext'
 import AppLayout from './layouts/AppLayout'
 import Dashboard from './pages/Dashboard'
