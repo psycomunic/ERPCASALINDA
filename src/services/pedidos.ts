@@ -200,6 +200,22 @@ export async function deletePedido(id: string): Promise<boolean> {
   return true
 }
 
+// ─── Suppression window ──────────────────────────────────────────────────────
+// After any local write, Realtime events are ignored for N ms to prevent the
+// race condition where the subscription fires before the DB commit arrives,
+// causing an order to regress to its previous stage.
+
+let suppressUntil = 0
+
+/**
+ * Call this BEFORE any Supabase write (updatePedido, movePedidoEtapa, etc.).
+ * The next Realtime callback(s) will be ignored for `ms` milliseconds,
+ * giving the write time to commit before we re-fetch.
+ */
+export function suppressRealtime(ms = 3000) {
+  suppressUntil = Date.now() + ms
+}
+
 // ─── Real-time subscription ───────────────────────────────────────────────────
 
 export function subscribePedidos(callback: (pedidos: Pedido[]) => void) {
@@ -209,8 +225,13 @@ export function subscribePedidos(callback: (pedidos: Pedido[]) => void) {
   const channel = supabase
     .channel('pedidos-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+      // If within suppression window, skip — our own write hasn't committed yet
+      if (Date.now() < suppressUntil) return
+
       clearTimeout(timeout)
       timeout = setTimeout(async () => {
+        // Double-check: suppression may have been set while we were waiting
+        if (Date.now() < suppressUntil) return
         const pedidos = await fetchPedidos()
         callback(pedidos)
       }, 500)

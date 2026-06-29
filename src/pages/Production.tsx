@@ -10,7 +10,7 @@ import { CARRIERS_BY_TYPE, CARRIER_NAMES } from '../carriers'
 import { fetchPendingOrders, fetchOrderByCodigo, updateOrderSituacao, magazordToOrder, magazordDetailedToOrder, fetchAllMagazordOrders } from '../magazord'
 import {
   fetchPedidos, createPedido, updatePedido, despacharPedido, movePedidoEtapa, movePedidosEtapa, subscribePedidos, deletePedido,
-  upsertPedidosMagazord, fetchPedidosHistorico
+  upsertPedidosMagazord, fetchPedidosHistorico, suppressRealtime
 } from '../services/pedidos'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -2376,6 +2376,45 @@ export default function Production() {
         grouped[stage].forEach(o => validDbIds.add(String(o.id)))
       }
 
+      // ── Anti-regression smart merge ──────────────────────────────────────────
+      // If the local board already has an order at a MORE ADVANCED stage than what
+      // the DB returned (Realtime firing during an in-flight write), keep the local
+      // stage to avoid regressing the card back. This is the core fix for the
+      // "pedido voltando para Embalagem" race condition.
+      const STAGE_RANK: Record<string, number> = {
+        'Novos Pedidos': 0, 'Impressão': 1, 'Corte Moldura': 2,
+        'Entelamento + Vidro': 3, 'Acabamento': 4, 'Revisão': 5, 'Embalagem': 6,
+        'Prontos para Envio': 7, 'Despachados': 8,
+      }
+      // Map: orderId → current local stage (only for orders the DB knows about)
+      const localStageOf = new Map<string, Stage>()
+      for (const stage of Object.keys(prev) as Stage[]) {
+        for (const o of prev[stage]) {
+          if (validDbIds.has(String(o.id))) {
+            localStageOf.set(String(o.id), stage)
+          }
+        }
+      }
+      // Re-bucket DB orders that are behind the current local state
+      const correctedGrouped: Record<Stage, Order[]> = {
+        'Novos Pedidos': [], 'Impressão': [], 'Corte Moldura': [],
+        'Entelamento + Vidro': [], 'Acabamento': [], 'Revisão': [], 'Embalagem': [],
+        'Prontos para Envio': [], 'Despachados': [],
+      }
+      for (const stage of Object.keys(grouped) as Stage[]) {
+        for (const order of grouped[stage as Stage]) {
+          const localStage = localStageOf.get(String(order.id))
+          const dbRank    = STAGE_RANK[stage] ?? -1
+          const localRank = localStage != null ? (STAGE_RANK[localStage] ?? -1) : -1
+          if (localRank > dbRank) {
+            // Local is ahead of DB — keep the advanced stage
+            correctedGrouped[localStage!].push(order)
+          } else {
+            correctedGrouped[stage as Stage].push(order)
+          }
+        }
+      }
+
       // Preserve orders that exist locally but haven't been written to DB yet
       // (e.g. orders just moved to "Prontos para Envio" via markReady before the
       //  real-time subscription fires from an unrelated UPDATE event)
@@ -2388,11 +2427,11 @@ export default function Production() {
         localOnlyOrders[stage] = prev[stage].filter(o => !validDbIds.has(String(o.id)))
       }
 
-      // Merge: DB data first, then append local-only orders that aren't in DB yet
-      const merged: Record<Stage, Order[]> = { ...grouped }
+      // Merge: corrected DB data first, then append local-only orders
+      const merged: Record<Stage, Order[]> = { ...correctedGrouped }
       for (const stage of Object.keys(localOnlyOrders) as Stage[]) {
         if (localOnlyOrders[stage].length > 0) {
-          merged[stage] = [...localOnlyOrders[stage], ...grouped[stage]]
+          merged[stage] = [...localOnlyOrders[stage], ...correctedGrouped[stage as Stage]]
         }
       }
 
@@ -2590,6 +2629,7 @@ export default function Production() {
     // Supabase sync
     const dbId = getDbId(orderId)
     if (dbId) {
+      suppressRealtime(2500)
       movePedidoEtapa(dbId, to as string)
     }
 
@@ -2680,16 +2720,7 @@ export default function Production() {
       const updatedOrders = orders.map(order => {
         const trans = order.transportadora || CARRIER_NAMES[0]
         const vols = order.volumes || order.quantidade || 1
-        
-        const dbId = getDbId(order.id)
-        if (dbId) updatePedido(dbId, { 
-          etapa: 'Prontos para Envio', 
-          status: 'OK',
-          transportadora: trans,
-          volumes: vols
-        })
         if (order.magazordId) updateOrderSituacao(order.magazordId, 6)
-
         return { ...order, status: 'OK' as const, transportadora: trans, volumes: vols, dataDespacho: undefined }
       })
 
@@ -2702,6 +2733,46 @@ export default function Production() {
           'Prontos para Envio': [...toAdd, ...prev['Prontos para Envio']]
         }
       })
+
+      // ── Persist to Supabase (suppress Realtime to avoid race condition) ──
+      suppressRealtime(4000 + orders.length * 200)
+      for (const order of orders) {
+        const trans = order.transportadora || CARRIER_NAMES[0]
+        const vols  = order.volumes || order.quantidade || 1
+        const dbId  = getDbId(order.id)
+        if (dbId) {
+          await updatePedido(dbId, {
+            etapa:          'Prontos para Envio',
+            status:         'OK',
+            transportadora: trans,
+            volumes:        vols,
+          })
+        } else if (isSupabaseConfigured()) {
+          // Pedido não persistido ainda — cria no banco agora com a etapa correta
+          const created = await createPedido({
+            numero:         order.id,
+            magazord_id:    order.magazordId,
+            cliente:        order.cliente,
+            produto:        order.produto,
+            moldura:        order.moldura,
+            acabamento:     order.acabamento,
+            canal:          order.canal,
+            etapa:          'Prontos para Envio',
+            status:         'OK',
+            prazo_entrega:  order.prazoEntrega
+              ? order.prazoEntrega.split('/').reverse().join('-')
+              : undefined,
+            valor:          order.valor,
+            frete:          order.frete,
+            obs:            order.obs,
+            endereco:       order.endereco,
+            transportadora: trans,
+            volumes:        vols,
+            from_magazord:  !!order.fromMagazord,
+          })
+          if (created) dbIdMap.current.set(order.id, created.id)
+        }
+      }
       showToast(`✅ ${orders.length} pedidos enviados para Prontos para Envio com transportadora e volumes padrão!`)
       return
     }
@@ -2802,7 +2873,10 @@ export default function Production() {
     }))
     // Supabase sync
     const dbId = getDbId(id)
-    if (dbId) movePedidoEtapa(dbId, next as string)
+    if (dbId) {
+      suppressRealtime(2500)
+      movePedidoEtapa(dbId, next as string)
+    }
     showToast(`Pedido #${id} avançou para ${next}`)
   }
 
@@ -2916,8 +2990,11 @@ export default function Production() {
     }))
     // Supabase sync
     const dbId = getDbId(order.id)
-    if (dbId) updatePedido(dbId, { etapa: 'Prontos para Envio', endereco, transportadora,
-      prazo_entrega: prazoEntrega || undefined, volumes })
+    if (dbId) {
+      suppressRealtime(3000)
+      updatePedido(dbId, { etapa: 'Prontos para Envio', endereco, transportadora,
+        prazo_entrega: prazoEntrega || undefined, volumes })
+    }
     setReadyModal(null)
     showToast(`Pedido #${order.id} está Pronto para Envio!`)
   }
@@ -2977,7 +3054,7 @@ export default function Production() {
     setReviewModal(null)
   }
 
-  const dispatch = (order: Order, transportadora: string, rastreio: string) => {
+  const dispatch = async (order: Order, transportadora: string, rastreio: string) => {
     const now = new Date().toLocaleDateString('pt-BR') + ' às ' +
       new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     setBoard(prev => ({
@@ -2987,9 +3064,12 @@ export default function Production() {
     }))
     setDispatchModal(null)
     if (order.magazordId) updateOrderSituacao(order.magazordId, 7, { codigoRastreio: rastreio, transportadora })
-    // Supabase sync
+    // Supabase sync — suppress Realtime BEFORE the write to avoid race condition
     const dbId = getDbId(order.id)
-    if (dbId) despacharPedido(dbId, transportadora, rastreio)
+    if (dbId) {
+      suppressRealtime(3500)
+      await despacharPedido(dbId, transportadora, rastreio)
+    }
     showToast(`Pedido #${order.id} despachado com sucesso!`)
   }
   const dispatchAll = async (carrier: string, carrierOrders: Order[]) => {
@@ -3013,6 +3093,8 @@ export default function Production() {
       'Despachados': [...dispatched, ...prev['Despachados']],
     }))
 
+    // Suppress Realtime BEFORE the batch writes to avoid race condition
+    suppressRealtime(3000 + carrierOrders.length * 300)
     carrierOrders.forEach(order => {
       const rastreio = order.rastreio || ''
       if (order.magazordId) updateOrderSituacao(order.magazordId, 7, { codigoRastreio: rastreio, transportadora: carrier })
