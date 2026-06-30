@@ -21,6 +21,41 @@ export type {
 
 import type { MagazordOrder, MagazordOrdersResponse, FreightOrderData } from './magazord'
 
+const _enrichDB: Record<string, Partial<FreightOrderData>> = (() => {
+  try { return JSON.parse(localStorage.getItem('erp_lv_freight_enrich_db') || '{}') } catch { return {} }
+})()
+function saveEnrichDB() {
+  try { localStorage.setItem('erp_lv_freight_enrich_db', JSON.stringify(_enrichDB)) } catch {}
+}
+
+const extractUF = (o: any): string | undefined => {
+  if (!o) return undefined
+  let val = o.estadoSigla || o.uf || o.entrega?.uf || o.entrega?.estadoSigla || o.endereco?.uf || o.endereco?.estadoSigla || o.cliente?.uf || o.cliente?.estadoSigla || o.destinatario?.uf || o.destinatario?.estadoSigla || o.estado
+  
+  if (!val) {
+    const addr = String(o.endereco || o.enderecoEntrega || o.logradouro || o.entrega?.logradouro || o.entrega?.endereco || o.entrega?.cidade || '')
+    const m = addr.match(/(?:\/|\-|\s|^)([A-Z]{2})(?:\s|\-|$|,)/i)
+    if (m) val = m[1].toUpperCase()
+  }
+
+  if (typeof val === 'string') {
+    const v = val.trim().toUpperCase()
+    if (v.length === 2) return v
+    
+    const stateNamesMap: Record<string, string> = {
+      'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPA': 'AP', 'AMAZONAS': 'AM',
+      'BAHIA': 'BA', 'CEARA': 'CE', 'DISTRITO FEDERAL': 'DF',
+      'ESPIRITO SANTO': 'ES', 'GOIAS': 'GO', 'MARANHAO': 'MA', 'MATO GROSSO': 'MT',
+      'MATO GROSSO DO SUL': 'MS', 'MINAS GERAIS': 'MG', 'PARA': 'PA', 'PARAIBA': 'PB',
+      'PARANA': 'PR', 'PERNAMBUCO': 'PE', 'PIAUI': 'PI', 'RIO DE JANEIRO': 'RJ',
+      'RIO GRANDE DO NORTE': 'RN', 'RIO GRANDE DO SUL': 'RS', 'RONDONIA': 'RO',
+      'RORAIMA': 'RR', 'SANTA CATARINA': 'SC', 'SAO PAULO': 'SP', 'SERGIPE': 'SE', 'TOCANTINS': 'TO'
+    }
+    return stateNamesMap[v] || undefined
+  }
+  return undefined
+}
+
 // ─── Proxy base (dev) ─────────────────────────────────────────────────────────
 const LV_PROXY_BASE = '/magazord-lv-api/v2'
 
@@ -359,16 +394,26 @@ export async function fetchOrdersForKPIsLV(dias = 90): Promise<FreightOrderData[
     const dataInicial = d.toISOString().split('T')[0]
     const allowedSituations = new Set([4, 5, 6, 7, 8, 23])
     
-    // Simplificando o fetch sem cache complexo por enquanto, 
-    // já que o backend resolve
-    const json = await lvFetch<MagazordOrdersResponse>(
-      `/site/pedido?dataPedidoInicial=${dataInicial}&limit=100&order=id&orderDirection=desc`
-    )
+    const PAGE_SIZE = 100
+    const allItems: any[] = []
+    let page = 1
+
+    while (true) {
+      const json = await lvFetch<MagazordOrdersResponse>(
+        `/site/pedido?dataPedidoInicial=${dataInicial}&limit=${PAGE_SIZE}&page=${page}&order=id&orderDirection=desc`
+      )
+      const items = (json?.data?.items ?? []) as any[]
+      allItems.push(...items)
+      if (items.length < PAGE_SIZE || page >= 20) break // max 20 pages (2000 orders)
+      page++
+    }
     
-    const items = (json?.data?.items ?? []) as any[]
-    const filtered = items.filter(o => allowedSituations.has(o.pedidoSituacao ?? o.situacao ?? -1))
+    const filtered = allItems.filter(o => allowedSituations.has(o.pedidoSituacao ?? o.situacao ?? -1))
     
     return filtered.map(o => {
+      const baseCodigo = String(o.codigo || o.id)
+      const cachedDetail = _enrichDB[baseCodigo]
+
       const itemsArr = o.itens || o.arrayPedidoItem || o.pedidoItem || []
       const produtos = itemsArr.map((i: any) => ({
         nome: `${i.nome || i.produtoNome || ''} ${i.produtoDerivacaoNome || ''}`.trim(),
@@ -376,21 +421,83 @@ export async function fetchOrdersForKPIsLV(dias = 90): Promise<FreightOrderData[
       }))
 
       return {
-        codigo: String(o.codigo || o.id),
-        transportadora: extractTransportadora(o),
-        frete: extractFrete(o),
+        codigo: baseCodigo,
+        transportadora: cachedDetail?.transportadora || (o.transportadoraNome || o.entrega?.transportadora || 'Sem transportadora').trim(),
+        frete: cachedDetail?.frete !== undefined ? cachedDetail.frete : (parseFloat(String(o.valorFreteTransportadora || o.valorFrete || o.pedidoValorFrete || o.entrega?.frete || 0)) || 0),
         valor: parseFloat(String(o.valorTotal || 0)) || 0,
         data: o.dataHora || o.data_pedido || new Date().toISOString(),
         situacao: o.pedidoSituacao ?? o.situacao,
-        quantidade: produtos.reduce((acc: number, p: any) => acc + p.qtd, 0) || 1,
-        produtos,
-        canal: o.canal || o.canalNome || o.lojaIntegracaoNome || o.canalVenda || 'Site',
-        uf: o.estadoSigla || o.entrega?.uf || undefined,
+        quantidade: cachedDetail?.quantidade || produtos.reduce((acc: number, p: any) => acc + p.qtd, 0) || 1,
+        produtos: cachedDetail?.produtos || produtos,
+        fullyEnriched: !!cachedDetail?.fullyEnriched,
+        canal: o.lojaDoMarketplaceNome || o.canal || o.canalNome || o.lojaIntegracaoNome || 'Site',
+        uf: cachedDetail?.uf || extractUF(o) || undefined,
       }
     })
   } catch (err) {
     console.error('[MagazordLV] fetchOrdersForKPIsLV falhou:', err)
     return []
   }
+}
+
+export async function enrichOrdersWithCarriersLV(
+  orders: FreightOrderData[],
+  onProgress: (enriched: FreightOrderData[]) => void,
+  concurrency = 12
+): Promise<FreightOrderData[]> {
+  const result = orders.map(o => ({ ...o }))
+  const byCode = new Map(result.map(o => [o.codigo, o]))
+
+  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf)
+  console.log(`[FreightLV] Enriquecendo ${needsDetail.length} de ${orders.length} pedidos...`)
+
+  for (let i = 0; i < needsDetail.length; i += concurrency) {
+    const batch = needsDetail.slice(i, i + concurrency)
+    await Promise.all(batch.map(async (order) => {
+      try {
+        const detail = await lvFetch<{ status: string; data: any }>(`/site/pedido/${order.codigo}`)
+        const data = detail?.data
+        if (!data) return
+        const rastreio = (data.arrayPedidoRastreio ?? [])[0] ?? {}
+        const trans = (rastreio.transportadoraNome || data.transportadoraNome || '').trim()
+        const frete = parseFloat(String(rastreio.valorFreteTransportadora || rastreio.valorFrete || data.valorFrete || 0)) || 0
+        const entry = byCode.get(order.codigo)
+        if (entry) {
+          if (trans) entry.transportadora = trans
+          if (frete > 0) entry.frete = frete
+          const itemsArr = rastreio.pedidoItem || data.arrayPedidoItem || data.pedidoItem || []
+          const qtd = itemsArr.reduce((sum: number, it: any) => sum + (Number(it.quantidade) || 1), 0)
+          if (qtd > 0) entry.quantidade = qtd
+          
+          const stateCode = extractUF(data) || order.uf || 'N/A'
+          entry.uf = stateCode
+
+          if (!entry.produtos || entry.produtos.length === 0) {
+            entry.produtos = itemsArr.map((i: any) => {
+              const baseName = i.nome || i.produtoNome || ''
+              const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
+              const nomeFinal = `${baseName} ${derivacao}`.trim()
+              const qtd = Number(i.quantidade) || 1
+              return nomeFinal ? { nome: nomeFinal, qtd } : null
+            }).filter(Boolean) as {nome: string, qtd: number}[]
+          }
+          entry.fullyEnriched = true
+          
+          _enrichDB[entry.codigo] = { 
+            transportadora: entry.transportadora, 
+            frete: entry.frete, 
+            quantidade: entry.quantidade, 
+            produtos: entry.produtos,
+            fullyEnriched: true,
+            uf: entry.uf,
+          }
+        }
+      } catch { /* ignora */ }
+    }))
+    saveEnrichDB()
+    onProgress([...result])
+  }
+
+  return result
 }
 

@@ -11,7 +11,8 @@ import {
   ResponsiveContainer, Cell, LabelList, PieChart, Pie, Legend
 } from 'recharts'
 import { fetchPedidosLV } from '../../services/pedidosLV'
-import { fetchOrdersForKPIsLV } from '../../magazordLV'
+import { fetchOrdersForKPIsLV, enrichOrdersWithCarriersLV } from '../../magazordLV'
+import BrazilMap from '../../components/BrazilMap'
 import type { FreightOrderData } from '../../magazord'
 
 const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -33,6 +34,15 @@ function getChannelMeta(canal: string) {
   return key ? CHANNEL_META[key] : { color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', icon: '📊' }
 }
 
+const STATE_NAMES: Record<string, string> = {
+  AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará',
+  DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso',
+  MS: 'Mato Grosso do Sul', MG: 'Minas Gerais', PA: 'Pará', PB: 'Paraíba', PR: 'Paraná',
+  PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte',
+  RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina',
+  SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins'
+}
+
 export default function DashboardLV() {
   const navigate = useNavigate()
   const [periodo, setPeriodo] = useState('Este Mês')
@@ -46,6 +56,12 @@ export default function DashboardLV() {
   // Magazord LV Data
   const [mzOrders, setMzOrders] = useState<FreightOrderData[]>([])
   const [loadingMz, setLoadingMz] = useState(true)
+  const [enriching, setEnriching] = useState(false)
+  const [enrichProgress, setEnrichProgress] = useState(0)
+
+  // Map state
+  const [selectedState, setSelectedState] = useState<string | null>(null)
+  const [metricType, setMetricType] = useState<'faturamento' | 'pedidos' | 'freteMedio' | 'freteTotal' | 'margemComprometida'>('faturamento')
 
   useEffect(() => {
     // 1. Carrega dados do Kanban (Produção local)
@@ -67,6 +83,20 @@ export default function DashboardLV() {
     fetchOrdersForKPIsLV(90).then(orders => {
       setMzOrders(orders)
       setLoadingMz(false)
+
+      const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf)
+      if (needsEnrich.length > 0) {
+        setEnriching(true)
+        let done = 0
+        enrichOrdersWithCarriersLV(orders, (enriched) => {
+          done += 12
+          setEnrichProgress(Math.min(100, Math.round((done / needsEnrich.length) * 100)))
+          setMzOrders(enriched)
+        }).then((finalEnriched) => {
+          setEnriching(false)
+          setEnrichProgress(100)
+        }).catch(() => setEnriching(false))
+      }
     })
   }, [])
 
@@ -129,6 +159,34 @@ export default function DashboardLV() {
     .sort((a,b) => b.value - a.value)
     .slice(0, 5)
 
+  // Calculate Map Metrics
+  const stateMetricsMap = new Map<string, { faturamento: number; freteTotal: number; pedidos: number }>()
+  Object.keys(STATE_NAMES).forEach(uf => {
+    stateMetricsMap.set(uf, { faturamento: 0, freteTotal: 0, pedidos: 0 })
+  })
+  
+  filteredOrders.forEach(o => {
+    if (!o.uf || !stateMetricsMap.has(o.uf)) return
+    const s = stateMetricsMap.get(o.uf)!
+    s.faturamento += o.valor || 0
+    s.freteTotal += o.frete || 0
+    s.pedidos += 1
+  })
+
+  const stateMetrics: Record<string, { faturamento: number; freteTotal: number; pedidos: number; freteMedio: number; margemComprometida: number }> = {}
+  stateMetricsMap.forEach((data, uf) => {
+    stateMetrics[uf] = {
+      faturamento: data.faturamento,
+      freteTotal: data.freteTotal,
+      pedidos: data.pedidos,
+      freteMedio: data.pedidos > 0 ? data.freteTotal / data.pedidos : 0,
+      margemComprometida: data.faturamento > 0 ? (data.freteTotal / data.faturamento) * 100 : 0
+    }
+  })
+
+  // Se houver UF filtrada, aplicamos no channelStats e topProducts (Opcional, mas não faremos pra não complicar, mantemos simples)
+  // Ou podemos aplicar se selectedState estiver setado. Para simplificar, vou manter como os KPIs gerais e o map lado a lado.
+
   const handleExportar = () => {
     const csv = 'Relatório vazio — adicione pedidos para exportar dados.'
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -175,6 +233,17 @@ export default function DashboardLV() {
           </button>
         </div>
       </div>
+
+        {/* Top Header com Progresso de Enriquecimento se existir */}
+        {enriching && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs px-4 py-2 rounded-xl mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <span className="font-medium">Atualizando localizações e frete dos pedidos Magazord...</span>
+            </div>
+            <span className="font-bold">{enrichProgress}%</span>
+          </div>
+        )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -317,26 +386,35 @@ export default function DashboardLV() {
           )}
         </div>
 
-        {/* Stock Alerts Placeholder */}
-        <div className="card p-5 border-l-4 border-red-500">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center shrink-0">
-              <AlertTriangle size={20} className="text-red-600" />
-            </div>
-            <div>
-              <h2 className="font-bold text-gray-800 text-lg">Avisos de Estoque</h2>
-              <p className="text-xs text-gray-400">Produtos Magazord que precisam de reposição.</p>
+        {/* Map / Faturamento por Estado */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col items-center">
+          <div className="flex items-center justify-between w-full mb-4">
+            <h2 className="font-bold text-gray-800 text-lg">Faturamento por Estado</h2>
+            <div className="flex items-center gap-2">
+              <select
+                value={metricType}
+                onChange={(e) => setMetricType(e.target.value as any)}
+                className="text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 cursor-pointer"
+              >
+                <option value="faturamento">Faturamento (R$)</option>
+                <option value="pedidos">Número de Pedidos</option>
+              </select>
             </div>
           </div>
-          
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-              <Package size={20} className="text-gray-300" />
-            </div>
-            <p className="text-sm font-semibold text-gray-700">Aguardando Credenciais Magazord</p>
-            <p className="text-xs text-gray-400 mt-1 max-w-xs">
-              Assim que o seu usuário WS for configurado, os avisos de produtos que estão acabando aparecerão aqui automaticamente.
-            </p>
+          <div className="w-full flex-1 min-h-[300px]">
+            <BrazilMap
+              stateMetrics={stateMetrics}
+              metricType={metricType}
+              selectedState={selectedState}
+              onSelectState={setSelectedState}
+            />
+          </div>
+          <div className="w-full text-center mt-3 text-[10px] text-gray-400 font-medium">
+            {selectedState ? (
+              <span>Filtrado por: <strong className="text-blue-600">{STATE_NAMES[selectedState]} ({selectedState})</strong>.</span>
+            ) : (
+              <span>Passe o mouse para detalhes. Clique para selecionar.</span>
+            )}
           </div>
         </div>
       </div>
