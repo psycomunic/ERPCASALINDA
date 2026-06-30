@@ -28,10 +28,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Credenciais da Lar e Vida ────────────────────────────────────────────────
-  // Usar env vars da Vercel se existirem; fallback para as mesmas creds da Casa Linda
-  const user    = process.env.MAGAZORD_LV_USER    || process.env.MAGAZORD_USER    || 'MZDK243d956a56ce6ac8ee27b0ea82734801a79db2e823c65868a79c4fe5329f'
-  const pass    = process.env.MAGAZORD_LV_PASS    || process.env.MAGAZORD_PASS    || "'eD}E!Z139Lk"
-  const baseUrl = process.env.MAGAZORD_LV_BASE_URL ?? 'https://larevida.painel.magazord.com.br'
+  // Usar env vars da Vercel se existirem; fallback fixado para credenciais da LV
+  const user    = process.env.MAGAZORD_LV_USER    || 'MZDKfa05c6fac5df376e7a4c373bbcf5fccde76197984b68baf91344f5c380c9'
+  const pass    = process.env.MAGAZORD_LV_PASS    || '@Up31Kizl%cP'
+  const baseUrl = process.env.MAGAZORD_LV_BASE_URL || 'https://larevida.painel.magazord.com.br'
 
   if (!user || !pass) {
     res.status(503).json({ error: 'Credenciais Magazord LV não configuradas.' })
