@@ -39,10 +39,7 @@ export default function DashboardLV() {
   const [showPeriodo, setShowPeriodo] = useState(false)
 
   // Data states
-  const [faturamento, setFaturamento] = useState(0)
-  const [totalPedidos, setTotalPedidos] = useState(0)
   const [pedidosAtrasados, setPedidosAtrasados] = useState(0)
-  const [ticketMedio, setTicketMedio] = useState(0)
   const [pedidosAndamento, setPedidosAndamento] = useState(0)
   const [capacidade, setCapacidade] = useState(0)
 
@@ -53,19 +50,12 @@ export default function DashboardLV() {
   useEffect(() => {
     // 1. Carrega dados do Kanban (Produção local)
     fetchPedidosLV().then(pedidos => {
-      const now = new Date()
-      let fat = 0, total = 0, atrasados = 0, andamento = 0
+      let atrasados = 0, andamento = 0
 
       for (const p of pedidos) {
         const isFinished = p.etapa === 'Prontos para Envio' || p.etapa === 'Despachados'
         if (!isFinished) andamento++
         if (p.status === 'Atrasado') atrasados++
-
-        const dt = new Date(p.created_at)
-        if (dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()) {
-          fat += (p.valor || 0)
-          total++
-        }
       }
 
       setPedidosAtrasados(atrasados)
@@ -77,28 +67,44 @@ export default function DashboardLV() {
     fetchOrdersForKPIsLV(90).then(orders => {
       setMzOrders(orders)
       setLoadingMz(false)
-      
-      // Update general KPIs based on Magazord data for "Este Mês"
-      const now = new Date()
-      let fatMz = 0, totalMz = 0
-      for (const o of orders) {
-        const d = new Date(o.data)
-        if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
-          fatMz += o.valor
-          totalMz++
-        }
-      }
-      setFaturamento(fatMz)
-      setTotalPedidos(totalMz)
-      setTicketMedio(totalMz > 0 ? fatMz / totalMz : 0)
     })
   }, [])
 
   // ─── Process Analytics ────────────────────────────────────────────────────────
   
+  // Filter mzOrders based on periodo
+  const now = new Date()
+  let filteredOrders = mzOrders
+
+  if (periodo === 'Hoje') {
+    filteredOrders = mzOrders.filter(o => new Date(o.data).toDateString() === now.toDateString())
+  } else if (periodo === 'Últimos 7 Dias') {
+    const d = new Date(); d.setDate(d.getDate() - 7)
+    filteredOrders = mzOrders.filter(o => new Date(o.data) >= d)
+  } else if (periodo === 'Últimos 30 Dias') {
+    const d = new Date(); d.setDate(d.getDate() - 30)
+    filteredOrders = mzOrders.filter(o => new Date(o.data) >= d)
+  } else if (periodo === 'Este Mês') {
+    filteredOrders = mzOrders.filter(o => {
+      const d = new Date(o.data)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    })
+  } else if (periodo === 'Trimestre') {
+    const d = new Date(); d.setMonth(d.getMonth() - 3)
+    filteredOrders = mzOrders.filter(o => new Date(o.data) >= d)
+  } else if (periodo === 'Ano') {
+    filteredOrders = mzOrders.filter(o => new Date(o.data).getFullYear() === now.getFullYear())
+  }
+
+  // Calculate KPIs
+  let fatMz = 0
+  filteredOrders.forEach(o => fatMz += o.valor)
+  const totalMzCount = filteredOrders.length
+  const currentTicketMedio = totalMzCount > 0 ? fatMz / totalMzCount : 0
+
   // Channels
   const channelsMap = new Map<string, { valor: number, pedidos: number }>()
-  mzOrders.forEach(o => {
+  filteredOrders.forEach(o => {
     const c = o.canal || 'Site'
     const cur = channelsMap.get(c) || { valor: 0, pedidos: 0 }
     cur.valor += o.valor
@@ -113,7 +119,7 @@ export default function DashboardLV() {
 
   // Products
   const productsMap = new Map<string, number>()
-  mzOrders.forEach(o => {
+  filteredOrders.forEach(o => {
     (o.produtos || []).forEach(p => {
       productsMap.set(p.nome, (productsMap.get(p.nome) || 0) + p.qtd)
     })
@@ -173,9 +179,9 @@ export default function DashboardLV() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: 'FATURAMENTO (MÊS)',   value: fmt(faturamento),        tag: 'Magazord',    tagColor: 'text-amber-700 bg-amber-100',   icon: TrendingUp,    iconBg: '#fef3c7', iconColor: '#d97706',  onClick: () => navigate('/lar-e-vida/financial') },
-          { label: 'PEDIDOS (MÊS)',       value: String(totalPedidos),    tag: 'Magazord',    tagColor: 'text-stone-700 bg-stone-100',   icon: ShoppingCart,  iconBg: '#f5f5f4', iconColor: '#78716c',  onClick: () => navigate('/lar-e-vida/production') },
-          { label: 'TICKET MÉDIO (MÊS)',  value: fmt(ticketMedio),        tag: 'Magazord',    tagColor: 'text-orange-700 bg-orange-100', icon: TrendingUp,    iconBg: '#ffedd5', iconColor: '#ea580c',  onClick: () => navigate('/lar-e-vida/financial') },
+          { label: `FATURAMENTO (${periodo.toUpperCase()})`,   value: fmt(fatMz),              tag: 'Magazord',    tagColor: 'text-amber-700 bg-amber-100',   icon: TrendingUp,    iconBg: '#fef3c7', iconColor: '#d97706',  onClick: () => navigate('/lar-e-vida/financial') },
+          { label: `PEDIDOS (${periodo.toUpperCase()})`,       value: String(totalMzCount),    tag: 'Magazord',    tagColor: 'text-stone-700 bg-stone-100',   icon: ShoppingCart,  iconBg: '#f5f5f4', iconColor: '#78716c',  onClick: () => navigate('/lar-e-vida/production') },
+          { label: `TICKET MÉDIO (${periodo.toUpperCase()})`,  value: fmt(currentTicketMedio), tag: 'Magazord',    tagColor: 'text-orange-700 bg-orange-100', icon: TrendingUp,    iconBg: '#ffedd5', iconColor: '#ea580c',  onClick: () => navigate('/lar-e-vida/financial') },
           { label: 'PEDIDOS ATRASADOS',   value: String(pedidosAtrasados),tag: pedidosAtrasados > 0 ? 'PCP' : 'PCP OK', tagColor: pedidosAtrasados > 0 ? 'text-red-700 bg-red-100' : 'text-green-700 bg-green-100', icon: AlertTriangle, iconBg: pedidosAtrasados > 0 ? '#fee2e2' : '#dcfce7', iconColor: pedidosAtrasados > 0 ? '#dc2626' : '#16a34a', onClick: () => navigate('/lar-e-vida/production') },
         ].map((k, i) => (
           <motion.div
