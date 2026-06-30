@@ -63,6 +63,9 @@ export default function DashboardLV() {
   const [selectedState, setSelectedState] = useState<string | null>(null)
   const [metricType, setMetricType] = useState<'faturamento' | 'pedidos' | 'freteMedio' | 'freteTotal' | 'margemComprometida'>('faturamento')
 
+  // Product Category Filter
+  const [categoryFilter, setCategoryFilter] = useState('Todas')
+
   useEffect(() => {
     // 1. Carrega dados do Kanban (Produção local)
     fetchPedidosLV().then(pedidos => {
@@ -149,11 +152,36 @@ export default function DashboardLV() {
 
   // Products
   const productsMap = new Map<string, number>()
+  const categoriesSet = new Set<string>()
+
+  const getProductCategory = (name: string) => {
+    const n = name.toUpperCase()
+    if (n.includes('KIT COBRE LEITO') || n.includes('COBRE LEITO')) return 'Cobre Leitos'
+    if (n.includes('JOGO DE CAMA') || n.includes('LENÇOL') || n.includes('LENCÓL') || n.includes('LENCOL')) return 'Cama e Lençóis'
+    if (n.includes('CORTINA')) return 'Cortinas'
+    if (n.includes('TAPETE')) return 'Tapetes'
+    if (n.includes('TOALHA')) return 'Banho e Toalhas'
+    if (n.includes('CAPA')) return 'Capas Diversas'
+    if (n.includes('EDREDOM')) return 'Edredons'
+    if (n.includes('MANTA') || n.includes('COBERTOR')) return 'Cobertores e Mantas'
+    if (n.includes('TRAVESSEIRO') || n.includes('FRONHA') || n.includes('ALMOFADA')) return 'Travesseiros e Almofadas'
+    if (n.startsWith('KIT')) return 'Kits Diversos'
+    return 'Outros'
+  }
+
   filteredOrders.forEach(o => {
     (o.produtos || []).forEach(p => {
-      productsMap.set(p.nome, (productsMap.get(p.nome) || 0) + p.qtd)
+      const cat = getProductCategory(p.nome)
+      categoriesSet.add(cat)
+      
+      if (categoryFilter === 'Todas' || categoryFilter === cat) {
+        productsMap.set(p.nome, (productsMap.get(p.nome) || 0) + p.qtd)
+      }
     })
   })
+  
+  const uniqueCategories = Array.from(categoriesSet).sort()
+
   const topProducts = Array.from(productsMap.entries())
     .map(([name, value]) => ({ name: name.length > 30 ? name.substring(0,30)+'...' : name, value }))
     .sort((a,b) => b.value - a.value)
@@ -357,13 +385,28 @@ export default function DashboardLV() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Top Products */}
         <div className="card p-5">
-          <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-4">
-            <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0">
-              <Package size={20} className="text-orange-600" />
+          <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0">
+                <Package size={20} className="text-orange-600" />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-800 text-lg">Top Produtos Vendidos</h2>
+                <p className="text-xs text-gray-400">Inteligência baseada em requisições Magazord.</p>
+              </div>
             </div>
-            <div>
-              <h2 className="font-bold text-gray-800 text-lg">Top Produtos Vendidos</h2>
-              <p className="text-xs text-gray-400">Inteligência baseada em requisições Magazord.</p>
+            
+            <div className="flex items-center gap-2">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="text-xs font-semibold bg-orange-50 border border-orange-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-500 text-orange-800 cursor-pointer"
+              >
+                <option value="Todas">Todas as Categorias</option>
+                {uniqueCategories.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
           </div>
           
