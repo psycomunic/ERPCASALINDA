@@ -3371,7 +3371,7 @@ export default function ProductionLV() {
             cliente: mz.cliente?.nome || mz.destinatario?.nome || mz.clienteNome || 'Cliente Magazord',
             clienteEmail: mz.cliente?.email || mz.clienteEmail,
             clienteTelefone: mz.cliente?.telefone || mz.clienteTelefone,
-            produto: firstItem?.nome || firstItem?.produtoNome || mz.arrayPedidoItem?.[0]?.nome || mz.arrayPedidoItem?.[0]?.produtoNome || 'Produto Magazord',
+            produto: firstItem?.nome || (firstItem as any)?.produtoNome || mz.arrayPedidoItem?.[0]?.nome || (mz.arrayPedidoItem?.[0] as any)?.produtoNome || 'Produto Magazord',
             sku: mzKey,
             desenho: corFormatted,
             canal: mz.canal ?? 'Magazord',

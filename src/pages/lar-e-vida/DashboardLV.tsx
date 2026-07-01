@@ -71,7 +71,7 @@ export default function DashboardLV() {
 
   useEffect(() => {
     // 0. Carrega catalogo
-    import('../../services/catalogoTapetesLV').then(m => m.fetchCatalogoLV()).then(setCatalogo).catch(() => {})
+    import('../../services/catalogoTapetesLV').then(m => m.fetchCatalogoTapetes()).then(setCatalogo).catch(() => {})
     // 1. Carrega dados do Kanban (Produção local)
     fetchPedidosLV().then(pedidos => {
       let atrasados = 0, andamento = 0
@@ -523,6 +523,7 @@ export default function DashboardLV() {
               metricType={metricType}
               selectedState={selectedState}
               onSelectState={setSelectedState}
+              onHoverState={() => {}}
             />
           </div>
           <div className="w-full text-center mt-3 text-[10px] text-gray-400 font-medium">
