@@ -843,6 +843,7 @@ function ConferenciaTab({ order, onSave }: {
 }) {
   const itens = order.itensCama ?? []
 
+
   // Estado dos checks: {sku -> {conferido, qtdConferida, obs}}
   const [checks, setChecks] = useState<Record<string, { conferido: boolean; qtdConferida: number; obs: string }>>(() => {
     const initial: Record<string, { conferido: boolean; qtdConferida: number; obs: string }> = {}
@@ -877,7 +878,7 @@ function ConferenciaTab({ order, onSave }: {
   }
 
   const handleImageUpload = async (desenho: string, file: File) => {
-    const { uploadFotoLV } = await import('../../services/pedidosLV')
+
     const url = await uploadFotoLV(file)
     if (url) setImagens(prev => ({ ...prev, [desenho]: url }))
   }

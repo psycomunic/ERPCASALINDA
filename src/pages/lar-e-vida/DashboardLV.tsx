@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { fetchPedidosLV } from '../../services/pedidosLV'
 import { fetchOrdersForKPIsLV, enrichOrdersWithCarriersLV } from '../../magazordLV'
+import { fetchCatalogoTapetes } from '../../services/catalogoTapetesLV'
 import BrazilMap from '../../components/BrazilMap'
 import type { FreightOrderData } from '../../magazord'
 
@@ -71,7 +72,7 @@ export default function DashboardLV() {
 
   useEffect(() => {
     // 0. Carrega catalogo
-    import('../../services/catalogoTapetesLV').then(m => m.fetchCatalogoTapetes()).then(setCatalogo).catch(() => {})
+    fetchCatalogoTapetes().then(setCatalogo).catch(() => {})
     // 1. Carrega dados do Kanban (Produção local)
     fetchPedidosLV().then(pedidos => {
       let atrasados = 0, andamento = 0
