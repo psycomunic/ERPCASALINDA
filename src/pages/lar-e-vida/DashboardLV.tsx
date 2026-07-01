@@ -65,8 +65,13 @@ export default function DashboardLV() {
 
   // Product Category Filter
   const [categoryFilter, setCategoryFilter] = useState('Todas')
+  
+  const [allOrdersDB, setAllOrdersDB] = useState<any[]>([])
+  const [catalogo, setCatalogo] = useState<any[]>([])
 
   useEffect(() => {
+    // 0. Carrega catalogo
+    import('../../services/catalogoTapetesLV').then(m => m.fetchCatalogoLV()).then(setCatalogo).catch(() => {})
     // 1. Carrega dados do Kanban (Produção local)
     fetchPedidosLV().then(pedidos => {
       let atrasados = 0, andamento = 0
@@ -80,6 +85,7 @@ export default function DashboardLV() {
       setPedidosAtrasados(atrasados)
       setPedidosAndamento(andamento)
       setCapacidade(Math.min(Math.round((andamento / 30) * 100), 100))
+      setAllOrdersDB(pedidos)
     }).catch(() => {})
 
     // 2. Carrega dados do Magazord para os gráficos
@@ -175,11 +181,35 @@ export default function DashboardLV() {
       categoriesSet.add(cat)
       
       if (categoryFilter === 'Todas' || categoryFilter === cat) {
-        const cur = productsMap.get(p.nome) || { value: 0, sku: p.sku, fotoUrl: p.fotoUrl, tamanho: p.tamanho }
+        let sku = p.sku
+        let fotoUrl = p.fotoUrl
+        let tamanho = p.tamanho
+
+        // Fallback para allOrdersDB
+        if (!fotoUrl || !sku) {
+          const dbMatch = allOrdersDB.find((dbOrder: any) => dbOrder.produto && dbOrder.produto.trim().toLowerCase() === p.nome.trim().toLowerCase())
+          if (dbMatch) {
+            if (!sku && dbMatch.sku) sku = dbMatch.sku
+            if (!fotoUrl && dbMatch.foto_url) fotoUrl = dbMatch.foto_url
+            if (!tamanho && dbMatch.tamanho) tamanho = dbMatch.tamanho
+          }
+        }
+
+        // Fallback para Catalogo
+        if (!fotoUrl || !sku) {
+          const catMatch = catalogo.find((c: any) => p.nome.toLowerCase().includes(c.nome.toLowerCase()))
+          if (catMatch) {
+            if (!sku && catMatch.codigo) sku = catMatch.codigo
+            if (!fotoUrl && catMatch.foto_url) fotoUrl = catMatch.foto_url
+            if (!tamanho && catMatch.tamanho) tamanho = catMatch.tamanho
+          }
+        }
+
+        const cur = productsMap.get(p.nome) || { value: 0, sku, fotoUrl, tamanho }
         cur.value += p.qtd
-        if (!cur.sku && p.sku) cur.sku = p.sku
-        if (!cur.fotoUrl && p.fotoUrl) cur.fotoUrl = p.fotoUrl
-        if (!cur.tamanho && p.tamanho) cur.tamanho = p.tamanho
+        if (!cur.sku && sku) cur.sku = sku
+        if (!cur.fotoUrl && fotoUrl) cur.fotoUrl = fotoUrl
+        if (!cur.tamanho && tamanho) cur.tamanho = tamanho
         productsMap.set(p.nome, cur)
       }
     })

@@ -461,7 +461,7 @@ export async function enrichOrdersWithCarriersLV(
   const result = orders.map(o => ({ ...o }))
   const byCode = new Map(result.map(o => [o.codigo, o]))
 
-  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf)
+  const needsDetail = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf || (o.produtos && o.produtos.length > 0 && !o.produtos[0].sku))
   console.log(`[FreightLV] Enriquecendo ${needsDetail.length} de ${orders.length} pedidos...`)
 
   for (let i = 0; i < needsDetail.length; i += concurrency) {
@@ -485,14 +485,21 @@ export async function enrichOrdersWithCarriersLV(
           const stateCode = extractUF(data) || order.uf || 'N/A'
           entry.uf = stateCode
 
-          if (!entry.produtos || entry.produtos.length === 0) {
+          if (!entry.produtos || entry.produtos.length === 0 || !entry.produtos[0]?.sku) {
             entry.produtos = itemsArr.map((i: any) => {
               const baseName = i.nome || i.produtoNome || ''
               const derivacao = i.produtoDerivacaoNome || i.produtoDerivacao || ''
               const nomeFinal = `${baseName} ${derivacao}`.trim()
               const qtd = Number(i.quantidade) || 1
-              return nomeFinal ? { nome: nomeFinal, qtd } : null
-            }).filter(Boolean) as {nome: string, qtd: number}[]
+              const sku = i.sku || i.codigo || i.produtoCodigo || undefined
+              const fotoUrl = i.foto_url || i.produtoImagemUrl || i.imagemUrl || undefined
+              let tamanho = i.tamanho || undefined
+              if (!tamanho && nomeFinal) {
+                const tMatch = nomeFinal.match(/(\d+,\d+m?\s*[xX]\s*\d+,\d+m?|\d{2,3}\s*[xX]\s*\d{2,3})/i)
+                if (tMatch) tamanho = tMatch[0]
+              }
+              return nomeFinal ? { nome: nomeFinal, qtd, sku, fotoUrl, tamanho } : null
+            }).filter(Boolean) as any[]
           }
           entry.fullyEnriched = true
           
