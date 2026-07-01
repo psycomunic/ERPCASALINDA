@@ -633,6 +633,8 @@ function printFornecedorPDF(orders: LVOrder[]) {
         <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;text-align:center;">${foto}</td>
         <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;vertical-align:middle;">
           <div style="font-size:13px;font-weight:700;color:#111827;">${o.produto}</div>
+          <div style="font-size:10px;font-weight:700;color:#0369a1;margin-top:4px;">👤 Cliente: ${o.cliente || 'Não informado'}</div>
+          <div style="font-size:10px;font-weight:700;color:#b45309;">🛒 Pedido #${o.numero || o.id.slice(-8)}</div>
           ${o.nomeFornecedor ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;">Ref: ${o.nomeFornecedor}</div>` : ''}
           ${o.codigoFornecedor ? `<div style="font-size:10px;font-family:monospace;color:#2563eb;">${o.codigoFornecedor}</div>` : ''}
         </td>
@@ -687,6 +689,7 @@ function printFornecedorPDF(orders: LVOrder[]) {
           ${foto}
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:900;color:#1e40af;">${o.produto}</div>
+            <div style="font-size:10px;font-weight:700;color:#0369a1;margin-top:2px;">👤 Cliente: ${o.cliente || 'Não informado'} · 🛒 Pedido #${o.numero || o.id.slice(-8)}</div>
             <div style="font-size:10px;color:#3b82f6;margin-top:2px;">${skus.length} SKUs · ${totalUnid} unid.${subtotalSkus > 0 ? ` · R$ ${fmt(subtotalSkus)}` : ''}</div>
           </div>
         </div>
@@ -3659,7 +3662,7 @@ export default function ProductionLV() {
       'Pronto para Envio': prev['Pronto para Envio'].filter(o => !ids.has(o.id)),
       'Despachados': [...dispatched, ...prev['Despachados']],
     }))
-    carrierOrders.forEach(order => despacharPedidoLV(order.id, carrier, order.rastreio || ''))
+    carrierOrders.forEach(order => despacharPedidoLV(order.id, carrier, order.rastreio || '', 'Pronto para Envio'))
     showToast(`${carrierOrders.length} pedidos de ${carrier} despachados!`)
   }
 
@@ -3669,7 +3672,7 @@ export default function ProductionLV() {
       'Despachados': prev['Despachados'].filter(o => o.id !== order.id),
       'Pronto para Envio': [{ ...order, dataDespacho: undefined, status: 'OK' as const }, ...prev['Pronto para Envio']],
     }))
-    movePedidoLVEtapa(order.id, 'Pronto para Envio')
+    movePedidoLVEtapa(order.id, 'Pronto para Envio', 'Despachados')
     showToast(`Pedido #${order.id.slice(-8)} revertido para Pronto para Envio`)
   }
 
@@ -3700,7 +3703,7 @@ export default function ProductionLV() {
 
     if (dbId && !(dragging.order.id.startsWith('mzlv-') && orderId !== dragging.order.id)) {
       suppressRealtimeUntil.current = Date.now() + 4000
-      const ok = await movePedidoLVEtapa(dbId, to as string)
+      const ok = await movePedidoLVEtapa(dbId, to as string, dragging.from)
       if (!ok) {
         showToast('Erro ao salvar no banco. Revertendo...')
         setBoard(prev => ({

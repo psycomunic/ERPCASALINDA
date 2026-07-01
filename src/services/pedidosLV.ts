@@ -82,11 +82,15 @@ export async function updatePedidoLV(id: string, updates: PedidoUpdate | Record<
   return true
 }
 
-export async function movePedidoLVEtapa(id: string, etapa: string): Promise<boolean> {
-  return updatePedidoLV(id, { etapa })
+export async function movePedidoLVEtapa(id: string, etapa: string, fromEtapa?: string): Promise<boolean> {
+  const ok = await updatePedidoLV(id, { etapa })
+  if (ok && fromEtapa) {
+    await logHistoricoLV(id, [{ campo: 'etapa', valorAnterior: fromEtapa, valorNovo: etapa }])
+  }
+  return ok
 }
 
-export async function movePedidosLVEtapa(ids: string[], etapa: string): Promise<boolean> {
+export async function movePedidosLVEtapa(ids: string[], etapa: string, fromEtapa?: string): Promise<boolean> {
   if (!isSupabaseConfigured() || ids.length === 0) return false
 
   const { error } = await supabase
@@ -96,6 +100,12 @@ export async function movePedidosLVEtapa(ids: string[], etapa: string): Promise<
     .eq('store_id' as any, STORE_ID)
 
   if (error) { console.error('[pedidosLV] movePedidosLVEtapa:', error.message); return false }
+  
+  if (fromEtapa) {
+    for (const id of ids) {
+      await logHistoricoLV(id, [{ campo: 'etapa', valorAnterior: fromEtapa, valorNovo: etapa }])
+    }
+  }
   return true
 }
 
@@ -103,13 +113,22 @@ export async function despacharPedidoLV(
   id: string,
   transportadora: string,
   rastreio: string,
+  fromEtapa?: string
 ): Promise<boolean> {
-  return updatePedidoLV(id, {
+  const ok = await updatePedidoLV(id, {
     etapa: 'Despachados',
     transportadora,
     rastreio,
     data_despacho: new Date().toISOString(),
   })
+  
+  if (ok) {
+    const changes: any[] = [{ campo: 'transportadora', valorAnterior: null, valorNovo: transportadora }]
+    if (fromEtapa) changes.push({ campo: 'etapa', valorAnterior: fromEtapa, valorNovo: 'Despachados' })
+    if (rastreio) changes.push({ campo: 'rastreio', valorAnterior: null, valorNovo: rastreio })
+    await logHistoricoLV(id, changes)
+  }
+  return ok
 }
 
 // ─── Upload de imagem (Supabase Storage) ─────────────────────────────────────
