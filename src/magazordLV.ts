@@ -415,10 +415,23 @@ export async function fetchOrdersForKPIsLV(dias = 90): Promise<FreightOrderData[
       const cachedDetail = _enrichDB[baseCodigo]
 
       const itemsArr = o.itens || o.arrayPedidoItem || o.pedidoItem || []
-      const produtos = itemsArr.map((i: any) => ({
-        nome: `${i.nome || i.produtoNome || ''} ${i.produtoDerivacaoNome || ''}`.trim(),
-        qtd: Number(i.quantidade) || 1
-      }))
+      const produtos = itemsArr.map((i: any) => {
+        const nome = `${i.nome || i.produtoNome || ''} ${i.produtoDerivacaoNome || ''}`.trim()
+        const sku = i.sku || i.codigo || undefined
+        const fotoUrl = i.foto_url || i.produtoImagemUrl || i.imagemUrl || undefined
+        let tamanho = i.tamanho || undefined
+        if (!tamanho && nome) {
+          const tMatch = nome.match(/(\d+,\d+m?\s*[xX]\s*\d+,\d+m?|\d{2,3}\s*[xX]\s*\d{2,3})/i)
+          if (tMatch) tamanho = tMatch[0]
+        }
+        return {
+          nome,
+          qtd: Number(i.quantidade) || 1,
+          sku,
+          fotoUrl,
+          tamanho
+        }
+      })
 
       return {
         codigo: baseCodigo,

@@ -391,7 +391,7 @@ export interface FreightOrderData {
   data: string
   situacao?: number  // 4=Aprovado, 7=Transporte/Faturado, etc.
   quantidade?: number // Quantos itens há no pedido
-  produtos?: {nome: string, qtd: number}[] // ARRAY de nomes de produtos (para extração de Analytics)
+  produtos?: {nome: string, qtd: number, sku?: string, fotoUrl?: string, tamanho?: string}[] // ARRAY de nomes de produtos (para extração de Analytics)
   fullyEnriched?: boolean // Marca se já passamos pela Fase 2 para extrair produtos precisos
   canal?: string  // Canal de venda: "Site", "Mercado Livre", "Magazine Luiza", etc.
   uf?: string // Sigla do estado (ex.: "SP", "RJ")

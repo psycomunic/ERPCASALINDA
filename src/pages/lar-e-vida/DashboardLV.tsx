@@ -151,7 +151,7 @@ export default function DashboardLV() {
   channelStats.forEach(c => c.perc = totalMz > 0 ? (c.valor / totalMz) * 100 : 0)
 
   // Products
-  const productsMap = new Map<string, number>()
+  const productsMap = new Map<string, { value: number, sku?: string, fotoUrl?: string, tamanho?: string }>()
   const categoriesSet = new Set<string>()
 
   const getProductCategory = (name: string) => {
@@ -175,7 +175,12 @@ export default function DashboardLV() {
       categoriesSet.add(cat)
       
       if (categoryFilter === 'Todas' || categoryFilter === cat) {
-        productsMap.set(p.nome, (productsMap.get(p.nome) || 0) + p.qtd)
+        const cur = productsMap.get(p.nome) || { value: 0, sku: p.sku, fotoUrl: p.fotoUrl, tamanho: p.tamanho }
+        cur.value += p.qtd
+        if (!cur.sku && p.sku) cur.sku = p.sku
+        if (!cur.fotoUrl && p.fotoUrl) cur.fotoUrl = p.fotoUrl
+        if (!cur.tamanho && p.tamanho) cur.tamanho = p.tamanho
+        productsMap.set(p.nome, cur)
       }
     })
   })
@@ -183,7 +188,7 @@ export default function DashboardLV() {
   const uniqueCategories = Array.from(categoriesSet).sort()
 
   const topProducts = Array.from(productsMap.entries())
-    .map(([name, value]) => ({ name: name.length > 30 ? name.substring(0,30)+'...' : name, value }))
+    .map(([name, data]) => ({ name, value: data.value, sku: data.sku, fotoUrl: data.fotoUrl, tamanho: data.tamanho }))
     .sort((a,b) => b.value - a.value)
     .slice(0, 5)
 
@@ -417,17 +422,52 @@ export default function DashboardLV() {
             <div className="py-12 text-center text-sm text-gray-400">Carregando...</div>
           ) : (
             <div className="overflow-hidden mt-4">
-              <ResponsiveContainer width="100%" height={Math.max(180, topProducts.length * 38)}>
-                <BarChart data={topProducts} layout="vertical" margin={{ left: 0, right: 30, top: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} width={150} />
-                  <RechartsTooltip formatter={(v: number) => [v, 'Unidades Vendidas']} contentStyle={{ fontSize: 12, borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} cursor={{ fill: '#f8fafc' }} />
-                  <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="#d97706">
-                    <LabelList dataKey="value" position="right" fill="#6b7280" fontSize={11} fontWeight="bold" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="flex flex-col gap-3">
+                {topProducts.map((p, idx) => {
+                  const maxVal = topProducts[0]?.value || 1
+                  const pct = Math.min(100, Math.round((p.value / maxVal) * 100))
+                  return (
+                    <div key={idx} className="flex flex-col gap-1.5 bg-gray-50 rounded-lg p-2.5 border border-gray-100 hover:border-orange-200 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                          {p.fotoUrl ? (
+                            <img src={p.fotoUrl} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package size={20} className="text-gray-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xs font-bold text-gray-800 leading-tight mb-1">{p.name}</h3>
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {p.sku && (
+                              <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-semibold tracking-tight border border-orange-200">
+                                SKU: {p.sku}
+                              </span>
+                            )}
+                            {p.tamanho && (
+                              <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                                {p.tamanho}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end shrink-0 pl-2">
+                          <span className="text-sm font-black text-orange-600">{p.value}</span>
+                          <span className="text-[9px] text-gray-400 font-medium uppercase tracking-wider">vendas</span>
+                        </div>
+                      </div>
+                      
+                      {/* Bar */}
+                      <div className="mt-1 w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-orange-500 rounded-full" 
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
