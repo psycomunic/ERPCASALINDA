@@ -220,7 +220,7 @@ export default function DashboardLV() {
   const topProducts = Array.from(productsMap.entries())
     .map(([name, data]) => ({ name, value: data.value, sku: data.sku, fotoUrl: data.fotoUrl, tamanho: data.tamanho }))
     .sort((a,b) => b.value - a.value)
-    .slice(0, 5)
+    .slice(0, 20)
 
   // Calculate Map Metrics
   const stateMetricsMap = new Map<string, { faturamento: number; freteTotal: number; pedidos: number }>()
@@ -451,7 +451,7 @@ export default function DashboardLV() {
           {loadingMz ? (
             <div className="py-12 text-center text-sm text-gray-400">Carregando...</div>
           ) : (
-            <div className="overflow-hidden mt-4">
+            <div className="overflow-y-auto max-h-[500px] mt-4 pr-1">
               <div className="flex flex-col gap-3">
                 {topProducts.map((p, idx) => {
                   const maxVal = topProducts[0]?.value || 1
