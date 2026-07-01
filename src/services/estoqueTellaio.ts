@@ -21,7 +21,7 @@ export interface SincronizacaoResultado {
  * e retorna formatado para o InventoryLV.tsx.
  */
 export async function syncEstoqueTellaioFromMagazord(): Promise<SincronizacaoResultado> {
-  const itens = []
+  const itens: SincronizacaoResultado['itens'] = []
   let sucesso = 0
   let falhas = 0
 

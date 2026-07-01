@@ -201,14 +201,17 @@ export default function DashboardLV() {
     s.pedidos += 1
   })
 
-  const stateMetrics: Record<string, { faturamento: number; freteTotal: number; pedidos: number; freteMedio: number; margemComprometida: number }> = {}
+  const stateMetrics: Record<string, { uf: string; name: string; faturamento: number; freteTotal: number; pedidos: number; freteMedio: number; margemComprometida: number; lucroLíquido: number }> = {}
   stateMetricsMap.forEach((data, uf) => {
     stateMetrics[uf] = {
+      uf,
+      name: STATE_NAMES[uf as keyof typeof STATE_NAMES] || uf,
       faturamento: data.faturamento,
       freteTotal: data.freteTotal,
       pedidos: data.pedidos,
       freteMedio: data.pedidos > 0 ? data.freteTotal / data.pedidos : 0,
-      margemComprometida: data.faturamento > 0 ? (data.freteTotal / data.faturamento) * 100 : 0
+      margemComprometida: data.faturamento > 0 ? (data.freteTotal / data.faturamento) * 100 : 0,
+      lucroLíquido: data.faturamento - data.freteTotal
     }
   })
 

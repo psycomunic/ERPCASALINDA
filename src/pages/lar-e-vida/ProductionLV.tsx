@@ -44,6 +44,7 @@ import {
 
 export interface LVOrder {
   id: string
+  numero?: string
   cliente: string
   clienteEmail?: string
   clienteTelefone?: string
@@ -3883,6 +3884,7 @@ export default function ProductionLV() {
                         printFornecedorPDF(allOrders)
                         setBoard(prev => {
                           const existingIds = new Set(prev['Aguardando Chegada'].map(o => o.id))
+                          const ids = new Set(allOrders.map(o => o.id))
                           const toAdd = allOrders.filter(o => !existingIds.has(o.id)).map(o => ({ ...o, status: 'OK' as const }))
                           return {
                             ...prev,
