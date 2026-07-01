@@ -3368,10 +3368,10 @@ export default function ProductionLV() {
           const now = new Date()
           const order: LVOrder = {
             id: `mzlv-${mz.id}`,
-            cliente: mz.cliente?.nome ?? 'Cliente Magazord',
-            clienteEmail: mz.cliente?.email,
-            clienteTelefone: mz.cliente?.telefone,
-            produto: firstItem?.nome ?? 'Produto Magazord',
+            cliente: mz.cliente?.nome || mz.destinatario?.nome || mz.clienteNome || 'Cliente Magazord',
+            clienteEmail: mz.cliente?.email || mz.clienteEmail,
+            clienteTelefone: mz.cliente?.telefone || mz.clienteTelefone,
+            produto: firstItem?.nome || firstItem?.produtoNome || mz.arrayPedidoItem?.[0]?.nome || mz.arrayPedidoItem?.[0]?.produtoNome || 'Produto Magazord',
             sku: mzKey,
             desenho: corFormatted,
             canal: mz.canal ?? 'Magazord',
