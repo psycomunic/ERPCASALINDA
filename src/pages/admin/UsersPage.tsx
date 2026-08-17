@@ -83,33 +83,36 @@ function InviteModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
     if (form.password.length < 6) { setError('A senha deve ter pelo menos 6 caracteres.'); return }
     setSaving(true); setError('')
 
-    // Create user via admin API (requires service role key — use Supabase admin endpoint)
-    // As a workaround we use signUp + immediate profile insert
-    const { data, error: signUpErr } = await supabase.auth.signUp({
-      email: form.email.trim().toLowerCase(),
-      password: form.password,
-      options: {
-        data: { nome: form.nome.trim(), role: form.role },
-        emailRedirectTo: window.location.origin,
-      }
-    })
+    // Cadastro pela API admin (service role): cria a conta JÁ confirmada e grava o perfil.
+    // signUp não serve aqui — depende do e-mail de confirmação e deixa o usuário sem perfil.
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sessão expirada. Por favor, faça login novamente.')
 
-    if (signUpErr) { setError(signUpErr.message); setSaving(false); return }
-
-    // Upsert the profile with the correct role
-    if (data.user) {
-      await supabase.from('user_profiles' as any).upsert({
-        id: data.user.id,
-        email: form.email.trim().toLowerCase(),
-        nome: form.nome.trim(),
-        role: form.role,
-        ativo: true,
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          email: form.email.trim().toLowerCase(),
+          nome: form.nome.trim(),
+          role: form.role,
+          password: form.password,
+        })
       })
-    }
 
-    setSaving(false)
-    onSaved()
-    onClose()
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro ao cadastrar o usuário.')
+
+      onSaved()
+      onClose()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
