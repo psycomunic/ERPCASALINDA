@@ -17,7 +17,82 @@ import BrazilMap from '../../components/BrazilMap'
 import type { FreightOrderData } from '../../magazord'
 
 const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const PERIODOS = ['Hoje', 'Últimos 7 Dias', 'Últimos 30 Dias', 'Este Mês', 'Trimestre', 'Ano', 'Personalizado']
+// Períodos agrupados no menu — o rótulo é a chave usada em getPeriodoRange()
+const PERIODO_GRUPOS: { grupo: string; opcoes: string[] }[] = [
+  { grupo: 'Rápido',  opcoes: ['Hoje', 'Ontem'] },
+  { grupo: 'Dias',    opcoes: ['Últimos 7 Dias', 'Últimos 15 Dias', 'Últimos 30 Dias', 'Últimos 90 Dias'] },
+  { grupo: 'Semanas', opcoes: ['Esta Semana', 'Semana Passada'] },
+  { grupo: 'Meses',   opcoes: ['Este Mês', 'Mês Passado', 'Trimestre'] },
+  { grupo: 'Anos',    opcoes: ['Este Ano', 'Ano Passado'] },
+  { grupo: '',        opcoes: ['Personalizado'] },
+]
+
+/**
+ * Início e fim (inclusivos) de cada período.
+ * Os "Últimos N Dias" contam dias de calendário incluindo hoje — mesma
+ * convenção do dashboard da Casa Linda.
+ */
+function getPeriodoRange(periodo: string, customStart: string, customEnd: string): { start: Date; end: Date } {
+  const now = new Date()
+  const start = new Date(now); start.setHours(0, 0, 0, 0)
+  const end   = new Date(now); end.setHours(23, 59, 59, 999)
+  const ultimosDias = (n: number) => start.setDate(start.getDate() - (n - 1))
+
+  switch (periodo) {
+    case 'Hoje':
+      break
+    case 'Ontem':
+      start.setDate(start.getDate() - 1)
+      end.setDate(end.getDate() - 1)
+      break
+    case 'Últimos 7 Dias':  ultimosDias(7);  break
+    case 'Últimos 15 Dias': ultimosDias(15); break
+    case 'Últimos 30 Dias': ultimosDias(30); break
+    case 'Últimos 90 Dias': ultimosDias(90); break
+    case 'Esta Semana':
+      start.setDate(start.getDate() - start.getDay()) // volta ao domingo
+      break
+    case 'Semana Passada':
+      start.setDate(start.getDate() - start.getDay() - 7)
+      end.setTime(start.getTime())
+      end.setDate(end.getDate() + 6)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'Este Mês':
+      start.setDate(1)
+      break
+    case 'Mês Passado':
+      start.setMonth(start.getMonth() - 1, 1)
+      end.setDate(0) // dia 0 do mês atual = último dia do mês anterior
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'Trimestre':
+      start.setMonth(start.getMonth() - 2, 1)
+      break
+    case 'Este Ano':
+      start.setMonth(0, 1)
+      break
+    case 'Ano Passado':
+      start.setFullYear(start.getFullYear() - 1, 0, 1)
+      end.setFullYear(end.getFullYear() - 1, 11, 31)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'Personalizado':
+      if (customStart && customEnd) {
+        return { start: new Date(customStart + 'T00:00:00'), end: new Date(customEnd + 'T23:59:59') }
+      }
+      start.setDate(1) // enquanto as datas não forem escolhidas, se comporta como Este Mês
+      break
+  }
+  return { start, end }
+}
+
+/** Quantos dias de histórico a Magazord precisa devolver para cobrir o período. */
+function diasNecessarios(periodo: string, customStart: string): number {
+  const { start } = getPeriodoRange(periodo, customStart, customStart ? customStart : '')
+  const dias = Math.ceil((Date.now() - start.getTime()) / 86400000) + 1
+  return Math.max(90, dias)
+}
 
 // ─── Analytics Helpers ────────────────────────────────────────────────────────
 
@@ -44,10 +119,28 @@ const STATE_NAMES: Record<string, string> = {
   SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins'
 }
 
+/**
+ * Cache em memória do painel LV.
+ * Vive fora do componente, então sobrevive a sair e voltar da tela — sem ele
+ * o dashboard remontava zerado e refazia a busca inteira na Magazord.
+ * É descartado no F5/refresh da página.
+ */
+const CACHE_TTL = 5 * 60 * 1000
+const lvCache: {
+  mzOrders: FreightOrderData[]
+  enriched: boolean
+  pedidos: any[]
+  catalogo: any[]
+  ts: number
+  loadedDays: number
+} = { mzOrders: [], enriched: false, pedidos: [], catalogo: [], ts: 0, loadedDays: 0 }
+
 export default function DashboardLV() {
   const navigate = useNavigate()
   const [periodo, setPeriodo] = useState('Este Mês')
   const [showPeriodo, setShowPeriodo] = useState(false)
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
 
   // Data states
   const [pedidosAtrasados, setPedidosAtrasados] = useState(0)
@@ -71,10 +164,7 @@ export default function DashboardLV() {
   const [catalogo, setCatalogo] = useState<any[]>([])
 
   useEffect(() => {
-    // 0. Carrega catalogo
-    fetchCatalogoTapetes().then(setCatalogo).catch(() => {})
-    // 1. Carrega dados do Kanban (Produção local)
-    fetchPedidosLV().then(pedidos => {
+    const aplicarPedidos = (pedidos: any[]) => {
       let atrasados = 0, andamento = 0
 
       for (const p of pedidos) {
@@ -87,12 +177,38 @@ export default function DashboardLV() {
       setPedidosAndamento(andamento)
       setCapacidade(Math.min(Math.round((andamento / 30) * 100), 100))
       setAllOrdersDB(pedidos)
+    }
+
+    // Pinta na hora o que já está em cache — é isto que evita o painel
+    // voltar zerado toda vez que se sai e volta da tela.
+    if (lvCache.catalogo.length) setCatalogo(lvCache.catalogo)
+    if (lvCache.pedidos.length) aplicarPedidos(lvCache.pedidos)
+    if (lvCache.mzOrders.length) { setMzOrders(lvCache.mzOrders); setLoadingMz(false) }
+
+    // Cache ainda quente: não refaz nada.
+    if (lvCache.mzOrders.length && Date.now() - lvCache.ts < CACHE_TTL) return
+
+    // 0. Carrega catalogo
+    fetchCatalogoTapetes().then(c => { lvCache.catalogo = c; setCatalogo(c) }).catch(() => {})
+    // 1. Carrega dados do Kanban (Produção local)
+    fetchPedidosLV().then(pedidos => {
+      lvCache.pedidos = pedidos
+      aplicarPedidos(pedidos)
     }).catch(() => {})
 
-    // 2. Carrega dados do Magazord para os gráficos
-    fetchOrdersForKPIsLV(90).then(orders => {
+    // 2. Carrega dados do Magazord para os gráficos.
+    // A janela já sai do tamanho do período selecionado — assim o efeito
+    // adaptativo abaixo não dispara uma segunda busca junto com esta.
+    const dias = diasNecessarios(periodo, customStart)
+    lvCache.loadedDays = Math.max(lvCache.loadedDays, dias)
+    fetchOrdersForKPIsLV(dias).then(orders => {
+      lvCache.mzOrders = orders
+      lvCache.ts = Date.now()
       setMzOrders(orders)
       setLoadingMz(false)
+
+      // O enriquecimento é a parte cara — roda uma vez por sessão.
+      if (lvCache.enriched) return
 
       const needsEnrich = orders.filter(o => o.transportadora === 'Sem transportadora' || o.frete === 0 || !o.fullyEnriched || !o.uf)
       if (needsEnrich.length > 0) {
@@ -101,40 +217,57 @@ export default function DashboardLV() {
         enrichOrdersWithCarriersLV(orders, (enriched) => {
           done += 12
           setEnrichProgress(Math.min(100, Math.round((done / needsEnrich.length) * 100)))
+          lvCache.mzOrders = enriched
           setMzOrders(enriched)
         }).then((finalEnriched) => {
+          if (finalEnriched) lvCache.mzOrders = finalEnriched
+          lvCache.enriched = true
           setEnriching(false)
           setEnrichProgress(100)
         }).catch(() => setEnriching(false))
+      } else {
+        lvCache.enriched = true
       }
-    })
+    }).catch(() => setLoadingMz(false))
   }, [])
+
+  // Busca mais histórico quando o período escolhido passa da janela já carregada.
+  // Sem isto, "Ano Passado" viria vazio e "Este Ano" incompleto: o painel só
+  // carrega 90 dias na abertura, justamente para não ficar lento.
+  useEffect(() => {
+    const precisa = diasNecessarios(periodo, customStart)
+    if (precisa <= lvCache.loadedDays) return
+
+    setLoadingMz(true)
+    fetchOrdersForKPIsLV(precisa).then(orders => {
+      // Reaproveita o que já foi enriquecido (transportadora, frete, UF) para
+      // os pedidos que também estavam na janela anterior — senão o mapa e as
+      // métricas de frete regrediriam ao ampliar o período.
+      const jaEnriquecidos = new Map(lvCache.mzOrders.filter(o => o.fullyEnriched).map(o => [o.codigo, o]))
+      const merged = orders.map(o => jaEnriquecidos.get(o.codigo) ?? o)
+
+      lvCache.mzOrders = merged
+      lvCache.loadedDays = precisa
+      lvCache.ts = Date.now()
+      setMzOrders(merged)
+      setLoadingMz(false)
+    }).catch(() => setLoadingMz(false))
+  }, [periodo, customStart, customEnd])
 
   // ─── Process Analytics ────────────────────────────────────────────────────────
   
   // Filter mzOrders based on periodo
-  const now = new Date()
-  let filteredOrders = mzOrders
+  const { start: periodoStart, end: periodoEnd } = getPeriodoRange(periodo, customStart, customEnd)
+  const filteredOrders = mzOrders.filter(o => {
+    const d = new Date(o.data)
+    return d >= periodoStart && d <= periodoEnd
+  })
 
-  if (periodo === 'Hoje') {
-    filteredOrders = mzOrders.filter(o => new Date(o.data).toDateString() === now.toDateString())
-  } else if (periodo === 'Últimos 7 Dias') {
-    const d = new Date(); d.setDate(d.getDate() - 7)
-    filteredOrders = mzOrders.filter(o => new Date(o.data) >= d)
-  } else if (periodo === 'Últimos 30 Dias') {
-    const d = new Date(); d.setDate(d.getDate() - 30)
-    filteredOrders = mzOrders.filter(o => new Date(o.data) >= d)
-  } else if (periodo === 'Este Mês') {
-    filteredOrders = mzOrders.filter(o => {
-      const d = new Date(o.data)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    })
-  } else if (periodo === 'Trimestre') {
-    const d = new Date(); d.setMonth(d.getMonth() - 3)
-    filteredOrders = mzOrders.filter(o => new Date(o.data) >= d)
-  } else if (periodo === 'Ano') {
-    filteredOrders = mzOrders.filter(o => new Date(o.data).getFullYear() === now.getFullYear())
-  }
+  // Rótulo curto — no Personalizado mostra as datas em vez da palavra
+  const ddmm = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const periodoLabel = periodo === 'Personalizado' && customStart && customEnd
+    ? `${ddmm(periodoStart)} a ${ddmm(periodoEnd)}`
+    : periodo
 
   // Calculate KPIs
   let fatMz = 0
@@ -281,20 +414,38 @@ export default function DashboardLV() {
         <div className="flex flex-wrap gap-2 relative">
           <div className="relative">
             <button onClick={() => setShowPeriodo(v => !v)} className="btn-secondary">
-              <Clock size={14} /> {periodo} <ChevronDown size={12} />
+              <Clock size={14} /> {periodoLabel} <ChevronDown size={12} />
             </button>
             {showPeriodo && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-max overflow-hidden">
-                {PERIODOS.map(p => (
-                  <button key={p} onClick={() => { setPeriodo(p); setShowPeriodo(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-amber-50 ${periodo === p ? 'font-semibold' : 'text-gray-700'}`}
-                    style={periodo === p ? { color: '#b45309' } : {}}>
-                    {p}
-                  </button>
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-max max-h-[70vh] overflow-y-auto p-1">
+                {PERIODO_GRUPOS.map(({ grupo, opcoes }, gi) => (
+                  <div key={grupo || gi} className={gi > 0 ? 'border-t border-gray-100 mt-1 pt-1' : ''}>
+                    {grupo && (
+                      <p className="px-3 pt-1 pb-0.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{grupo}</p>
+                    )}
+                    {opcoes.map(p => (
+                      <button key={p} onClick={() => { setPeriodo(p); setShowPeriodo(false) }}
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${periodo === p ? 'bg-amber-50 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                        style={periodo === p ? { color: '#b45309' } : {}}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}
           </div>
+          {periodo === 'Personalizado' && (
+            <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-1.5 rounded-lg shadow-sm">
+              <input type="date" value={customStart} max={customEnd || undefined}
+                onChange={e => setCustomStart(e.target.value)}
+                className="text-[13px] bg-transparent outline-none text-gray-700 font-medium" />
+              <span className="text-gray-400 text-xs">até</span>
+              <input type="date" value={customEnd} min={customStart || undefined}
+                onChange={e => setCustomEnd(e.target.value)}
+                className="text-[13px] bg-transparent outline-none text-gray-700 font-medium" />
+            </div>
+          )}
           <button className="btn-secondary" onClick={handleExportar}>
             <Download size={14} /> Exportar
           </button>
@@ -315,9 +466,9 @@ export default function DashboardLV() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: `FATURAMENTO (${periodo.toUpperCase()})`,   value: fmt(fatMz),              tag: 'Magazord',    tagColor: 'text-amber-700 bg-amber-100',   icon: TrendingUp,    iconBg: '#fef3c7', iconColor: '#d97706',  onClick: () => navigate('/lar-e-vida/financial') },
-          { label: `PEDIDOS (${periodo.toUpperCase()})`,       value: String(totalMzCount),    tag: 'Magazord',    tagColor: 'text-stone-700 bg-stone-100',   icon: ShoppingCart,  iconBg: '#f5f5f4', iconColor: '#78716c',  onClick: () => navigate('/lar-e-vida/production') },
-          { label: `TICKET MÉDIO (${periodo.toUpperCase()})`,  value: fmt(currentTicketMedio), tag: 'Magazord',    tagColor: 'text-orange-700 bg-orange-100', icon: TrendingUp,    iconBg: '#ffedd5', iconColor: '#ea580c',  onClick: () => navigate('/lar-e-vida/financial') },
+          { label: `FATURAMENTO (${periodoLabel.toUpperCase()})`,   value: fmt(fatMz),              tag: 'Magazord',    tagColor: 'text-amber-700 bg-amber-100',   icon: TrendingUp,    iconBg: '#fef3c7', iconColor: '#d97706',  onClick: () => navigate('/lar-e-vida/financial') },
+          { label: `PEDIDOS (${periodoLabel.toUpperCase()})`,       value: String(totalMzCount),    tag: 'Magazord',    tagColor: 'text-stone-700 bg-stone-100',   icon: ShoppingCart,  iconBg: '#f5f5f4', iconColor: '#78716c',  onClick: () => navigate('/lar-e-vida/production') },
+          { label: `TICKET MÉDIO (${periodoLabel.toUpperCase()})`,  value: fmt(currentTicketMedio), tag: 'Magazord',    tagColor: 'text-orange-700 bg-orange-100', icon: TrendingUp,    iconBg: '#ffedd5', iconColor: '#ea580c',  onClick: () => navigate('/lar-e-vida/financial') },
           { label: 'PEDIDOS ATRASADOS',   value: String(pedidosAtrasados),tag: pedidosAtrasados > 0 ? 'PCP' : 'PCP OK', tagColor: pedidosAtrasados > 0 ? 'text-red-700 bg-red-100' : 'text-green-700 bg-green-100', icon: AlertTriangle, iconBg: pedidosAtrasados > 0 ? '#fee2e2' : '#dcfce7', iconColor: pedidosAtrasados > 0 ? '#dc2626' : '#16a34a', onClick: () => navigate('/lar-e-vida/production') },
         ].map((k, i) => (
           <motion.div

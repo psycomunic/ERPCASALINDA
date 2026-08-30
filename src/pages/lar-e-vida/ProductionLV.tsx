@@ -3403,12 +3403,10 @@ export default function ProductionLV() {
     }
   }, [])
 
-  // Sync on mount + every 5 min
-  useEffect(() => {
-    syncMagazordLV()
-    const interval = setInterval(syncMagazordLV, 5 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [syncMagazordLV])
+  // Sincronização com a Magazord é MANUAL, pelo botão "Magazord LV" do topo.
+  // Antes rodava sozinha a cada montagem e a cada 5 min, o que reenchia a
+  // coluna "Novos Pedidos" de cards virtuais (mzlv-*) toda vez que se saía e
+  // voltava da tela. O board agora mostra só os pedidos realmente cadastrados.
 
   // ── New order ──
   const handleNewOrder = async (data: Omit<LVOrder, 'id' | 'data' | 'hora' | 'status'>): Promise<boolean> => {
