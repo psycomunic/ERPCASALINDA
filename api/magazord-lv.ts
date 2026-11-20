@@ -1,81 +1,134 @@
 /**
- * api/magazord-lv.ts
+ * api/magazord-lv.ts — proxy seguro para a API Magazord da Lar e Vida.
  *
- * Vercel Serverless Function — proxy seguro para a API Magazord da loja Lar e Vida.
- * As credenciais ficam 100% server-side (variáveis de ambiente da Vercel).
+ * Credenciais SOMENTE nas variáveis de ambiente da Vercel (nunca no código):
+ *   MAGAZORD_LV_USER      token da API (usuário WebService da Magazord)
+ *   MAGAZORD_LV_PASS      senha da API
+ *   MAGAZORD_LV_BASE_URL  (opcional) padrão https://larevida.painel.magazord.com.br
  *
- * Variáveis necessárias no painel da Vercel:
- *   MAGAZORD_LV_BASE_URL  https://larevida.painel.magazord.com.br  (ajustar URL)
- *   MAGAZORD_LV_USER      usuario-api-da-magazord
- *   MAGAZORD_LV_PASS      senha-api-da-magazord
+ * Exige usuário logado e ativo no ERP e só libera as operações que o ERP usa.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Configurar CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true')
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT')
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+// URL e chave "anon" do Supabase são públicas por natureza (já vão no front-end).
+const SUPABASE_URL = 'https://tyjdetvuzqpjzhdmdzxo.supabase.co'
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5amRldHZ1enFwanpoZG1kenhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjIxMTgsImV4cCI6MjA5MTU5ODExOH0.96OUu75ky42zh5jKV9bi5mThcVw3p4PSCoDmm6WCTTg'
+
+// Operações permitidas na API Magazord (caminho sem a barra inicial, ex.: "v2/site/pedido")
+const ALLOWED: Array<{ method: string; path: RegExp }> = [
+  { method: 'GET', path: /^v2\/site\/pedido$/ },
+  { method: 'GET', path: /^v2\/site\/pedido\/[\w.-]+$/ },
+  { method: 'GET', path: /^v2\/site\/produto$/ },
+  { method: 'GET', path: /^v2\/pedido$/ },                          // teste de conexão
+  { method: 'PUT', path: /^v2\/(site\/)?pedido\/[\w.-]+\/situacao$/ }, // mover situação do pedido
+]
+
+// Campos aceitos no corpo da troca de situação
+const SITUACAO_FIELDS = ['situacao', 'codigoRastreio', 'transportadora']
+
+type ProxyConfig = {
+  label: string
+  user?: string
+  pass?: string
+  baseUrl: string
+}
+
+async function requireActiveUser(req: VercelRequest): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const auth = req.headers.authorization
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return { ok: false, status: 401, error: 'Faça login no ERP para acessar a Magazord.' }
+  }
+  const token = auth.slice('Bearer '.length).trim()
+
+  const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+  })
+  if (!userRes.ok) return { ok: false, status: 401, error: 'Sessão inválida ou expirada.' }
+  const user = (await userRes.json()) as { id?: string }
+  if (!user?.id) return { ok: false, status: 401, error: 'Sessão inválida.' }
+
+  const profRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=ativo`,
+    { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
   )
+  const rows = profRes.ok ? ((await profRes.json()) as Array<{ ativo: boolean | null }>) : []
+  if (!rows[0] || rows[0].ativo === false) {
+    return { ok: false, status: 403, error: 'Usuário sem acesso ao ERP.' }
+  }
+  return { ok: true }
+}
 
+async function handleMagazordProxy(req: VercelRequest, res: VercelResponse, cfg: ProxyConfig) {
   if (req.method === 'OPTIONS') {
-    res.status(200).end()
+    res.status(204).end()
     return
   }
 
-  // ── Credenciais da Lar e Vida ────────────────────────────────────────────────
-  // Usar env vars da Vercel se existirem; fallback fixado para credenciais da LV
-  const user    = process.env.MAGAZORD_LV_USER    || 'MZDKfa05c6fac5df376e7a4c373bbcf5fccde76197984b68baf91344f5c380c9'
-  const pass    = process.env.MAGAZORD_LV_PASS    || '@Up31Kizl%cP'
-  const baseUrl = process.env.MAGAZORD_LV_BASE_URL || 'https://larevida.painel.magazord.com.br'
-
-  if (!user || !pass) {
-    res.status(503).json({ error: 'Credenciais Magazord LV não configuradas.' })
+  // 1. Usuário logado e ativo
+  const check = await requireActiveUser(req).catch(() => ({ ok: false as const, status: 401, error: 'Falha ao validar sessão.' }))
+  if (!check.ok) {
+    res.status(check.status).json({ error: check.error })
     return
   }
 
+  // 2. Credenciais configuradas na Vercel
+  if (!cfg.user || !cfg.pass) {
+    res.status(503).json({ error: `Credenciais Magazord (${cfg.label}) não configuradas na Vercel.` })
+    return
+  }
 
-  // Extrair o path original via query `origPath`
-  const apiPath = req.query['origPath'] || ''
+  // 3. Operação permitida
+  const rawPath = req.query['origPath']
+  const apiPath = (Array.isArray(rawPath) ? rawPath.join('/') : String(rawPath ?? '')).replace(/^\/+/, '')
+  const method = (req.method ?? 'GET').toUpperCase()
+  if (apiPath.includes('..') || !ALLOWED.some(r => r.method === method && r.path.test(apiPath))) {
+    res.status(403).json({ error: 'Operação não permitida pelo ERP.' })
+    return
+  }
 
-  // Forward all query params except the internal 'origPath' param
-  const { origPath: _p, ...restQuery } = req.query
+  const { origPath: _ignored, ...restQuery } = req.query
   const qs = new URLSearchParams(
     Object.entries(restQuery).flatMap(([k, v]) =>
-      Array.isArray(v) ? v.map(val => [k, val]) : [[k, String(v)]]
-    )
+      Array.isArray(v) ? v.map(val => [k, val]) : [[k, String(v)]],
+    ),
   ).toString()
+  const targetUrl = `${cfg.baseUrl}/api/${apiPath}${qs ? '?' + qs : ''}`
 
-  const targetUrl = `${baseUrl}/api/${apiPath}${qs ? '?' + qs : ''}`
+  let body: string | undefined
+  if (method === 'PUT') {
+    const src = (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {}) as Record<string, unknown>
+    body = JSON.stringify(Object.fromEntries(Object.entries(src).filter(([k]) => SITUACAO_FIELDS.includes(k))))
+  }
 
-  // ── Forward request ──────────────────────────────────────────────────────────
-  const basicAuth = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64')
+  const basicAuth = 'Basic ' + Buffer.from(`${cfg.user}:${cfg.pass}`).toString('base64')
 
   try {
     const upstream = await fetch(targetUrl, {
-      method:  req.method ?? 'GET',
+      method,
       headers: {
         Authorization: basicAuth,
-        Accept:        'application/json',
+        Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      ...(req.method !== 'GET' && req.method !== 'HEAD' && req.body
-        ? { body: JSON.stringify(req.body) }
-        : {}),
+      ...(body !== undefined ? { body } : {}),
     })
-
     const contentType = upstream.headers.get('Content-Type') ?? 'application/json'
     const text = await upstream.text()
-
     res.setHeader('Content-Type', contentType)
-    res.setHeader('Access-Control-Allow-Origin', '*')
     res.status(upstream.status).send(text)
   } catch (err) {
-    console.error('[magazord-lv-proxy] upstream fetch failed:', err)
-    res.status(502).json({ error: 'Magazord Lar e Vida API unreachable.', detail: String(err) })
+    console.error(`[magazord-proxy ${cfg.label}] upstream fetch failed:`, err)
+    res.status(502).json({ error: `Magazord (${cfg.label}) indisponível.` })
   }
+}
+
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  return handleMagazordProxy(req, res, {
+    label: 'Lar e Vida',
+    user: process.env.MAGAZORD_LV_USER,
+    pass: process.env.MAGAZORD_LV_PASS,
+    baseUrl: process.env.MAGAZORD_LV_BASE_URL || 'https://larevida.painel.magazord.com.br',
+  })
 }
