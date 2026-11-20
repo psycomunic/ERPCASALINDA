@@ -20,6 +20,7 @@ export type {
 } from './magazord'
 
 import type { MagazordOrder, MagazordOrdersResponse, FreightOrderData } from './magazord'
+import { supabase } from './lib/supabase'
 
 const _enrichDB: Record<string, Partial<FreightOrderData>> = (() => {
   try { return JSON.parse(localStorage.getItem('erp_lv_freight_enrich_db') || '{}') } catch { return {} }
@@ -115,6 +116,13 @@ export function lvSituacaoToKanbanCol(situacao: number): string {
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
+// ─── Token de login do ERP (o proxy /api/magazord* exige usuário logado) ──────
+async function authHeader(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function lvFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${LV_PROXY_BASE}${path}`
   const res = await fetch(url, {
@@ -122,6 +130,7 @@ async function lvFetch<T>(path: string, options?: RequestInit): Promise<T> {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      ...(await authHeader()),
       ...(options?.headers ?? {}),
     },
   })

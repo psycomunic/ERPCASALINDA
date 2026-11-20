@@ -14,6 +14,8 @@
  * browser — usar um Edge Function / backend como intermediário.
  */
 
+import { supabase } from './lib/supabase'
+
 // ─── Env vars ──────────────────────────────────────────────────────────────────
 
 const MAGAZORD_USER = import.meta.env.VITE_MAGAZORD_USER as string | undefined
@@ -186,6 +188,13 @@ export const MOCK_MAGAZORD_ORDERS: MagazordOrder[] = [
 
 // ─── Internal fetch helper ─────────────────────────────────────────────────────
 
+// ─── Token de login do ERP (o proxy /api/magazord* exige usuário logado) ──────
+async function authHeader(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function mzFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${PROXY_BASE}${path}`
   const res = await fetch(url, {
@@ -193,6 +202,7 @@ async function mzFetch<T>(path: string, options?: RequestInit): Promise<T> {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      ...(await authHeader()),
       ...(options?.headers ?? {}),
     },
   })
