@@ -133,8 +133,7 @@ export async function despacharPedidoLV(
 
 // ─── Upload de imagem (Supabase Storage) ─────────────────────────────────────
 //
-// PRÉ-REQUISITO: criar o bucket "produtos" no Supabase Dashboard
-//   Storage → New Bucket → Name: produtos → Public bucket: ON → Save
+// Bucket "produtos" (público para leitura, upload só por usuário logado).
 //
 export async function uploadFotoLV(file: File | Blob): Promise<string | null> {
   if (!isSupabaseConfigured()) return null
@@ -156,8 +155,7 @@ export async function uploadFotoLV(file: File | Blob): Promise<string | null> {
 
 // ─── Upload de Confirmação do Fornecedor ──────────────────────────────────────
 //
-// PRÉ-REQUISITO: criar bucket "confirmacoes-fornecedor" no Supabase Dashboard
-//   Storage → New Bucket → Name: confirmacoes-fornecedor → Public: ON → Save
+// Bucket "confirmacoes-fornecedor" (público para leitura, upload só por usuário logado).
 //
 export async function uploadConfirmacaoFornecedor(file: File | Blob): Promise<string | null> {
   if (!isSupabaseConfigured()) return null
@@ -259,16 +257,21 @@ export function subscribePedidosLV(callback: (pedidos: Pedido[]) => void) {
   let timeout: NodeJS.Timeout
   const channel = supabase
     .channel('pedidos-lv-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-      clearTimeout(timeout)
-      // Debounce de 1500ms: garante que o movePedidoLVEtapa já concluiu
-      // antes de o realtime sobrescrever o board com o estado do banco.
-      timeout = setTimeout(async () => {
-        const pedidos = await fetchPedidosLV()
-        callback(pedidos)
-      }, 1500)
-    })
+    // Só reage a pedidos da Lar e Vida (antes qualquer pedido da Casa Linda recarregava a lista LV inteira)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: 'store_id=eq.lar-e-vida' }, () => reload())
+    // Exclusões não aceitam filtro no Realtime: escuta à parte
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pedidos' }, () => reload())
     .subscribe()
+
+  function reload() {
+    clearTimeout(timeout)
+    // Debounce de 1500ms: garante que o movePedidoLVEtapa já concluiu
+    // antes de o realtime sobrescrever o board com o estado do banco.
+    timeout = setTimeout(async () => {
+      const pedidos = await fetchPedidosLV()
+      callback(pedidos)
+    }, 1500)
+  }
 
   return {
     unsubscribe: () => {

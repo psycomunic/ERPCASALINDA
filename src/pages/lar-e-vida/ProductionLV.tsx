@@ -194,12 +194,10 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
     setUploading(true)
     const url = await uploadFotoLV(file)
     setUploading(false)
-    if (url) { setPreview(''); onChange(url) }
-    else {
-      const r2 = new FileReader()
-      r2.onload = e2 => { onChange(e2.target?.result as string); setPreview('') }
-      r2.readAsDataURL(file)
-    }
+    setPreview('')
+    if (url) onChange(url)
+    else alert('Não foi possível enviar a foto. Verifique a internet e tente de novo.')
+    // Nunca gravar a imagem (base64) dentro do pedido: isso deixava o banco lento e chegou a travá-lo.
   }, [onChange])
 
   const handlePaste = useCallback((e: ClipboardEvent) => {
@@ -209,7 +207,7 @@ function PhotoZone({ value, onChange }: { value: string; onChange: (url: string)
       if (item.type.startsWith('image/')) { const f = item.getAsFile(); if (f) { handleFileUpload(f); return } }
     }
     const text = e.clipboardData?.getData('text')
-    if (text && (text.startsWith('http') || text.startsWith('data:'))) onChange(text)
+    if (text && text.startsWith('http')) onChange(text)
   }, [handleFileUpload, onChange])
 
   useEffect(() => {
@@ -288,12 +286,8 @@ function ConfirmacaoZone({ value, onChange }: { value: string; onChange: (url: s
     const url = await uploadConfirmacaoFornecedor(file)
     setUploading(false)
     if (url) onChange(url)
-    else {
-      // fallback: base64
-      const r = new FileReader()
-      r.onload = e => onChange(e.target?.result as string)
-      r.readAsDataURL(file)
-    }
+    else alert('Não foi possível enviar o arquivo. Verifique a internet e tente de novo.')
+    // Sem fallback base64: arquivos ficam só no Storage, o pedido guarda apenas o link.
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
